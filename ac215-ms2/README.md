@@ -8,63 +8,36 @@ A minimal, reproducible RAG pipeline:
 ---
 
 ## Project layout
-
+```
 ac215-ms2/
-
 ├─ data/ # ← Put your source docs here (.pdf, .txt, .md)
-
 ├─ artifacts/
-
 │ ├─ sanitized/ # ← Sanitized text snapshots (per page/file)
-
 │ ├─ ingest_summary.json # run metadata
-
 │ ├─ metadata.json # model/chunk settings summary
-
 │ └─ retrieval_sample.json # sample retrieval at ingest time
-
 ├─ volumes/
-
 │ └─ chroma/ # ← Persisted Chroma DB (vectors + metadata)
-
 ├─ services/
-
 │ ├─ ingest/
-
 │ │ ├─ Dockerfile
-
 │ │ ├─ pyproject.toml
-
 │ │ └─ src/
-
 │ │ ├─ build_index.py # entrypoint: runs full ingestion pipeline
-
 │ │ ├─ load_docs.py # loaders & sanitization (removes \n)
-
 │ │ ├─ split_chunk.py # chunking
-
 │ │ └─ settings.py # ingest config
-
 │ └─ api/
-
 │ ├─ Dockerfile
-
 │ ├─ pyproject.toml
-
 │ └─ src/
-
 │ ├─ server.py # FastAPI app (/health, /query)
-
 │ ├─ retriever.py # Chroma client + embedding for queries
-
 │ └─ settings.py # api config
-
 ├─ docker-compose.yml
-
 ├─ .env # runtime configuration (copied from .env.example)
-
 └─ README.md
-
+```
 
 ---
 
