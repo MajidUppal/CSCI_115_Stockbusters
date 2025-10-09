@@ -1,0 +1,98 @@
+﻿import re
+import os, re, glob
+from typing import List, Tuple
+
+SANITIZED_DIR = os.getenv("ARTIFACTS_DIR", "/app/artifacts") + "/sanitized"
+os.makedirs(SANITIZED_DIR, exist_ok=True)
+
+BOM = "\ufeff"
+WS_RE = re.compile(r"[ \t]+")
+
+def _clean_text(txt: str) -> str:
+    if not txt:
+        return ""
+    txt = txt.replace(BOM, "")
+    # normalize weird unicode quotes/dashes if needed
+    txt = txt.replace("\u2013", "-").replace("\u2014", "-")
+    txt = txt.replace("\u2018", "'").replace("\u2019", "'")
+    txt = txt.replace("\u201c", '"').replace("\u201d", '"')
+    # collapse whitespace but preserve newlines
+    txt = "\n".join(WS_RE.sub(" ", line).strip() for line in txt.splitlines())
+    return txt.strip()
+
+def _save_sanitized(path_stub: str, text: str):
+    out = os.path.join(SANITIZED_DIR, path_stub)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(text)
+
+def load_txt_md(path: str) -> List[Tuple[str, str]]:
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        raw = f.read()
+    txt = _clean_text(raw)
+    # save a sanitized copy (single file)
+    rel = os.path.basename(path)
+    _save_sanitized(rel + ".san.txt", txt)
+    return [(path, txt)]
+
+def load_pdf(path: str) -> List[Tuple[str, str]]:
+    import fitz  # PyMuPDF
+    doc = fitz.open(path)
+    items: List[Tuple[str, str]] = []
+    for i, page in enumerate(doc, start=1):
+        txt = page.get_text("text")
+        txt = _clean_text(txt)
+        if not txt:
+            continue
+        # source encodes page for traceability
+        source_with_page = f"{path}#page={i}"
+        # also save a sanitized per-page text for inspection/BM25
+        rel_file = os.path.basename(path)
+        _save_sanitized(f"{rel_file}.page_{i:04}.txt", txt)
+        items.append((source_with_page, txt))
+    return items
+
+def load_all(data_dir: str) -> List[Tuple[str, str]]:
+    paths = glob.glob(os.path.join(data_dir, "**", "*"), recursive=True)
+    out: List[Tuple[str, str]] = []
+    for p in sorted(paths):
+        if not os.path.isfile(p):
+            continue
+        ext = os.path.splitext(p)[1].lower()
+        try:
+            if ext in [".txt", ".md"]:
+                out.extend(load_txt_md(p))
+            elif ext == ".pdf":
+                out.extend(load_pdf(p))
+        except Exception as e:
+            print(f"[WARN] failed to read {p}: {e}")
+    return out
+
+# --- MS2 insert: text normalization helpers ---
+def clean_text(text: str) -> str:
+    """
+    Normalize PDF text before chunking:
+      - Collapse 2+ newlines to a single blank line
+      - Replace single newlines (mid-paragraph) with a space
+      - Collapse extra spaces / tabs
+      - Strip BOM and outer whitespace
+    """
+    text = re.sub(r"\n{2,}", "\n\n", text)
+    text = re.sub(r"(?<!\n)\n(?!\n)", " ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = text.replace("\ufeff", "").strip()
+    return text
+
+# Wrap the existing load_and_clean_docs to post-process all texts
+try:
+    _orig_load_and_clean_docs = load_and_clean_docs  # type: ignore[name-defined]
+    def load_and_clean_docs(*args, **kwargs):  # type: ignore[no-redef]
+        recs = _orig_load_and_clean_docs(*args, **kwargs)
+        try:
+            return [(src, clean_text(txt)) for (src, txt) in recs]
+        except Exception:
+            return recs
+except NameError:
+    # If the original isn't defined at import time, ignore; the ingest entrypoint imports this file and executes defs
+    pass
+# --- end MS2 insert ---

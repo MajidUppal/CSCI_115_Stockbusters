@@ -1,0 +1,20 @@
+﻿services:
+  ingest:
+    build: ./services/ingest
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - ./volumes/chroma:/chroma
+    command: ["python","-m","src.build_index"]
+    restart: "no"
+
+  api:
+    build: ./services/api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./volumes/chroma:/chroma
+      - ./artifacts:/app/artifacts
+    restart: unless-stopped
