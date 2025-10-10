@@ -1,9 +1,9 @@
-﻿services:
-  ingest:
+services:
+  ingest_once:
     build: ./services/ingest
     env_file: .env
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data:ro
       - ./artifacts:/app/artifacts
       - ./volumes/chroma:/chroma
     command: ["python","-m","src.build_index"]
@@ -16,5 +16,6 @@
       - "8000:8000"
     volumes:
       - ./volumes/chroma:/chroma
-      - ./artifacts:/app/artifacts
-    restart: unless-stopped
+    depends_on:
+      ingest_once:
+        condition: service_completed_successfully
