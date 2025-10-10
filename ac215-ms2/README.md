@@ -83,14 +83,17 @@ API_PORT=8000
 docker compose down -v
 Remove-Item -Recurse -Force .\volumes\chroma, .\artifacts -ErrorAction SilentlyContinue
 
+# 1,2,3) Build and run in one line
+docker compose up --build -d api
+
 # 1) Build images (api + ingest)
-docker compose build --no-cache
+# docker compose build --no-cache
 
 # 2) Ingest (one-off job): parses data/, chunks, embeds, writes to Chroma + artifacts/
-docker compose run --rm ingest python -m src.build_index
+# docker compose run --rm ingest python -m src.build_index
 
 # 3) Start the API
-docker compose up -d api
+# docker compose up -d api
 
 # 4) Health check
 curl http://localhost:8000/health
