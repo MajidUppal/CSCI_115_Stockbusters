@@ -38,6 +38,7 @@ Milestone2/
 │
 ├── README.md # This documentation file
 └── .gitignore # Ignore cache, venv, and secrets
+```
 
 ##  Prerequisites
 
