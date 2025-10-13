@@ -1,0 +1,1 @@
+Discounted Cash Flow (DCF) estimates a company's value by projecting future cash flows and discounting them to present value using the WACC. Key inputs: cash flows, growth, terminal value, and discount rate.
