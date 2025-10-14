@@ -1,0 +1,17 @@
+# RAG/.gitignore
+__pycache__/
+*.pyc
+
+# Local config
+.env
+.env.*
+
+# Generated
+artifacts/
+volumes/
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+

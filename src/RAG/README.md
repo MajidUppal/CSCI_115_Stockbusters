@@ -1,79 +1,65 @@
-﻿# AC215 MS2 — Containerized RAG (FastEmbed + Chroma + FastAPI)
+﻿# RAG — Containerized RAG (FastEmbed + Chroma + FastAPI)
 
-A minimal, reproducible RAG pipeline:
+A minimal, reproducible Retrieval-Augmented Generation (RAG) system:
 
-- **Ingest:** load `.pdf` / `.txt` / `.md` → normalize text (removes `\n`, fixes quotes/dashes) → split into chunks → embed with **FastEmbed (BAAI/bge-small-en-v1.5)** → upsert into **Chroma** (persisted).
-- **API:** query the vector store and return top-k chunks (text + metadata + distance).
+- **Ingest:** load `.pdf` / `.txt` / `.md` → sanitize → chunk → embed with **FastEmbed** (default: `BAAI/bge-small-en-v1.5`) → upsert into **Chroma** (persisted).
+- **API:** FastAPI endpoint to retrieve top-k chunks from the vector store.
 
 ---
 
 ## Project layout
 ```
-ac215-ms2/
-├─ data/ # ← Put your source docs here (.pdf, .txt, .md)
-├─ artifacts/
-│ ├─ sanitized/ # ← Sanitized text snapshots (per page/file)
-│ ├─ ingest_summary.json # run metadata
-│ ├─ metadata.json # model/chunk settings summary
-│ └─ retrieval_sample.json # sample retrieval at ingest time
+RAG/
+├─ data/ # your source docs (.pdf, .txt, .md)
+├─ artifacts/ # sanitized text + ingest metadata
 ├─ volumes/
-│ └─ chroma/ # ← Persisted Chroma DB (vectors + metadata)
-├─ services/
-│ ├─ ingest/
-│ │ ├─ Dockerfile
-│ │ ├─ pyproject.toml
-│ │ └─ src/
-│ │ ├─ build_index.py # entrypoint: runs full ingestion pipeline
-│ │ ├─ load_docs.py # loaders & sanitization (removes \n)
-│ │ ├─ split_chunk.py # chunking
-│ │ └─ settings.py # ingest config
-│ └─ api/
-│ ├─ Dockerfile
-│ ├─ pyproject.toml
-│ └─ src/
-│ ├─ server.py # FastAPI app (/health, /query)
-│ ├─ retriever.py # Chroma client + embedding for queries
-│ └─ settings.py # api config
-├─ docker-compose.yml
-├─ .env # runtime configuration (copied from .env.example)
+│ └─ chroma/ # persisted Chroma vector store
+├─ docs/ # optional screenshots/notes for README
+├─ rag.py # SINGLE Python file (CLI + pipeline + API)
+├─ pyproject.toml # runtime dependencies
+├─ Dockerfile # single image for ingest + serve
+├─ docker-compose.yml # one service: rag
+├─ .env.example # documented config sample
+├─ .env # your local overrides (gitignored)
+├─ .gitignore # ignore artifacts/volumes/.env, etc.
 └─ README.md
 ```
+
 
 ---
 
 ## Prerequisites
 
-- **Windows PowerShell**
+- **Windows PowerShell** (run from the repo root)
 - **Docker Desktop** (WSL2 backend recommended)
-- Internet access (first run downloads the ONNX embedding model, ~70–100 MB)
+- Internet (first run downloads the ONNX embedding model, ~70–100 MB)
 
 ---
 
 ## Configuration
 
-Copy the example env and adjust if needed:
+Create your local env file from the template:
 
 ```powershell
 Copy-Item .\.env.example .\.env -Force
 
-# Paths
-VECTOR_STORE_PATH=/chroma
+# API
+API_PORT=8000
+
+# Vector store
+VECTOR_STORE_PATH=./volumes/chroma
 VECTOR_COLLECTION=stocks_rag_v1
-DATA_DIR=/app/data
-ARTIFACTS_DIR=/app/artifacts
+
+# Paths
+DATA_DIR=./data
+ARTIFACTS_DIR=./artifacts
 
 # Chunking
-CHUNK_SIZE=800
-CHUNK_OVERLAP=150
+CHUNK_SIZE=1200
+CHUNK_OVERLAP=200
 
 # Embedding model
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
-
-# API
-API_HOST=0.0.0.0
-API_PORT=8000
-
-
 
 ## Quick start
 `powershell
@@ -83,20 +69,11 @@ API_PORT=8000
 docker compose down -v
 Remove-Item -Recurse -Force .\volumes\chroma, .\artifacts -ErrorAction SilentlyContinue
 
-# 1,2,3) Build and run in one line
-docker compose up --build -d api
+# 1) Build & start the API 
+docker compose up --build -d
 
-# 1) Build images (api + ingest)
-# docker compose build --no-cache
-
-# 2) Ingest (one-off job): parses data/, chunks, embeds, writes to Chroma + artifacts/
-# docker compose run --rm ingest python -m src.build_index
-
-# 3) Start the API
-# docker compose up -d api
-
-# 4) Health check
-curl http://localhost:8000/health
+# 2) Ingest text
+docker compose run --rm rag --ingest
 
 # 5) Query (PowerShell pretty JSON)
 irm -Method Post -Uri "http://localhost:8000/query" `
