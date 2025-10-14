@@ -7,8 +7,10 @@ __pycache__/
 .env.*
 
 # Generated
+artifacts/sanitized
 artifacts/
 volumes/
+volumes/chroma
 
 # OS/IDE
 .DS_Store
