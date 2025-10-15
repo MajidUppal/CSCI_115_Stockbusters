@@ -6,7 +6,7 @@
 
 ### Project Milestone 2 Organization
 
-** fill in the github structure here**
+
 ```
 AC215_StockBusters/
 │
