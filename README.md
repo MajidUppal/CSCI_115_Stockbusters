@@ -38,25 +38,31 @@ AC215_StockBusters/
     │   └── .dockerignore
     │
     ├── rag/
-    │   ├── rag.py
-    │   ├── Dockerfile
-    │   ├── docker-compose.yml       # local-only
-    │   ├── pyproject.toml
-    │   ├── .env.example
-    │   ├── README.md
+    │   ├── rag.py # SINGLE Python file (CLI + pipeline + API)
+    │   ├── Dockerfile # single image for ingest + serve
+    │   ├── _archived/
+    │   │ └── docker-compose.yml # legacy local-only compose file
+    │   ├── pyproject.toml # runtime dependencies
+    │   ├── .env # local config
+    │   ├── uv.lock # uv lock file
+    │   ├── README.md # RAG-specific README
     │   │
-    │   ├── data/
-    │   │   └── PrinciplesofFinanceSample.pdf
+    │   ├── data/ # source docs (.pdf, .txt, .md)
+    │   │ └── PrinciplesofFinanceSample.pdf
     │   │
-    │   ├── artifacts/
-    │   │   ├── ingest_summary.json
-    │   │   ├── metadata.json
-    │   │   └── retrieval_sample.json
+    │   ├── artifacts/ # pipeline outputs
+    │   │ ├── sanitized/ # cleaned text chunks
+    │   │ ├── ingest_summary.json # chunking summary
+    │   │ ├── metadata.json # metadata about ingested docs
+    │   │ ├── retrieval_sample.json # optional retrieval sample
+    │   │ └── sample_vector.json # optional sample embedding dump
+    │   │
+    │   ├── screenshot_logs/ # build/run/query logs
     │   │
     │   └── volumes/
-    │       └── chroma/
-    │           ├── chroma.sqlite3
-    │           └── [vector index bins]
+    │   └── chroma/ # persisted Chroma store
+    │   ├── chroma.sqlite3
+    │   └── [vector index bins]
     │
     ├── app_mockup/    
    
@@ -117,16 +123,42 @@ Implement data collection, chunking, and vector database integration. Enable ret
 
 **Deliverables:**
 
-- Containerized RAG modules (Ingest → Chunk → Embed → Store → Query)
+- **Containerized RAG modules** (Ingest → Chunk → Embed → Store → Query)  
+  *Location*: `src/rag/rag.py`  
+- **Evidence of working vector DB** (Chroma with FastEmbed embeddings)  
+  *Locations*: `src/rag/volumes/chroma/`, `src/rag/artifacts/sample_vector.json`
+- **Logs of successful ingestion, retrieval, and API queries**  
+  *Locations*: `src/rag/artifacts/` (`ingest_summary.json`, `retrieval_sample.json`, etc.), `src/rag/artifacts/sanitized` (chuncks),     
+- **Screenshots of build, run, and query steps**  
+  *Location*: `src/rag/screenshot_logs/`  
+- **Documentation** (`README.md`, `Dockerfile`, Quick Start guide)  
+  *Location*: `src/rag/README.md`
 
-- Evidence of working vector DB (Chroma/FAISS)
 
-- Logs of successful retrieval and generation
-
-< add detail here>
 **RAG Workflow**
 
- < add detail here>
+**Ingest**
+- Documents from `rag/data/` (PDF, TXT, MD) are loaded.  
+- Text is sanitized (removal of BOM, unicode normalization, whitespace cleanup).  
+- Outputs written to `artifacts/sanitized/`.  
+
+**Chunking**
+- Text split into overlapping windows.  
+- Metadata (chunk counts, sizes) recorded in `src/rag/artifacts/chunk_stats.json`.  
+
+**Embedding**
+- Each chunk is encoded using **FastEmbed** with the `BAAI/bge-small-en-v1.5` model.  
+- Embedding dimension: 384.  
+- Sample vector dump available in `src/rag/artifacts/sample_vector.json`.  
+
+**Vector Storage**
+- Chunks + embeddings stored in **Chroma** (`src/rag/volumes/chroma/`).  
+- Collection name configurable via `.env` (default: `stocks_rag_v1`).  
+- Database persists across runs for reproducibility.  
+
+**Query (API)**
+- FastAPI server runs inside the container (`API_PORT=8000`).  
+- Exposes `/query` endpoint for semantic retrieval. 
 
 
 
