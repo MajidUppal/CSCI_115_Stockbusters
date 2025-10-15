@@ -1,27 +1,41 @@
 ﻿# — AC215 MS2 single-CLI for ingest + serve
-
+#
 # Usage:
 #   python rag.py --ingest              # one-shot indexing
 #   python rag.py --serve               # start FastAPI (/health, /query)
 #   python rag.py --ingest --serve      # index then serve
+#   python rag.py --dump-vector         # dump one stored vector to artifacts/sample_vector.json
 
 import os, re, glob, json, time, argparse
 from typing import List, Tuple, Dict, Any
 
 # --- Settings (single source of truth) ---------------------------------------
-API_PORT         = int(os.getenv("API_PORT", "8000"))
-VECTOR_STORE_PATH= os.getenv("VECTOR_STORE_PATH", "/chroma")
-VECTOR_COLLECTION= os.getenv("VECTOR_COLLECTION", "stocks_rag_v1")
-DATA_DIR         = os.getenv("DATA_DIR", "/app/data")
-ARTIFACTS_DIR    = os.getenv("ARTIFACTS_DIR", "/app/artifacts")
-CHUNK_SIZE       = int(os.getenv("CHUNK_SIZE", "800"))
-CHUNK_OVERLAP    = int(os.getenv("CHUNK_OVERLAP", "150"))
-EMBEDDING_MODEL  = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+API_PORT          = int(os.getenv("API_PORT", "8000"))
+VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "./volumes/chroma")
+VECTOR_COLLECTION = os.getenv("VECTOR_COLLECTION", "stocks_rag_v1")
+DATA_DIR          = os.getenv("DATA_DIR", "./data")
+ARTIFACTS_DIR     = os.getenv("ARTIFACTS_DIR", "./artifacts")
+CHUNK_SIZE        = int(os.getenv("CHUNK_SIZE", "800"))
+CHUNK_OVERLAP     = int(os.getenv("CHUNK_OVERLAP", "150"))
+EMBEDDING_MODEL   = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 
-# Ensure artifact subdirs exist
+# Ensure runtime dirs exist (create parents first, tolerate read-only mounts)
+def _safe_mkdir(path: str):
+    try:
+        os.makedirs(path, exist_ok=True)
+    except PermissionError:
+        print(f"[WARN] Cannot create directory (permission): {path}")
+    except FileExistsError:
+        pass
+    except Exception as e:
+        print(f"[WARN] Could not ensure dir {path}: {e}")
+
+# Create parents first, then subdirs
+_safe_mkdir(ARTIFACTS_DIR)
 SANITIZED_DIR = os.path.join(ARTIFACTS_DIR, "sanitized")
-os.makedirs(SANITIZED_DIR, exist_ok=True)
-os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+_safe_mkdir(SANITIZED_DIR)
+_safe_mkdir(DATA_DIR)
+_safe_mkdir(VECTOR_STORE_PATH)
 
 # --- Dependencies that both ingest + serve share ----------------------------
 import chromadb
@@ -245,8 +259,57 @@ class Retriever:
             })
         return out
 
+# --- Utility: dump a stored vector ------------------------------------------
+def dump_one_vector(out_path: str) -> Dict[str, Any]:
+    """
+    Fetch a single stored embedding vector from the Chroma collection and save
+    it to out_path as JSON. Returns a compact summary for stdout.
+    """
+    client = chromadb.PersistentClient(path=VECTOR_STORE_PATH)
+    coll = client.get_or_create_collection(name=VECTOR_COLLECTION)
+
+    try:
+        count = coll.count()
+    except Exception:
+        count = None
+    if not count:
+        return {"ok": False, "reason": "collection is empty", "collection": VECTOR_COLLECTION}
+
+    # Do NOT include "ids" (Chroma returns ids automatically)
+    got = coll.get(limit=1, include=["documents", "metadatas", "embeddings"])
+    ids   = (got.get("ids") or [])
+    embs  = (got.get("embeddings") or [])
+    docs  = (got.get("documents") or [])
+    metas = (got.get("metadatas") or [])
+
+    if not ids or not embs:
+        return {"ok": False, "reason": "no embeddings returned", "collection": VECTOR_COLLECTION}
+
+    vec = embs[0]
+    payload = {
+        "collection": VECTOR_COLLECTION,
+        "id": ids[0],
+        "vector_dim": len(vec) if hasattr(vec, "__len__") else None,
+        "vector": vec,
+        "document": docs[0] if docs else None,
+        "metadata": metas[0] if metas else None,
+    }
+
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    return {
+        "ok": True,
+        "collection": VECTOR_COLLECTION,
+        "id": payload["id"],
+        "vector_dim": payload["vector_dim"],
+        "out": out_path,
+    }
+
+
 # --- Optional FastAPI server -------------------------------------------------
-# Only import FastAPI/uvicorn when serving, so 'python cli.py --ingest' stays light.
+# Only import FastAPI/uvicorn when serving, so 'python rag.py --ingest' stays light.
 def make_app():
     from fastapi import FastAPI
     from pydantic import BaseModel
@@ -278,9 +341,12 @@ def main():
     p = argparse.ArgumentParser(description="AC215-MS2 RAG CLI")
     p.add_argument("--ingest", action="store_true", help="Run ingestion (load→chunk→embed→store)")
     p.add_argument("--serve",  action="store_true", help="Run FastAPI server (/health, /query)")
+    p.add_argument("--dump-vector", action="store_true",
+                   help="Dump a sample stored embedding to artifacts/sample_vector.json")
     args = p.parse_args()
 
-    if not args.ingest and not args.serve:
+    # If no main actions, still allow dump-vector as a standalone utility.
+    if not (args.ingest or args.serve or args.dump_vector):
         p.print_help()
         return
 
@@ -292,6 +358,12 @@ def main():
     if args.serve:
         serve()
 
+    if args.dump_vector:
+        out_path = os.path.join(ARTIFACTS_DIR, "sample_vector.json")
+        res = dump_one_vector(out_path)
+        print(json.dumps({"dump_vector": res}, indent=2))
+
 if __name__ == "__main__":
     main()
+
 

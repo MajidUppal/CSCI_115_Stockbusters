@@ -1,83 +1,131 @@
-﻿# RAG — Containerized RAG (FastEmbed + Chroma + FastAPI)
-
-A minimal, reproducible Retrieval-Augmented Generation (RAG) system:
-
-- **Ingest:** load `.pdf` / `.txt` / `.md` → sanitize → chunk → embed with **FastEmbed** (default: `BAAI/bge-small-en-v1.5`) → upsert into **Chroma** (persisted).
-- **API:** FastAPI endpoint to retrieve top-k chunks from the vector store.
-
+# RAG — Containerized Retrieval-Augmented Generation (FastEmbed + Chroma + FastAPI)
+A minimal, reproducible Retrieval-Augmented Generation (RAG) system built with:
+- FastEmbed for sentence embeddings (`BAAI/bge-small-en-v1.5`)
+- Chroma for persistent vector storage
+- FastAPI for serving queries
+Everything runs in a single Docker image
 ---
-
-## Project layout
+## Project Layout
 ```
 RAG/
-├─ data/ # your source docs (.pdf, .txt, .md)
-├─ artifacts/ # sanitized text + ingest metadata
+├─ data/                  # source docs (.pdf, .txt, .md)
+├─ artifacts/             # pipeline outputs
+│  ├─ sanitized/          # cleaned text chunks from input docs
+│  ├─ chunk_stats.json    # chunking summary (count, size, overlap)
+│  ├─ ingest_metadata.json# metadata about ingested docs
+│  └─ sample_vector.json  # optional sample embedding dump
+├─ screenshot_logs/       # log screenshots of building and running container
+│  ├─ docker build rag image.png         
+│  ├─ docker running container.png   
+│  ├─ pulling sample vector from chromadb.png
+│  └─ Sample Query in Container.png  
 ├─ volumes/
-│ └─ chroma/ # persisted Chroma vector store
-├─ docs/ # optional screenshots/notes for README
-├─ rag.py # SINGLE Python file (CLI + pipeline + API)
-├─ pyproject.toml # runtime dependencies
-├─ Dockerfile # single image for ingest + serve
-├─ docker-compose.yml # one service: rag
-├─ .env.example # documented config sample
-├─ .env # your local overrides (gitignored)
-├─ .gitignore # ignore artifacts/volumes/.env, etc.
+│  └─ chroma/             # persisted Chroma vector store
+├─ rag.py                 # SINGLE Python file (CLI + pipeline + API)
+├─ pyproject.toml         # runtime dependencies
+├─ Dockerfile             # single image for ingest + serve
+├─ .env                   # local config 
+├─ uv.lock                # uv lock file 
 └─ README.md
 ```
-
-
 ---
-
 ## Prerequisites
-
-- **Windows PowerShell** (run from the repo root)
-- **Docker Desktop** (WSL2 backend recommended)
-- Internet (first run downloads the ONNX embedding model, ~70–100 MB)
-
----
+- Windows PowerShell (or WSL / Bash)
+- Docker Desktop (with WSL2 backend)
 
 ## Configuration
-
-Create your local env file from the template:
-
-```powershell
-Copy-Item .\.env.example .\.env -Force
-
-# API
+Your `.env` should contain:
 API_PORT=8000
-
-# Vector store
 VECTOR_STORE_PATH=./volumes/chroma
 VECTOR_COLLECTION=stocks_rag_v1
-
-# Paths
 DATA_DIR=./data
 ARTIFACTS_DIR=./artifacts
-
-# Chunking
 CHUNK_SIZE=1200
 CHUNK_OVERLAP=200
-
-# Embedding model
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+CHROMA_TELEMETRY_DISABLED=1
+---
+## Quick Start
+0. Deletes your local runtime state (sanitized text, logs, and vector store)
+```
+Remove-Item -Recurse -Force .\artifacts, .\volumes\chroma
+```
+1. Build the image  
+```
+docker build -t ms2-rag .
+```
+2 Run everything (Ingest + Serve in one container)  
+```
+docker run --rm -p 8000:8000 -v "${PWD}:/workspace" ms2-rag --ingest --serve
+```
 
-## Quick start
-`powershell
-# -1) put a few .txt/.md files under ./data
+This:
+- Ingests documents from `data/`
+- Cleans and saves text in `artifacts/sanitized/`
+- Records chunking info in `artifacts/chunk_stats.json`
+- Writes ingest metadata to `artifacts/ingest_metadata.json`
+- Builds a vector store in `volumes/chroma/`
+- Starts the FastAPI server on port 8000
 
-# 0) (Optional) Clean any old state
-docker compose down -v
-Remove-Item -Recurse -Force .\volumes\chroma, .\artifacts -ErrorAction SilentlyContinue
+# Optional API:
+Once running, open:  
+http://localhost:8000/docs  
+to see the interactive API docs.
 
-# 1) Build & start the API 
-docker compose up --build -d
+## Query Example (PowerShell pretty JSON)
+After the container is running, run this from another PowerShell window:
+```
+irm -Method Post -Uri "http://localhost:8000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6
+```
+Example output:
+{
+  "query": "Explain P/E ratio",
+  "results": [
+    {
+      "doc": "The P/E ratio (price-to-earnings ratio) measures how much investors are willing to pay per dollar of earnings...",
+      "score": 0.88,
+      "source": "PrinciplesofFinanceSample.pdf"
+    }
+  ]
+}
 
-# 2) Ingest text
-docker compose run --rm rag --ingest
+## Dump a Sample Vector
+```
+docker run --rm -v "${PWD}:/workspace" ms2-rag --dump-vector  
+```
+This saves:
+artifacts/sample_vector.json  
+Example contents:
+{
+  "collection": "stocks_rag_v1",
+  "id": "chunk_0001",
+  "vector_dim": 384,
+  "vector": [0.0123, -0.0058, 0.0449, ...]
+}
 
-# 5) Query (PowerShell pretty JSON)
-irm -Method Post -Uri "http://localhost:8000/query" `
-  -ContentType "application/json" `
-  -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6
+## Stop the container
+Press Ctrl + C in the terminal window where it’s running.  
+If you ran it detached (with -d), stop it with:  
+docker rm -f rag_api
 
+---
+## Summary
+| Step | Command | Purpose |
+|------|----------|----------|
+| Build image | `docker build -t ms2-rag .` | Build the image |
+| Run end-to-end | `docker run --rm -p 8000:8000 -v "${PWD}:/workspace" ms2-rag --ingest --serve` | Ingest & serve in one |
+| Query | (PowerShell) `irm -Method Post -Uri "http://localhost:8000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6` | Ask a question |
+| Dump vector | `docker run --rm -v "${PWD}:/workspace" ms2-rag --dump-vector` | Inspect one embedding |
+| Stop API | `Ctrl + C` or `docker rm -f rag_api` | Stop container |
 
+| Deliverable                                                                                 | Repository Location                                                         | Description                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Screenshot of running instances (cloud or local)**                                        | `RAG/screenshot_logs/`                                                                 | Screenshots showing Docker container(s) or local PowerShell instance running the RAG pipeline.                                                                                                                                                  |
+| **Dockerfiles + build instructions**                                                        | `RAG/Dockerfile`  and  `RAG/README.md`                                      | Single Dockerfile that builds the containerized environment for ingestion + serving. Build/run instructions documented in the README (“Quick Start”).                                                                                           |
+| **pyproject.toml (using uv)**                                                               | `RAG/pyproject.toml`                                                        | Defines Python dependencies and environment configuration for the container (managed with **uv**).                                                                                                                                              |
+| **Scripts or docker-compose.yml (when applicable)**                                         | `RAG/rag.py`  *(main script)*                                               | `rag.py` acts as the unified CLI and pipeline script handling ingestion, chunking, embedding, vector storage, and API serving. *(No docker-compose.yml is required because pipeline runs with a single Dockerfile command.)*                    |
+| **Documentation explaining the pipeline and exact run instructions**                        | `RAG/README.md`                                                             | Full documentation of the RAG workflow, configuration, and one-line command to run the entire containerized pipeline.                                                                                                                           |
+| **Evidence it works end-to-end (logs + sample input → output artifact)**                    | `RAG/artifacts/`                                                            | Generated automatically after running the pipeline:  <br>• `sanitized/` – cleaned text chunks  <br>• `chunk_stats.json` – chunking summary  <br>• `ingest_metadata.json` – ingestion logs  <br>• `sample_vector.json` – sample embedding output |
+| **Containerized RAG pipeline with scripts for chunking, vectorization, and DB integration** | `RAG/rag.py`                                                                | Implements ingestion, sanitization, text splitting, embedding (FastEmbed), and vector store integration (Chroma).                                                                                                                               |
+| **Documentation of the pipeline design and usage**                                          | `RAG/README.md`                                                             | Describes architecture, commands, environment variables, and example queries.                                                                                                                                                                   |
+| **Logs showing pipeline runs with sample data**                                             | `RAG/artifacts/ingest_metadata.json`  and  `RAG/artifacts/chunk_stats.json` | Contain evidence of successful runs, chunk counts, file stats, and processing times.                                                                                                                                                            |

@@ -7,5 +7,5 @@
   "embedding_model": "BAAI/bge-small-en-v1.5",
   "chunk_size": 1200,
   "chunk_overlap": 200,
-  "elapsed_sec": 48.47
+  "elapsed_sec": 33.57
 }
