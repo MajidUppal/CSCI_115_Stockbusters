@@ -8,24 +8,30 @@ Everything runs in a single Docker image
 ## Project Layout
 ```
 RAG/
+│
 ├─ data/                  # source docs (.pdf, .txt, .md)
+│
 ├─ artifacts/             # pipeline outputs
-│  ├─ sanitized/          # cleaned text chunks from input docs
-│  ├─ chunk_stats.json    # chunking summary (count, size, overlap)
-│  ├─ ingest_metadata.json# metadata about ingested docs
-│  └─ sample_vector.json  # optional sample embedding dump
+│  ├── sanitized/ # cleaned text chunks
+│  ├── ingest_summary.json # ingest summary
+│  ├── metadata.json # metadata about ingested docs
+│  ├── retrieval_sample.json # retrieval sample
+│  └── sample_vector.json # vector embedding sample
+│
 ├─ screenshot_logs/       # log screenshots of building and running container
 │  ├─ docker build rag image.png         
 │  ├─ docker running container.png   
 │  ├─ pulling sample vector from chromadb.png
-│  └─ Sample Query in Container.png  
+│  └─ Sample Query in Container.png
+│
 ├─ volumes/
 │  └─ chroma/             # persisted Chroma vector store
+│
 ├─ rag.py                 # SINGLE Python file (CLI + pipeline + API)
 ├─ pyproject.toml         # runtime dependencies
 ├─ Dockerfile             # single image for ingest + serve
 ├─ .env                   # local config 
-├─ uv.lock                # uv lock file 
+├─ uv.lock                # uv lock file
 └─ README.md
 ```
 ---
