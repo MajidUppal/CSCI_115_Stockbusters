@@ -44,7 +44,9 @@ CHUNK_SIZE=1200
 CHUNK_OVERLAP=200
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 CHROMA_TELEMETRY_DISABLED=1
+
 ---
+
 ## Quick Start
 0. Deletes your local runtime state (sanitized text, logs, and vector store)
 ```
