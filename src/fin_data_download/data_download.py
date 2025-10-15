@@ -25,7 +25,7 @@ import requests
 # ---------------------------
 # GCP Configuration
 # ---------------------------
-BUCKET_NAME = "fin-data-bucket"
+BUCKET_NAME = "fin-data-bucket-115"
 TICKER_FILE_GCS = "SP500_list.csv"  
 LOCAL_TICKER_FILE = "SP500_list.csv"
 RAW_LOCAL_FILE = "sp500_raw_data.csv"
