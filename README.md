@@ -1,18 +1,70 @@
-## CSCI-E 115 Falls 2025 - Milestone 2 
-### Project Name : A Multi-Agent System for Stock Recommendations
+## AC215/CSCIE-115 - Milestone 2: A Multi-Agent System for Stock Recommendations
+
+**Team Members** : Majid Uppal, Sirisom Pranivong, Seraphim Eilken, Mahmood Masqati
+
+**Group Name**  Stock Busters
+
 ### Project Milestone 2 Organization
 
 ** fill in the github structure here**
+```
+AC215_StockBusters/
+│
+├── .gitignore
+├── LICENSE
+├── README.md                     
+│
+├── docker-compose.yml             
+│
+├── data/
+│   └── .gitkeep
+│
+├── notebooks/
+│   ├── .gitkeep
+│   └── Finance_data_download.ipynb
+│
+├── reference/
+│   ├── .gitkeep
+│   └── A Multi-Agent System for Stock Recommendations_MS1.pdf
+│
+└── src/
+    ├── fin_data_download/
+    │   ├── data_download.py
+    │   ├── gcs_utils.py
+    │   ├── Dockerfile
+    │   ├── pyproject.toml
+    │   ├── requirements.txt
+    │   ├── README.md
+    │   └── .dockerignore
+    │
+    ├── rag/
+    │   ├── rag.py
+    │   ├── Dockerfile
+    │   ├── docker-compose.yml       # local-only
+    │   ├── pyproject.toml
+    │   ├── .env.example
+    │   ├── README.md
+    │   │
+    │   ├── data/
+    │   │   └── PrinciplesofFinanceSample.pdf
+    │   │
+    │   ├── artifacts/
+    │   │   ├── ingest_summary.json
+    │   │   ├── metadata.json
+    │   │   └── retrieval_sample.json
+    │   │
+    │   └── volumes/
+    │       └── chroma/
+    │           ├── chroma.sqlite3
+    │           └── [vector index bins]
+    │
+    ├── app_mockup/    
+   
 
 
 
+```
 
-
-# CSCI-E 115 - Milestone2 - A Multi-Agent System for Stock Recommendations
-
-
-**Team Members** : Majid Uppal, Sirisom Pranivong, Seraphim Eilken, Mahmood Masqati
-**Group Name**  Stock Busters
 
 ### Project ###
 
