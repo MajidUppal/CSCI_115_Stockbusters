@@ -116,3 +116,10 @@ Below is a sample of docker run output
 
 
 <img width="1247" height="948" alt="image" src="https://github.com/user-attachments/assets/8a355b17-3532-4a43-9b0f-e0fa69bd97bf" />
+
+Files are upload to GCP Bucket 
+
+<img width="1902" height="673" alt="image" src="https://github.com/user-attachments/assets/92154830-2538-41e2-adf2-7fc8a441a66d" />
+
+---
+
