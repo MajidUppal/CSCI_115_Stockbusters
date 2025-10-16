@@ -70,6 +70,17 @@ The script reads the following environment variables:
 
 ##  Running with Docker
 
+
+##  Prerequisites
+
+Before building the image, make sure you have:
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed  
+- Access to the team’s **Google Cloud Project**  
+- A valid **service account JSON key** with permission to read/write the target GCS bucket  
+- The environment variable `GOOGLE_APPLICATION_CREDENTIALS` pointing to that JSON file 
+
+---
+
 ### **Local (with service account key)**
 
 ```bash
@@ -83,22 +94,12 @@ docker run --rm -it \
   -e GCP_BUCKET="fin-data-bucket-115" \
   fin-data-pipeline
 
-##  Prerequisites
-
-Before building the image, make sure you have:
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed  
-- Access to the team’s **Google Cloud Project**  
-- A valid **service account JSON key** with permission to read/write the target GCS bucket  
-- The environment variable `GOOGLE_APPLICATION_CREDENTIALS` pointing to that JSON file 
-
----
 
 ##  GCS Setup
 
 1. Create GCP bucket (`fin-data-bucket-115`).  
 2. Upload the input CSVs to the bucket root Ex. gs://fin-data-bucket/SP500_list.csv  This file contains the list of S&P500
 3. Place your service account key outside: Milestone2/secrets/service_account.json
-
 
 The container will:
 
