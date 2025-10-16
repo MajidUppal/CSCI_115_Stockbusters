@@ -169,6 +169,7 @@ Implement data collection, chunking, and vector database integration. Enable ret
 
 
  **4. Finance Data ingestion** 
+ 
 This module builds an **end-to-end finance data ingestion pipeline** for the StockBusters project.  
 It automatically downloads **S&P 500 stock data** from Yahoo Finance, computes **technical indicators**,  
 and uploads the processed datasets directly to **Google Cloud Storage (GCS)** — with **no local file storage** required.
