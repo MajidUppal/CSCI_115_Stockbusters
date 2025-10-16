@@ -89,13 +89,9 @@ In Milestone 2, our focus is on building the MLOps infrastructure that powers th
 
 **Deliverable: Screenshot of running container instances.**
 
-< adding detail here >
-
 The virtual environment has been created in GCP. All containers are being run in GCP.
 
 <img width="1157" height="160" alt="image" src="https://github.com/user-attachments/assets/dd109b2d-b577-478b-9aa3-504a29f2b0b1" />
-
-
 
 
 
@@ -108,10 +104,6 @@ Combine into a single runnable pipeline (docker compose up).
 
 **Deliverables:**
 
-Dockerfile for each component , pyproject.toml (with uv dependency manager) ,docker-compose.yml
-and Logs and example I/O showing a complete run
-
-< adding detail here>
 
 The current version has two containers.
 - Data pipeline container
@@ -126,12 +118,13 @@ The UV dependency is handled by each individual container.
 
 Below are snapshots for the Docker compose executed in the AC215_StockBusters.
 
-*** Docker Creation ***
+***Docker Creation***
 <img width="1688" height="1310" alt="image" src="https://github.com/user-attachments/assets/e624c591-ee41-4fb8-a6de-300033743d0c" />
 
 
 <img width="1626" height="536" alt="image" src="https://github.com/user-attachments/assets/2ffe8d75-fdbf-4049-ab68-07a7d42ac6f1" />
 
+Here the two containers working independently can be seen downloading the data for data pipeline while the RAG container is creating embeddings. 
 
 <img width="1678" height="514" alt="image" src="https://github.com/user-attachments/assets/a5bac83c-7b20-47d1-9a9d-bd709fbc31f4" />
 
@@ -185,8 +178,6 @@ Implement data collection, chunking, and vector database integration. Enable ret
 **Query (API)**
 - FastAPI server runs inside the container (`API_PORT=8000`).  
 - Exposes `/query` endpoint for semantic retrieval. 
-
-
 
 ---
 
