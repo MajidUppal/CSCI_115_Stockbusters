@@ -180,12 +180,10 @@ The pipeline performs the following tasks:
 3. **Transform** raw data from wide to long format.  
 4. **Enhance** each ticker’s time series with over 90 **technical indicators** (SMA, RSI, MACD, ATR, MFI, etc.) using the `ta` library.  
 5. **Filter core features** relevant for modeling (trend, momentum, volatility, volume).  
-6. **Upload final datasets** back to the GCS bucket in CSV format.  
+6. **Upload final datasets** back to the GCS bucket in CSV format.
 
 
-
-
-5. **`Stock Busters Mock-up App Description:`**
+5. **Stock Busters Mock-up App Description:`**
 
 The Stock Busters application is designed as an agentic, mobile-first interface to demonstrate a financial analysis tool powered by AI. Its core function is to guide users through complex financial screening processes via a multi-step conversational flow.
 
