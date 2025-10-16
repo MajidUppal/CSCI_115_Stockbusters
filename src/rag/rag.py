@@ -5,6 +5,8 @@
 #   python rag.py --serve               # start FastAPI (/health, /query)
 #   python rag.py --ingest --serve      # index then serve
 #   python rag.py --dump-vector         # dump one stored vector to artifacts/sample_vector.json
+#   python rag.py --ingest --verbose    # ingest and print each chunk + metadata
+#   python rag.py --ingest --print-vectors --vec-preview 12  # also print vector previews
 
 import os, re, glob, json, time, argparse
 from typing import List, Tuple, Dict, Any
@@ -19,6 +21,15 @@ ARTIFACTS_DIR     = os.getenv("ARTIFACTS_DIR", "/workspace/artifacts")
 CHUNK_SIZE        = int(os.getenv("CHUNK_SIZE", "1200"))
 CHUNK_OVERLAP     = int(os.getenv("CHUNK_OVERLAP", "200"))
 EMBEDDING_MODEL   = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+
+# Optional logging/printing via env
+RAG_VERBOSE_ENV       = os.getenv("RAG_VERBOSE", "0").strip() in {"1", "true", "True"}
+RAG_PRINT_VECTORS_ENV = os.getenv("RAG_PRINT_VECTORS", "0").strip() in {"1", "true", "True"}
+RAG_VEC_PREVIEW_ENV   = os.getenv("RAG_VEC_PREVIEW", "").strip()
+try:
+    RAG_VEC_PREVIEW_N = int(RAG_VEC_PREVIEW_ENV) if RAG_VEC_PREVIEW_ENV else 8
+except Exception:
+    RAG_VEC_PREVIEW_N = 8
 
 # Ensure runtime dirs exist (create parents first, tolerate read-only mounts)
 def _safe_mkdir(path: str):
@@ -66,6 +77,13 @@ def _save_sanitized(stub: str, text: str) -> None:
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(text)
+
+def _preview(s: str, n: int = 200) -> str:
+    """One-line preview of a chunk for logging."""
+    if not s:
+        return ""
+    s = s.replace("\n", " ").replace("\r", " ")
+    return (s[:n] + ("…" if len(s) > n else ""))
 
 def _load_txt_md(path: str) -> List[Tuple[str, str]]:
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -122,29 +140,64 @@ def split_text(text: str, chunk_size: int, overlap: int) -> List[str]:
     return chunks
 
 # --- Ingestion: load → chunk → embed → chroma upsert -------------------------
-def run_ingest() -> Dict[str, Any]:
+def run_ingest(verbose: bool = False, print_vectors: bool = False, vec_preview_n: int = 8) -> Dict[str, Any]:
     t0 = time.time()
     docs = load_all(DATA_DIR)
     if not docs:
         print(f"[WARN] No documents found under {DATA_DIR}")
     total_docs = len(docs)
 
+    # 1) Build chunks
     items: List[Tuple[str, str, Dict[str, Any]]] = []
     for src, txt in docs:
         for idx, ch in enumerate(split_text(txt, CHUNK_SIZE, CHUNK_OVERLAP)):
             cid = f"{src}::chunk_{idx}"
-            items.append((cid, ch, {"source": src}))
+            meta = {"source": src}
+            items.append((cid, ch, meta))
+            if verbose:
+                print(json.dumps({
+                    "event": "chunk_created",
+                    "id": cid,
+                    "source": src,
+                    "len": len(ch),
+                    "preview": _preview(ch, 200),
+                    "metadata": meta,
+                }, ensure_ascii=False))
 
+    # If nothing to ingest, still write a minimal summary and return
+    if not items:
+        summary = {
+            "num_input_docs": total_docs,
+            "num_chunks": 0,
+            "collection": VECTOR_COLLECTION,
+            "data_dir": DATA_DIR,
+            "vector_store_path": VECTOR_STORE_PATH,
+            "embedding_model": EMBEDDING_MODEL,
+            "chunk_size": CHUNK_SIZE,
+            "chunk_overlap": CHUNK_OVERLAP,
+            "elapsed_sec": round(time.time() - t0, 2),
+        }
+        os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+        with open(os.path.join(ARTIFACTS_DIR, "ingest_summary.json"), "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)
+        print("[WARN] No chunks produced; nothing to upsert.")
+        return {"added": 0, **summary}
+
+    # 2) Prepare vector DB + embedder
     client = chromadb.PersistentClient(path=VECTOR_STORE_PATH)
     coll = client.get_or_create_collection(name=VECTOR_COLLECTION)
     embedder = TextEmbedding(model_name=EMBEDDING_MODEL)
 
-    ids, docs_list, metas = [], [], []
+    # 3) Flatten to parallel arrays
+    ids: List[str] = []
+    docs_list: List[str] = []
+    metas: List[Dict[str, Any]] = []
     for cid, ch, meta in items:
         ids.append(cid)
         docs_list.append(ch)
         metas.append(meta)
 
+    # 4) Embed in batches and upsert
     B = 256
     added = 0
     for i in range(0, len(ids), B):
@@ -154,13 +207,35 @@ def run_ingest() -> Dict[str, Any]:
         batch_metas = metas[i:j]
 
         embs = []
-        for e in embedder.passage_embed(batch_docs):
-            embs.append(e.tolist() if hasattr(e, "tolist") else e)
+        # Generate embeddings in order; print vector previews if requested
+        for k, e in enumerate(embedder.passage_embed(batch_docs)):
+            v = e.tolist() if hasattr(e, "tolist") else e
+            embs.append(v)
+            if print_vectors:  # independent of --verbose
+                try:
+                    preview = list(v[:max(0, int(vec_preview_n))])
+                except Exception:
+                    preview = v
+                print(json.dumps({
+                    "event": "vector_created",
+                    "id": batch_ids[k],
+                    "vector_dim": len(v) if hasattr(v, "__len__") else None,
+                    "vector_preview": preview,
+                    "chunk_len": len(batch_docs[k]),
+                    "metadata": batch_metas[k] if k < len(batch_metas) else {},
+                }, ensure_ascii=False))
 
         coll.add(ids=batch_ids, documents=batch_docs, metadatas=batch_metas, embeddings=embs)
         added += len(batch_ids)
 
-    # artifacts
+        if verbose:
+            print(json.dumps({
+                "event": "batch_upserted",
+                "batch_size": len(batch_ids),
+                "cumulative_added": added
+            }, ensure_ascii=False))
+
+    # 5) Artifacts
     summary = {
         "num_input_docs": total_docs,
         "num_chunks": len(items),
@@ -172,6 +247,7 @@ def run_ingest() -> Dict[str, Any]:
         "chunk_overlap": CHUNK_OVERLAP,
         "elapsed_sec": round(time.time() - t0, 2),
     }
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
     with open(os.path.join(ARTIFACTS_DIR, "ingest_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
@@ -199,6 +275,7 @@ def run_ingest() -> Dict[str, Any]:
 
     print(f"Indexed {added} chunks into collection '{VECTOR_COLLECTION}'")
     return {"added": added, **summary}
+
 
 # --- Retriever (shared by API and CLI) --------------------------------------
 class Retriever:
@@ -308,7 +385,6 @@ def dump_one_vector(out_path: str) -> Dict[str, Any]:
         "out": out_path,
     }
 
-
 # --- Optional FastAPI server -------------------------------------------------
 # Only import FastAPI/uvicorn when serving, so 'python rag.py --ingest' stays light.
 def make_app():
@@ -344,27 +420,46 @@ def main():
     p.add_argument("--serve",  action="store_true", help="Run FastAPI server (/health, /query)")
     p.add_argument("--dump-vector", action="store_true",
                    help="Dump a sample stored embedding to artifacts/sample_vector.json")
+    p.add_argument("--verbose", action="store_true",
+                   help="Print each chunk and its metadata during ingestion")
+    p.add_argument("--print-vectors", action="store_true",
+                   help="Print each vector preview with metadata during ingestion")
+    p.add_argument("--vec-preview", type=int, default=None,
+                   help="How many vector dimensions to show per embedding (default 8)")
     args = p.parse_args()
 
-    # If no main actions, still allow dump-vector as a standalone utility.
+    # Default: run ingest only if no flags are given
     if not (args.ingest or args.serve or args.dump_vector):
-        p.print_help()
-        return
+        args.ingest = True
+        args.dump_vector = False
+        args.serve = False
 
+    # --- Force defaults for vectors ---
+    if args.vec_preview is None:
+        args.vec_preview = 8
+    args.print_vectors = True   # Always print vectors by default
+
+    # 1) Ingest first (if requested)
     if args.ingest:
-        stats = run_ingest()
-        # print compact summary to stdout
+        stats = run_ingest(
+            verbose=(args.verbose or RAG_VERBOSE_ENV),
+            print_vectors=True,
+            vec_preview_n=args.vec_preview,
+        )
         print(json.dumps({"ingest_done": True, **stats}, indent=2))
 
-    if args.serve:
-        serve()
-
+    # 2) Then dump a sample vector (so it can see the freshly ingested DB)
     if args.dump_vector:
         out_path = os.path.join(ARTIFACTS_DIR, "sample_vector.json")
         res = dump_one_vector(out_path)
         print(json.dumps({"dump_vector": res}, indent=2))
 
+    # 3) Finally, start the server (blocking)
+    if args.serve:
+        serve()
+
 if __name__ == "__main__":
     main()
+
 
 
