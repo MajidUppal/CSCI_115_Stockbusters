@@ -87,7 +87,7 @@ Before building the image, make sure you have:
 
 1. Create GCP bucket (`fin-data-bucket-115`).  
 2. Upload the input CSVs to the bucket root Ex. gs://fin-data-bucket/SP500_list.csv  This file contains the list of S&P500
-3. Place your service account key outside: Milestone2/secrets/service_account.json
+3. Place service account key outside: Milestone2/secrets/service_account.json
 
 The container will:
 
@@ -101,10 +101,10 @@ The container will:
 
 5. Fetch the income statement and balance sheet and upload to the same GCS bucket
 
-# Build the image
+### Build the image
 docker build -f src/fin_data_download/Dockerfile -t fin-data-pipeline .
 
-# Run the container, mounting your local secrets folder
+### Run the container, mounting local secrets folder
 docker run --rm -it \
   -v "$PWD/../../secrets:/app/secrets" \
   -e GOOGLE_APPLICATION_CREDENTIALS="/app/secrets/stock-busters-service-account.json" \
