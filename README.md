@@ -26,6 +26,7 @@ AC215_StockBusters/
 ├── reference/
 │   ├── .gitkeep
 │   └── A Multi-Agent System for Stock Recommendations_MS1.pdf
+│   └── Stock Busters App Wireframe.pdf
 │
 └── src/
     ├── fin_data_download/
@@ -185,12 +186,87 @@ Implement data collection, chunking, and vector database integration. Enable ret
    Our Dockerfiles follow standard conventions, with the exception of some specific modifications described in the Dockerfile/described below.
 
 
-**5. Application Mock-up**  < Mahmood>
+5. **`Stock Busters Mock-up App Description:`**
 
-(Explain and add snapshot here)
+The Stock Busters application is designed as an agentic, mobile-first interface to demonstrate a financial analysis tool powered by AI. Its core function is to guide users through complex financial screening processes via a multi-step conversational flow.
+
+Core Features:
+Agentic Chat Interface: The app uses a conversational design to simulate an intelligent agent, replacing complex forms with simple dialogue. The agent asks clarifying questions (e.g., confirming the time horizon for "positive momentum") to refine the user's initial query before generating results.
+
+**5-Step Conversational Flow: The wireframe demonstrates a full user journey:**
+
+- Agent Greeting
+
+- User Initial Query (e.g., "Find large-cap tech stocks...")
+
+- Agent Clarification (Asking for missing criteria)
+
+- User Response (Providing the final criteria)
+
+- Final Results: A structured output with a stock table, fundamental data (ROE, Sector, Price Change), backtesting insights (CAGR, Max Drawdown), and detailed explanations.
+
+<img width="1210" height="596" alt="image" src="https://github.com/user-attachments/assets/e10bf308-512d-43be-812f-77f27d4e64e5" />
+
+Side Menu Navigation: A hidden menu provides access to auxiliary functions: Recent Searches (to review past queries), Settings (to manage preferences), and About (including a legal disclaimer).
+
+<img width="1001" height="577" alt="image" src="https://github.com/user-attachments/assets/8d81c4c5-52cd-4fc8-bcfa-fa76bcfea0bc" />
 
 
-## System Architecture ## <Majid>
+The primary goal of this wireframe is to visually communicate the seamless, iterative nature of a sophisticated AI model that uses clarification to deliver precise, data-driven financial recommendations.
 
-(Update detail and snapshot here)
 
+6. **`Solution Architecture:`**
+
+<img width="1111" height="618" alt="image" src="https://github.com/user-attachments/assets/a762852b-40cd-4835-b4be-20dda83105e9" />
+
+The architecture is designed to support application development, AI/ML tasks, and a Chat Bot feature, heavily leveraging Large Language Models (LLMs) like Gemini.
+
+**1. Process Layer**
+
+This is the user and high-level function layer, representing the main areas of interaction and functionality supported by the system:
+
+**Develop App:** Standard application development activities, interacting with the Execution and State layers.
+
+**AI/ML Tasks:** Functions related to the core AI/ML capabilities, such as model development and training.
+
+**Chat Bot:** The conversational interface for users, likely a key feature of the Stock Busters app, which involves "Human Interactions."
+
+**2. Execution Layer**
+
+This layer contains the runtime components and services that handle the application's logic, processing, and user interaction:
+
+**Interactive Notebooks (Notebooks):** Used for human interaction, likely by data scientists or developers, for experimentation and development of AI/ML models. These connect to LLMs and the State layer.
+
+**ML Pipeline:** An automated process for managing the entire machine learning lifecycle:
+
+**Data Collector:** Gathers necessary data.
+
+**Model Training:** The core process of generating the AI/ML model.
+
+**Data Processor:** Prepares data for training or inference.
+
+**Model Deploy:** Puts the trained model into a production environment.
+
+It's driven by CLI + Automation and interacts with LLMs.
+
+**LLMs (as a Service) - Gemini:** A central service providing Large Language Model capabilities (like Gemini) via HTTP/HTTPS. It acts as a bridge between the Notebooks, ML Pipeline, and the Backend.
+
+**Frontend (StockBusters):** The user-facing component of the main application, supporting "Human Interactions" and communicating with the Backend via HTTP/HTTPS.
+
+**Backend:** The core application logic and data-handling services, accessible via HTTPS.
+
+**API Service:** Handles business logic and serves the Frontend and LLMs.
+
+**Vector DB Service:** Provides a vector database, essential for modern AI applications, particularly those utilizing LLMs (like for retrieval-augmented generation in the Chat Bot).
+
+**3. State Layer**
+
+This is the data and infrastructure layer that stores, manages, and tracks all persistent assets and data:
+
+**Source Control:** Stores all application code, configuration, and potentially pipeline definitions.
+
+**Artifact Registry:** Stores built artifacts, such as trained models from the ML Pipeline and other reusable components.
+
+**Data Store:** Stores raw, processed, and training data utilized by the ML Pipeline and LLMs.
+
+**Knowledge Base:** Stores structured and unstructured information (likely financial or market data) that the Backend, particularly the Vector DB Service, and LLMs can query to inform the application and Chat Bot responses.
