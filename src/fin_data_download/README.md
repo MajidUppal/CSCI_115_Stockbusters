@@ -40,6 +40,46 @@ AC215_StockBusters/
 └── .gitignore # Ignore cache, venv, and secrets
 ```
 
+## Key Files
+
+| File | Purpose |
+|------|----------|
+| `data_download.py` | Main executable script — orchestrates GCS I/O, data download, feature generation, and uploads |
+| `gcs_utils.py` | Contains helper methods for authenticated GCS client initialization and file operations |
+| `Dockerfile` | Defines a reproducible runtime image with all dependencies preinstalled |
+| `requirements.txt` | Lists packages for manual installation if Docker is not used |
+| `pyproject.toml` | Metadata for modern build systems (`uv` or `pip` compatible) |
+
+---
+
+##  GCP Configuration
+
+The script reads the following environment variables:
+
+| Variable | Description | Example |
+|-----------|--------------|----------|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON file (only needed outside GCP) | `/app/secrets/stock-busters-service-account.json` |
+| `GCP_BUCKET` | Target GCS bucket name | `fin-data-bucket-115` |
+| `GCP_TICKER_PATH` | Path to S&P 500 ticker list CSV in bucket | `SP500_list.csv` |
+| `START_DATE` | Start date for historical data | `2019-01-01` |
+| `END_DATE` | End date for historical data | `2025-09-30` |
+| `YF_CHUNK_SIZE` | Number of tickers to download per batch | `50` |
+| `YF_SLEEP_SEC` | Sleep time between batches (to avoid rate limits) | `1.0` |
+
+---
+
+##  Running with Docker
+
+### **Local (with service account key)**
+
+```bash
+docker build -t fin-data-pipeline .
+docker run --rm -it \
+  -v "$PWD/../../secrets:/app/secrets" \
+  -e GOOGLE_APPLICATION_CREDENTIALS="/app/secrets/stock-busters-service-account.json" \
+  -e GCP_BUCKET="fin-data-bucket-115" \
+  fin-data-pipeline
+
 ##  Prerequisites
 
 Before building the image, make sure you have:
@@ -52,10 +92,10 @@ Before building the image, make sure you have:
 
 ##  GCS Setup
 
-1. Create or use an existing bucket (e.g. `fin-data-bucket-115`).  
+1. Create GCP bucket (`fin-data-bucket-115`).  
 2. Upload the input CSVs to the bucket root Ex. gs://fin-data-bucket/SP500_list.csv  This file contains the list of S&P500
 3. Place your service account key outside: Milestone2/secrets/service_account.json
-4. **Do not commit this file** — the `secrets/` folder is ignored by `.gitignore`.
+
 
 ##  Build and Run with Docker
 
