@@ -65,7 +65,7 @@ AC215_StockBusters/
     │   ├── chroma.sqlite3
     │   └── [vector index bins]
     │
-    ├── app_mockup/    
+        
    
 
 
@@ -168,23 +168,21 @@ Implement data collection, chunking, and vector database integration. Enable ret
 
 
 
- **4. Finance Data ingestion** <Siri>
+ **4. Finance Data ingestion** 
+This module builds an **end-to-end finance data ingestion pipeline** for the StockBusters project.  
+It automatically downloads **S&P 500 stock data** from Yahoo Finance, computes **technical indicators**,  
+and uploads the processed datasets directly to **Google Cloud Storage (GCS)** — with **no local file storage** required.
 
-<Siri - data below is a placeholder only>
+The pipeline performs the following tasks:
 
-1. **`src/datapipeline/preprocess_cv.py`**
-   This script handles preprocessing on our 100GB dataset. It reduces the image sizes to 128x128 (a parameter that can be changed later) to enable faster iteration during processing. The preprocessed dataset is now reduced to 10GB and stored on GCS.
-
-2. **`src/datapipeline/preprocess_rag.py`**
-   This script prepares the necessary data for setting up our vector database. It performs chunking, embedding, and loads the data into a vector database (ChromaDB).
-
-3. **`src/datapipeline/Pipfile`**
-   We used the following packages to help with preprocessing:
-   - `special cheese package`
-
-4. **`src/preprocessing/Dockerfile(s)`**
-   Our Dockerfiles follow standard conventions, with the exception of some specific modifications described in the Dockerfile/described below.
-
+1. **Download the S&P 500 ticker list** from a designated GCS bucket.  
+2. **Fetch OHLCV data** (Open, High, Low, Close, Volume) for all tickers using `yfinance`, in parallelized chunks.  
+3. **Transform** raw data from wide to long format.  
+4. **Enhance** each ticker’s time series with over 90 **technical indicators** (SMA, RSI, MACD, ATR, MFI, etc.) using the `ta` library.  
+5. **Filter core features** relevant for modeling (trend, momentum, volatility, volume).  
+6. **Upload final datasets** back to the GCS bucket in CSV format.  
+7. Generate a small **`upload_summary.json`** for verification (number of tickers, rows, upload timestamp).
+8. 
 
 5. **`Stock Busters Mock-up App Description:`**
 
