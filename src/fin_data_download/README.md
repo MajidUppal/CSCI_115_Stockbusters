@@ -33,8 +33,6 @@ Milestone2/
 ├── notebooks/
 │ └── finance_data_download.ipynb # Development notebook version
 │
-├── secrets/
-│ └── service_account.json # GCP credentials (ignored by Git)
 │
 ├── README.md # This documentation file
 └── .gitignore # Ignore cache, venv, and secrets
