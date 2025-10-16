@@ -84,15 +84,6 @@ Before building the image, make sure you have:
 ### **Local (with service account key)**
 
 ```bash
-# Build the image
-docker build -f src/fin_data_download/Dockerfile -t fin-data-pipeline .
-
-# Run the container, mounting your local secrets folder
-docker run --rm -it \
-  -v "$PWD/../../secrets:/app/secrets" \
-  -e GOOGLE_APPLICATION_CREDENTIALS="/app/secrets/stock-busters-service-account.json" \
-  -e GCP_BUCKET="fin-data-bucket-115" \
-  fin-data-pipeline
 
 
 ##  GCS Setup
@@ -113,6 +104,15 @@ The container will:
 
 5. Fetch the income statement and balance sheet and upload to the same GCS bucket
 
+# Build the image
+docker build -f src/fin_data_download/Dockerfile -t fin-data-pipeline .
+
+# Run the container, mounting your local secrets folder
+docker run --rm -it \
+  -v "$PWD/../../secrets:/app/secrets" \
+  -e GOOGLE_APPLICATION_CREDENTIALS="/app/secrets/stock-busters-service-account.json" \
+  -e GCP_BUCKET="fin-data-bucket-115" \
+  fin-data-pipeline
 
 #Example output
 Below is a sample of output
