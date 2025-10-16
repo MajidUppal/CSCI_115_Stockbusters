@@ -10,13 +10,14 @@ import os, re, glob, json, time, argparse
 from typing import List, Tuple, Dict, Any
 
 # --- Settings (single source of truth) ---------------------------------------
+# Use container-absolute defaults so no bind mounts are required.
 API_PORT          = int(os.getenv("API_PORT", "8000"))
-VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "./volumes/chroma")
+VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "/workspace/volumes/chroma")
 VECTOR_COLLECTION = os.getenv("VECTOR_COLLECTION", "stocks_rag_v1")
-DATA_DIR          = os.getenv("DATA_DIR", "./data")
-ARTIFACTS_DIR     = os.getenv("ARTIFACTS_DIR", "./artifacts")
-CHUNK_SIZE        = int(os.getenv("CHUNK_SIZE", "800"))
-CHUNK_OVERLAP     = int(os.getenv("CHUNK_OVERLAP", "150"))
+DATA_DIR          = os.getenv("DATA_DIR", "/workspace/data")
+ARTIFACTS_DIR     = os.getenv("ARTIFACTS_DIR", "/workspace/artifacts")
+CHUNK_SIZE        = int(os.getenv("CHUNK_SIZE", "1200"))
+CHUNK_OVERLAP     = int(os.getenv("CHUNK_OVERLAP", "200"))
 EMBEDDING_MODEL   = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 
 # Ensure runtime dirs exist (create parents first, tolerate read-only mounts)

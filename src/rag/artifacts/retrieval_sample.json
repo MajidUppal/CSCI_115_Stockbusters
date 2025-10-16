@@ -3,8 +3,8 @@
   "results": {
     "ids": [
       [
-        "./data/PrinciplesofFinanceSample.pdf#page=96::chunk_0",
-        "./data/PrinciplesofFinanceSample.pdf#page=91::chunk_2"
+        "/workspace/data/PrinciplesofFinanceSample.pdf#page=96::chunk_0",
+        "/workspace/data/PrinciplesofFinanceSample.pdf#page=91::chunk_2"
       ]
     ],
     "distances": [
@@ -16,10 +16,10 @@
     "metadatas": [
       [
         {
-          "source": "./data/PrinciplesofFinanceSample.pdf#page=96"
+          "source": "/workspace/data/PrinciplesofFinanceSample.pdf#page=96"
         },
         {
-          "source": "./data/PrinciplesofFinanceSample.pdf#page=91"
+          "source": "/workspace/data/PrinciplesofFinanceSample.pdf#page=91"
         }
       ]
     ],
