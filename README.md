@@ -117,7 +117,7 @@ and Logs and example I/O showing a complete run
 
 
 
-**3. RAG pipeline**  **< Seraphim>**
+**3. RAG pipeline**  
 
 
 Implement data collection, chunking, and vector database integration. Enable retrieval from financial text sources.
@@ -181,8 +181,8 @@ The pipeline performs the following tasks:
 4. **Enhance** each ticker’s time series with over 90 **technical indicators** (SMA, RSI, MACD, ATR, MFI, etc.) using the `ta` library.  
 5. **Filter core features** relevant for modeling (trend, momentum, volatility, volume).  
 6. **Upload final datasets** back to the GCS bucket in CSV format.  
-7. Generate a small **`upload_summary.json`** for verification (number of tickers, rows, upload timestamp).
-8. 
+
+   
 
 5. **`Stock Busters Mock-up App Description:`**
 
