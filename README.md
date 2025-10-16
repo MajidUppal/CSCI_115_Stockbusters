@@ -134,7 +134,7 @@ Implement data collection, chunking, and vector database integration. Enable ret
 - **Documentation** (`README.md`, `Dockerfile`, Quick Start guide)  
   *Location*: `src/rag/README.md`
 
-
+---
 **RAG Workflow**
 
 **Ingest**
