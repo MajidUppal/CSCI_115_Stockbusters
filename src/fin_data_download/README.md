@@ -83,9 +83,6 @@ Before building the image, make sure you have:
 
 ### **Local (with service account key)**
 
-```bash
-
-
 ##  GCS Setup
 
 1. Create GCP bucket (`fin-data-bucket-115`).  
