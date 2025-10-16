@@ -111,7 +111,75 @@ docker run --rm -it \
   -e GCP_BUCKET="fin-data-bucket-115" \
   fin-data-pipeline
 
-#Example output
-Below is a sample of output
+### Example output
+Below is a sample of docker run output
 
+PS C:\Users\siris\OneDrive\CSCI-E 115_od\Project\git\AC215_StockBusters> docker run --rm -it `
+>>   -v "${PWD}/../secrets:/app/secrets" `                                        
+>>   -e GOOGLE_APPLICATION_CREDENTIALS="/app/secrets/stock-busters-service-account.json" `
+>>   -e GCP_BUCKET="fin-data-bucket-115" `
+>>   fin-data-pipeline
 
+ Starting StockBusters Data Pipeline (Cloud Mode)
+Bucket: gs://fin-data-bucket-115
+Credentials: /app/secrets/stock-busters-service-account.json
+Date range: 2019-01-01 → 2025-09-30
+⬇️  Downloading SP500_list.csv from bucket fin-data-bucket-115 ...
+✅ Loaded 433 tickers
+ Downloading 433 tickers in 9 chunks...
+  Chunk 1/9: ['AAPL', 'ABBV', 'ABT']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+
+1 Failed download:
+['COF']: OperationalError('database is locked')
+  Chunk 2/9: ['CSCO', 'CSGP', 'CSX']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 3/9: ['EQT', 'ERIE', 'ES']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 4/9: ['HAL', 'HAS', 'HBAN']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 5/9: ['KHC', 'KIM', 'KKR']... (50 tickers)
+  Chunk 5/9: ['KHC', 'KIM', 'KKR']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 6/9: ['MRK', 'MRNA', 'MS']... (50 tickers)
+  Chunk 6/9: ['MRK', 'MRNA', 'MS']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 7/9: ['PH', 'PHM', 'PKG']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  Chunk 7/9: ['PH', 'PHM', 'PKG']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 8/9: ['STLD', 'STT', 'STX']... (50 tickers)
+  df = yf.download(
+  Chunk 8/9: ['STLD', 'STT', 'STX']... (50 tickers)
+  Chunk 8/9: ['STLD', 'STT', 'STX']... (50 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  Chunk 9/9: ['VLTO', 'VMC', 'VRSK']... (33 tickers)
+/app/data_download.py:121: FutureWarning: YF.download() has changed argument auto_adjust default to True
+  df = yf.download(
+  df = yf.download(
+ Uploaded CSV dataframe → gs://fin-data-bucket-115/sp500_raw_data.csv
+ Uploaded CSV dataframe → gs://fin-data-bucket-115/sp500_long_data.csv
+ Uploaded CSV dataframe → gs://fin-data-bucket-115/sp500_long_data.csv
+/home/app/.venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:57: RuntimeWarning: invalid value encountered in accumulate
+/home/app/.venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:57: RuntimeWarning: invalid value encountered in accumulate
+  return bound(*args, **kwds)
+ TA features added — total columns: 93
+ Uploaded CSV dataframe → gs://fin-data-bucket-115/sp500_long_data_with_complete_ta.csv
+ Uploaded CSV dataframe → gs://fin-data-bucket-115/sp500_long_data_with_ta_core.csv
+📄 Created upload_summary.json (local only)
+
+🎉🎉 Pipeline completed successfully! 🎉🎉
