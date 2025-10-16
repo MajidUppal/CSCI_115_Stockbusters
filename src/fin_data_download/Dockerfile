@@ -15,7 +15,8 @@ ENV UV_PROJECT_ENVIRONMENT=/home/app/.venv
 
 # Path to GCP service account key
 #ENV GOOGLE_APPLICATION_CREDENTIALS="secrets/ai-stock-screener-474813-f2e644955fcf.json"
-ENV GOOGLE_APPLICATION_CREDENTIALS="secrets/stock-busters-service-account.json"
+ENV GCP_PROJECT="stock-busters-cs115"
+ENV GOOGLE_APPLICATION_CREDENTIALS="/secrets/stock-busters-service-account.json"
 
 # --- System setup ---
 RUN set -ex; \
@@ -37,7 +38,7 @@ WORKDIR /app
 
 # --- Copy project files ---
 # Use --chown to ensure permissions for app user
-COPY --chown=app:app src/fin_data_download/ /app/
+COPY --chown=app:app . /app/
 #COPY --chown=app:app secrets/ /app/secrets/
 
 # --- Sync Python environment with uv ---
