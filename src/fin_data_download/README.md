@@ -112,3 +112,8 @@ The container will:
 
 5. Fetch the income statement and balance sheet and upload to the same GCS bucket
 
+
+#Example output
+Below is a sample of output
+
+
