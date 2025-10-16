@@ -182,7 +182,8 @@ The pipeline performs the following tasks:
 5. **Filter core features** relevant for modeling (trend, momentum, volatility, volume).  
 6. **Upload final datasets** back to the GCS bucket in CSV format.  
 
-   
+
+
 
 5. **`Stock Busters Mock-up App Description:`**
 
