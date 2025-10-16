@@ -91,6 +91,9 @@ In Milestone 2, our focus is on building the MLOps infrastructure that powers th
 
 < adding detail here >
 
+The virtual environment has been created in GCP. All containers are being run in GCP.
+
+<img width="1157" height="160" alt="image" src="https://github.com/user-attachments/assets/dd109b2d-b577-478b-9aa3-504a29f2b0b1" />
 
 
 
@@ -110,10 +113,27 @@ and Logs and example I/O showing a complete run
 
 < adding detail here>
 
+The current version has two containers.
+- Data pipeline container
+- RAG container
+  
+These containers are build and run with single command as required through Docker Compose file. The docker compose file can be seen here at [compose.yml file](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone2/compose.yml) .
+Below are snapshots for the Docker compose executed in the AC215_StockBusters
+
+*** Docker Creation ***
+<img width="1688" height="1310" alt="image" src="https://github.com/user-attachments/assets/e624c591-ee41-4fb8-a6de-300033743d0c" />
+
+
+<img width="1626" height="536" alt="image" src="https://github.com/user-attachments/assets/2ffe8d75-fdbf-4049-ab68-07a7d42ac6f1" />
+
+
+<img width="1678" height="514" alt="image" src="https://github.com/user-attachments/assets/a5bac83c-7b20-47d1-9a9d-bd709fbc31f4" />
 
 
 
+Below are the images of the created containers
 
+<img width="1114" height="108" alt="image" src="https://github.com/user-attachments/assets/d5055582-738c-45b0-9049-9ae6eec6ea3f" />
 
 ---
 **3. RAG pipeline**  
