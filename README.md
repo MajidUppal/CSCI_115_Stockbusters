@@ -81,7 +81,7 @@ In Milestone 2, our focus is on building the MLOps infrastructure that powers th
 
 ### Milestone2 : MLOps Infrastructure and ML Components ###
 
-**1. Virtual Environment Setup**    **< Majid & mahmood>**
+**1. Virtual Environment Setup**
 
 - Create and document working environments (local & cloud-based).
 
@@ -100,7 +100,7 @@ The virtual environment has been created in GCP. All containers are being run in
 
 
 ---
-**2. Containerized Pipeline** **< Majid & mahmood>**
+**2. Containerized Pipeline**
 
 Build Dockerized components for ingestion, preprocessing, and RAG workflow.
 
@@ -117,8 +117,14 @@ The current version has two containers.
 - Data pipeline container
 - RAG container
   
-These containers are build and run with single command as required through Docker Compose file. The docker compose file can be seen here at [compose.yml file](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone2/compose.yml) .
-Below are snapshots for the Docker compose executed in the AC215_StockBusters
+These containers are build and run with single command as required through Docker Compose file. The docker compose file can be seen here at [compose.yml](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone2/compose.yml).
+Run the compose.yml using the following command
+
+`sudo docker compose up`
+
+The UV dependency is handled by each individual container.
+
+Below are snapshots for the Docker compose executed in the AC215_StockBusters.
 
 *** Docker Creation ***
 <img width="1688" height="1310" alt="image" src="https://github.com/user-attachments/assets/e624c591-ee41-4fb8-a6de-300033743d0c" />
