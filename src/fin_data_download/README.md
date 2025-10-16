@@ -1,20 +1,20 @@
 
 # Milestone 2 — Finance Data Ingestion Pipeline (Docker + GCS)
 
+This module builds an **end-to-end finance data ingestion pipeline** for the StockBusters project.  
+It automatically downloads **S&P 500 stock data** from Yahoo Finance, computes **technical indicators**,  
+and uploads the processed datasets directly to **Google Cloud Storage (GCS)** — with **no local file storage** required.
+
+The pipeline performs the following tasks:
+
+1. **Download the S&P 500 ticker list** from a designated GCS bucket.  
+2. **Fetch OHLCV data** (Open, High, Low, Close, Volume) for all tickers using `yfinance`, in parallelized chunks.  
+3. **Transform** raw data from wide to long format.  
+4. **Enhance** each ticker’s time series with over 90 **technical indicators** (SMA, RSI, MACD, ATR, MFI, etc.) using the `ta` library.  
+5. **Filter core features** relevant for modeling (trend, momentum, volatility, volume).  
+6. **Upload final datasets** back to the GCS bucket in CSV format.
+
 This module implements a **containerized data ingestion pipeline** that downloads financial data (S&P 500 tickers and historical OHLCV data), processes it with Python, and uploads results to a Google Cloud Storage (GCS) bucket.  
-It is part of the **CSCI-115 Stock Screener Project**, under the `Milestone2` branch.
-
----
-
-## Overview
-
-The pipeline automates:
-1. Downloading the S&P 500 ticker list from a GCS bucket  
-2. Fetching OHLCV (Open, High, Low, Close, Volume) data from Yahoo Finance  
-3. Computing technical indicators using the `ta` library  
-4. Saving processed data locally and uploading results back to GCS  
-
-The entire workflow runs inside a **Docker container**, ensuring consistent environments across all team members.
 
 ---
 
