@@ -5,7 +5,7 @@ A minimal, reproducible Retrieval-Augmented Generation (RAG) system built with:
 - FastAPI for serving queries
 Everything runs in a single Docker image
 ---
-## Project Layout
+## RAG Layout
 ```
 RAG/
 │
@@ -55,15 +55,22 @@ CHROMA_TELEMETRY_DISABLED=1
 ---
 
 ## Quick Start
-0. Optional: Deletes your local runtime state (sanitized text, logs, and vector store)
+1. Ensure you are in the rag folder as your working directory
+
+Example:
+```
+cd rag
+(base) PS C:\Users\username\rag>
+```
+2. Optional: Deletes your local runtime state (sanitized text, logs, and vector store)
 ```
 Remove-Item -Recurse -Force .\artifacts, .\volumes\chroma
 ```
-1. Build the image  
+3. Build the image  
 ```
 docker build -t ms2-rag .
 ```
-2. Run everything (Ingest + Serve in one container)  
+4. Run everything (Ingest + Serve in one container)  
 ```
 docker run --rm -p 8000:8000 -v "${PWD}:/workspace" ms2-rag --ingest --serve
 ```
