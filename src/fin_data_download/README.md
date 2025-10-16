@@ -20,7 +20,7 @@ The entire workflow runs inside a **Docker container**, ensuring consistent envi
 
 ##  Folder Structure
 ```text
-Milestone2/
+AC215_StockBusters/
 │
 ├── src/
 │ └── fin_data_download/
@@ -29,12 +29,14 @@ Milestone2/
 │ ├── requirements.txt # Python dependencies
 │ ├── Dockerfile # Container build definition
 │ └── .dockerignore # Excluded files from Docker context
+│ └── README.md # This documentation
+│ └── pyproject.toml
 │
 ├── notebooks/
 │ └── finance_data_download.ipynb # Development notebook version
 │
 │
-├── README.md # This documentation file
+├── README.md # This documentation 
 └── .gitignore # Ignore cache, venv, and secrets
 ```
 
@@ -42,17 +44,17 @@ Milestone2/
 
 Before building the image, make sure you have:
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed  
-- Access to your team’s **Google Cloud Project**  
+- Access to the team’s **Google Cloud Project**  
 - A valid **service account JSON key** with permission to read/write the target GCS bucket  
-- The environment variable `GOOGLE_APPLICATION_CREDENTIALS` pointing to that JSON file (set automatically in the Dockerfile)
+- The environment variable `GOOGLE_APPLICATION_CREDENTIALS` pointing to that JSON file 
 
 ---
 
 ##  GCS Setup
 
-1. Create or use an existing bucket (e.g. `fin-data-bucket`).  
-2. Upload your input CSVs to the bucket root (no subfolders), for example: gs://fin-data-bucket/SP500_list.csv
-3. Place your service account key inside: Milestone2/secrets/service_account.json
+1. Create or use an existing bucket (e.g. `fin-data-bucket-115`).  
+2. Upload the input CSVs to the bucket root Ex. gs://fin-data-bucket/SP500_list.csv  This file contains the list of S&P500
+3. Place your service account key outside: Milestone2/secrets/service_account.json
 4. **Do not commit this file** — the `secrets/` folder is ignored by `.gitignore`.
 
 ##  Build and Run with Docker
