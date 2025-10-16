@@ -60,7 +60,7 @@ CHROMA_TELEMETRY_DISABLED=1
 Example:
 ```
 cd rag
-(base) PS C:\Users\username\rag>
+(base) PS C:\Users\user\CSCI115-Stock-Screener\src\rag>
 ```
 2. Optional: Deletes your local runtime state (sanitized text, logs, and vector store)
 ```
