@@ -183,7 +183,7 @@ The pipeline performs the following tasks:
 6. **Upload final datasets** back to the GCS bucket in CSV format.
 
 
-5. **Stock Busters Mock-up App Description:`**
+**5. Stock Busters Mock-up App Description:`**
 
 The Stock Busters application is designed as an agentic, mobile-first interface to demonstrate a financial analysis tool powered by AI. Its core function is to guide users through complex financial screening processes via a multi-step conversational flow.
 
@@ -212,7 +212,7 @@ Side Menu Navigation: A hidden menu provides access to auxiliary functions: Rece
 The primary goal of this wireframe is to visually communicate the seamless, iterative nature of a sophisticated AI model that uses clarification to deliver precise, data-driven financial recommendations.
 
 
-6. **`Solution Architecture:`**
+**6. Solution Architecture:**
 
 <img width="1111" height="618" alt="image" src="https://github.com/user-attachments/assets/a762852b-40cd-4835-b4be-20dda83105e9" />
 
