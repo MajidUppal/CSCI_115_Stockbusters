@@ -44,10 +44,10 @@ RAG/
 Your `.env` should contain:
 ```
 API_PORT=8000
-VECTOR_STORE_PATH=./volumes/chroma
+VECTOR_STORE_PATH=/workspace/volumes/chroma
 VECTOR_COLLECTION=stocks_rag_v1
-DATA_DIR=./data
-ARTIFACTS_DIR=./artifacts
+DATA_DIR=/workspace/data
+ARTIFACTS_DIR=/workspace/artifacts
 CHUNK_SIZE=1200
 CHUNK_OVERLAP=200
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
@@ -56,34 +56,41 @@ CHROMA_TELEMETRY_DISABLED=1
 ---
 
 ## Quick Start
-1. Ensure you are in the rag folder as your working directory
+1. Ensure you are in the AC215_StockBusters folder as your working directory
 
 Example:
 ```
-cd rag
-(base) PS C:\Users\user\CSCI115-Stock-Screener\src\rag>
+cd AC215_StockBusters
+(base) PS C:\Users\user\AC215_StockBusters>
 ```
-2. Optional: Deletes your local runtime state (sanitized text, logs, and vector store)
+2. Optional: Clean up any old container name
 ```
-Remove-Item -Recurse -Force .\artifacts, .\volumes\chroma
+docker rm -f ac215-rag 2>$null
 ```
 3. Build the image  
 ```
-docker build -t ms2-rag .
+docker build -t ac215-rag -f src\rag\Dockerfile src\rag
 ```
 4. Run everything (Ingest + Serve in one container)  
 ```
-docker run --rm -p 8000:8000 -v "${PWD}:/workspace" ms2-rag --ingest --serve
+docker run -it -p 8000:8000 --env-file src\rag\.env --name ac215-rag ac215-rag --ingest --dump-vector --serve
 ```
+
 
 This:
 - Ingests documents from `data/`
 - Cleans and saves text in `artifacts/sanitized/`
-- Records chunking info in `artifacts/chunk_stats.json`
-- Writes ingest metadata to `artifacts/ingest_metadata.json`
+- Records chunking info in `artifacts/injest_summary.json`
+- Writes ingest metadata to `artifacts/metadata.json`
 - Builds a vector store in `volumes/chroma/`
+- Prints chunks and vectors for visualization
 - Starts the FastAPI server on port 8000
+- Outputs sample vector from ChromaDB in `artifacts/`
 
+```
+# For only ingestion (no querying)
+docker run -it --env-file src\rag\.env ac215-rag
+```
 # Optional API:
 Once running, open:  
 http://localhost:8000/docs  
@@ -110,7 +117,7 @@ Example output:
 
 ## Dump a Sample Vector
 ```
-docker run --rm -v "${PWD}:/workspace" ms2-rag --dump-vector  
+docker run -it --env-file src\rag\.env ac215-rag --dump-vector
 ```
 This saves:
 artifacts/sample_vector.json  
@@ -128,18 +135,29 @@ Example contents:
 Press Ctrl + C in the terminal window where it’s running.  
 If you ran it detached (with -d), stop it with:  
 ```
-docker rm -f rag_api
+docker rm -f ac215-rag
 ```
----
 
+## Copy artifacts and vector store to local
+```
+docker cp ac215-rag:/workspace/artifacts .\artifacts
+docker cp ac215-rag:/workspace/volumes .\volumes
+```
+
+---
+---
 ## Summary
-| Step | Command | Purpose |
-|------|----------|----------|
-| Build image | `docker build -t ms2-rag .` | Build the image |
-| Run end-to-end | `docker run --rm -p 8000:8000 -v "${PWD}:/workspace" ms2-rag --ingest --serve` | Ingest & serve in one |
-| Query | (PowerShell) `irm -Method Post -Uri "http://localhost:8000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6`[...] |
-| Dump vector | `docker run --rm -v "${PWD}:/workspace" ms2-rag --dump-vector` | Inspect one embedding |
-| Stop API | `Ctrl + C` or `docker rm -f rag_api` | Stop container |
+| Step              | Command                                                                                                                             | Purpose                                  |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------|
+| Build image       | `docker build -t ac215-rag -f src\rag\Dockerfile src\rag`                                                                           | Build the image                          |
+| Run end-to-end    | `docker run -it -p 8000:8000 --env-file src\rag\.env --name ac215-rag ac215-rag --ingest --serve`                                   | Ingest & serve in one persistent container |
+| Run ingest only   | `docker run -it --env-file src\rag\.env ac215-rag`                                                                                  | Run ingestion only (default behavior)    |
+| Run API only      | `docker run -it -p 8000:8000 --env-file src\rag\.env --name ac215-rag ac215-rag --serve`                                            | Start the FastAPI server only            |
+| Query             | (PowerShell) `irm -Method Post -Uri "http://localhost:8000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6` | Query the API                              |
+| Dump vector       | `docker run -it --env-file src\rag\.env ac215-rag --dump-vector`                                                                    | Inspect one embedding                     |
+| Stop API          | `Ctrl + C` (if foreground) or `docker rm -f ac215-rag` (if detached)                                                                | Stop container                            |
+| Copy artifacts    | `docker cp ac215-rag:/workspace/artifacts .\artifacts`<br>`docker cp ac215-rag:/workspace/volumes .\volumes`                         | Copy results & vector DB to host          |
+
 
 ---
 
@@ -152,4 +170,4 @@ docker rm -f rag_api
 | **pyproject.toml (using uv)**                                                               | `RAG/pyproject.toml`                 | Defines Python dependencies and environment configuration for the container (managed with **uv**).                                                                                                                                                                  |
 | **Scripts or docker-compose.yml (when applicable)**                                         | `RAG/rag.py` *(main script)*         | `rag.py` acts as the unified CLI and pipeline script handling ingestion, chunking, embedding, vector storage, and API serving. *(No docker-compose.yml is required because the pipeline runs with a single Dockerfile command. docker-composed moved to _archived folder)*                                   |
 | **Containerized RAG pipeline with scripts for chunking, vectorization, and DB integration** | `RAG/rag.py`                         | Implements ingestion, sanitization, text splitting, embedding (FastEmbed), and vector store integration (Chroma).                                                                                                            |
-| **Pipeline Evidence and Logs**                                                              | `RAG/artifacts/`                     | Contains automatically generated outputs and logs verifying end-to-end pipeline execution — including cleaned text (`sanitized/`), chunking summaries (`chunk_stats.json`), ingestion logs (`ingest_metadata.json`), and sample embeddings (`sample_vector.json`). |
+| **Pipeline Evidence and Logs**                                                              | `RAG/artifacts/`                     | Contains automatically generated outputs and logs verifying end-to-end pipeline execution — including cleaned text (`sanitized/`), chunking summaries (`metadata.json`), ingestion logs (`ingest_summary.json`), and sample embeddings (`sample_vector.json`). |
