@@ -73,7 +73,10 @@ The script reads the following environment variables:
 ### **Local (with service account key)**
 
 ```bash
-docker build -t fin-data-pipeline .
+# Build the image
+docker build -f src/fin_data_download/Dockerfile -t fin-data-pipeline .
+
+# Run the container, mounting your local secrets folder
 docker run --rm -it \
   -v "$PWD/../../secrets:/app/secrets" \
   -e GOOGLE_APPLICATION_CREDENTIALS="/app/secrets/stock-busters-service-account.json" \
@@ -96,17 +99,6 @@ Before building the image, make sure you have:
 2. Upload the input CSVs to the bucket root Ex. gs://fin-data-bucket/SP500_list.csv  This file contains the list of S&P500
 3. Place your service account key outside: Milestone2/secrets/service_account.json
 
-
-##  Build and Run with Docker
-
-From the project root:
-
-```bash
-# Build the image
-docker build -f src/fin_data_download/Dockerfile -t fin-data-pipeline .
-
-# Run the container, mounting your local secrets folder
-docker run -v "${PWD}/secrets:/app/secrets" fin-data-pipeline
 
 The container will:
 
