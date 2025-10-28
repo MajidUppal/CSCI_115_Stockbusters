@@ -81,9 +81,9 @@ AC215_StockBusters/
 
 The A Multi-Agent System for Stock Recommendations is an AI-driven, multi-agent system designed to integrate quantitative and fundamental financial data with expert-inspired reasoning. The system generates explainable stock recommendations tailored to individual investors’ goals and risk profiles.
 
-In Milestone 2, our focus is on building the MLOps infrastructure that powers this system — containerizing all major components to ensure reproducibility, scalability, and modular deployment.
+In Milestone 3, our focus is on building the MLOps infrastructure that powers this system — containerizing all major components to ensure reproducibility, scalability, and modular deployment.
 
-### Milestone2 : MLOps Infrastructure and ML Components ###
+### Milestone3 : MLOps Infrastructure and ML Components ###
 
 **1. Virtual Environment Setup**
 
@@ -186,21 +186,37 @@ Implement data collection, chunking, and vector database integration. Enable ret
 ---
 
  **4. Finance Data ingestion** 
- 
-This module builds an **end-to-end finance data ingestion pipeline** for the StockBusters project.  
-It automatically downloads **S&P 500 stock data** from Yahoo Finance, computes **technical indicators**,  
-and uploads the processed datasets directly to **Google Cloud Storage (GCS)** — with **no local file storage** required.
 
-The pipeline performs the following tasks:
+**Update in Milestone 3** 
+**Why We Moved Away from yfinance :**
 
-1. **Download the S&P 500 ticker list** from a designated GCS bucket.  
-2. **Fetch OHLCV data** (Open, High, Low, Close, Volume) for all tickers using `yfinance`, in parallelized chunks.  
-3. **Transform** raw data from wide to long format.  
-4. **Enhance** each ticker’s time series with over 90 **technical indicators** (SMA, RSI, MACD, ATR, MFI, etc.) using the `ta` library.  
-5. **Filter core features** relevant for modeling (trend, momentum, volatility, volume).  
-6. **Upload final datasets** back to the GCS bucket in CSV format.
+In MS2, we considered using yfinance to download historical market data.
+However, we faced two major issues:
 
-Files are upload to GCS bucket as shown below
+- Rate limits: yfinance frequently blocks or throttles requests when fetching data for hundreds of tickers.
+
+- Data quality: Some tickers had missing or inconsistent values, and certain delisted stocks returned incomplete histories.
+
+To address this, we switched to Financial Modeling Prep (FMP) because it provides:
+
+- Reliable OHLCV and fundamental data.
+
+- Both quarterly and annual reports.
+
+- Faster downloads using asynchronous requests (aiohttp).
+
+- .parquet caching for speed and reproducibility.
+
+
+This change significantly improved data completeness, speed, and reliability for our quantamental pipeline.
+
+**2. Quantamental Model (Random Forest Classification)**
+    
+- Adding Quantamental Model (which is based on Random forest classification)
+
+**3. Create Hybrid score for Stock ranking**
+
+- Create Hybrid Score which combines the fundamental features and technical features together 
 
 <img width="1902" height="673" alt="image" src="https://github.com/user-attachments/assets/efd50c36-4cd3-4eea-b9d5-0bf81e9c29ed" />
 
