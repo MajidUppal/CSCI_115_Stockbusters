@@ -1,10 +1,14 @@
-## AC215/CSCIE-115 - Milestone 2: A Multi-Agent System for Stock Recommendations
+## AC215/CSCIE-115 - Milestone 3: A Multi-Agent System for Stock Recommendations
 
 **Team Members** : Majid Uppal, Sirisom Pranivong, Seraphim Eilken, Mahmood Masqati
 
 **Group Name**  Stock Busters
 
-### Project Milestone 2 Organization
+**What is new in MS3?**
+
+The main change in MS3 is an updated on the Quantamental model notebook **
+
+### Project Milestone 3 Organization
 
 
 ```
@@ -21,7 +25,8 @@ AC215_StockBusters/
 │
 ├── notebooks/
 │   ├── .gitkeep
-│   └── Finance_data_download.ipynb
+│   └── Finance_data_download.ipynb (MS2)
+│   └── **Quantamental_Model_MS3_2 (MS3)**
 │
 ├── reference/
 │   ├── .gitkeep
@@ -67,7 +72,6 @@ AC215_StockBusters/
     │
         
    
-
 
 
 ```
