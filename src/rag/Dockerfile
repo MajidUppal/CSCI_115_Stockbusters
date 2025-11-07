@@ -1,4 +1,4 @@
-﻿# Single-image for ingest + API (no host mounts needed)
+﻿# Single-image: ChromaDB server + RAG app with GCS FUSE support
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
@@ -6,11 +6,24 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     CHROMA_TELEMETRY_DISABLED=1 \
     POSTHOG_DISABLED=true \
-    OMP_NUM_THREADS=1 
+    OMP_NUM_THREADS=1
 
+# Install system dependencies including GCS FUSE and ChromaDB
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl ca-certificates wget git && \
+    build-essential curl ca-certificates wget git \
+    gnupg fuse mount && \
+    echo "deb http://packages.cloud.google.com/apt gcsfuse-bullseye main" | \
+    tee /etc/apt/sources.list.d/gcsfuse.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+    apt-key add - && \
+    apt-get update && \
+    apt-get install -y gcsfuse && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install ChromaDB server (CLI needed for 'chroma run' command)
+# Pin version to match pyproject.toml to avoid conflicts
+RUN pip install --no-cache-dir "chromadb>=1.0.0"
 
 # (Optional) uv for fast, reproducible installs
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && ln -s /root/.local/bin/uv /usr/local/bin/uv
@@ -32,14 +45,17 @@ COPY gcs-key.json* ./
 # Install Python deps declared in pyproject.toml
 RUN uv sync
 
-# --- Bake docs into the image so you don't need -v mounts ---
+# Bake docs into the image so you don't need -v mounts
 # Everything under src/rag/data/ on the host becomes /workspace/data in the image
 COPY data/ /workspace/data/
 
-# Expose FastAPI port
+# Create ChromaDB data directory (will be mounted with GCS FUSE if GCS_BUCKET_NAME is set)
+RUN mkdir -p /chroma
+
+# Expose FastAPI port and ChromaDB port
 EXPOSE 8000
 
-# Default entrypoint; pass flags at docker run (e.g., --ingest --serve)
+# Use Python directly - rag.py handles ChromaDB server startup
 ENTRYPOINT ["/.venv/bin/python", "rag.py"]
 
 
