@@ -1,9 +1,9 @@
 """
-AC215 MS3 Semantic RAG Application with ChromaDB HTTP Client + GCS Backup
+AC215 MS3 Semantic RAG Application with ChromaDB HTTP Client + GCS Python Client
 
 A Retrieval-Augmented Generation (RAG) system that processes documents using semantic chunking,
 stores embeddings in ChromaDB via HTTP client, and provides a FastAPI interface for querying.
-Requires ChromaDB server to be running separately. Supports GCS backup/restore for data persistence.
+Requires ChromaDB server to be running separately. Uses GCS Python client to sync ChromaDB data to/from GCS.
 
 Usage:
     python rag.py --ingest              # Ingest documents and create embeddings
@@ -22,7 +22,7 @@ Features:
     - FastEmbed embeddings (BGE-small)
     - ChromaDB HTTP client (queries remote server)
     - ChromaDB vector store with upsert (no duplicates)
-    - GCS backup/restore for data persistence (optional)
+    - GCS Python client sync for data persistence (required)
     - FastAPI REST API (/health, /query endpoints)
     - Text normalization and metadata enrichment
 
@@ -30,10 +30,10 @@ Environment Variables:
     CHROMADB_HOST: ChromaDB server hostname (default: localhost)
     CHROMADB_PORT: ChromaDB server port (default: 8000)
     CHROMADB_AUTH_TOKEN: Optional authentication token
-    USE_GCS_STORAGE: Enable GCS backup (0/1)
-    GCS_BUCKET_NAME: GCS bucket name for backups
+    GCS_BUCKET_NAME: GCS bucket name (required - ChromaDB data will be synced to/from this bucket)
     EMBED_BATCH: Batch size for embeddings (default: 256)
     ENABLE_CACHE: Enable query caching (0/1)
+    ENABLE_SECTION_FILTER: Enable chapter-aware filtering - includes all pages from first chapter to last chapter, excluding front/back matter (0/1, default: 1)
 
 Dependencies:
     Requires: fastembed, chromadb, fastapi, uvicorn, numpy, pymupdf, google-cloud-storage
@@ -43,7 +43,7 @@ Prerequisites:
     Start server: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest
 """
 
-import os, re, glob, json, time, argparse, logging, gc, subprocess, stat
+import os, re, glob, json, time, argparse, logging, gc, subprocess, stat, csv
 from typing import List, Tuple, Dict, Any, Optional, Sequence, Literal, cast
 from pathlib import Path
 
@@ -68,7 +68,8 @@ def _load_env_file():
 _load_env_file()
 
 # --- Settings ---------------------------------------------------------------
-API_PORT          = int(os.getenv("PORT", os.getenv("API_PORT", "8000")))
+API_HOST          = os.getenv("API_HOST", "0.0.0.0")
+API_PORT          = int(os.getenv("PORT", os.getenv("API_PORT", "9000")))
 VECTOR_COLLECTION = os.getenv("VECTOR_COLLECTION", "stocks_rag_v1")
 DATA_DIR          = os.getenv("DATA_DIR", "/workspace/data")
 ARTIFACTS_DIR     = os.getenv("ARTIFACTS_DIR", "/workspace/artifacts")
@@ -78,19 +79,20 @@ EMBEDDING_MODEL   = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 CHROMADB_HOST    = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT    = int(os.getenv("CHROMADB_PORT", "8000"))
 CHROMADB_AUTH_TOKEN = os.getenv("CHROMADB_AUTH_TOKEN", "")
-# ChromaDB server data path (for GCS backup/restore)
+# ChromaDB server data path (local directory, synced with GCS)
 CHROMADB_SERVER_DATA_PATH = os.getenv("CHROMADB_SERVER_DATA_PATH", "/chroma")
 
-# GCS settings for backup/restore
-USE_GCS_STORAGE   = os.getenv("USE_GCS_STORAGE", "0").strip().lower() in {"1","true"}
+# GCS settings for Python client sync (required - no fallback)
 GCS_BUCKET_NAME   = os.getenv("GCS_BUCKET_NAME", "")
 GCS_BUCKET_LOCATION = os.getenv("GCS_BUCKET_LOCATION", "us-central1")
-GCS_SERVICE_ACCOUNT_KEY = os.getenv("GCS_SERVICE_ACCOUNT_KEY", "")
-# GCS path for ChromaDB server backup
-GCS_SERVER_BACKUP_PREFIX = os.getenv("GCS_SERVER_BACKUP_PREFIX", "chromadb-server")
+# GCP Project Number (optional, for bucket creation)
+GCP_PROJECT_NUMBER = os.getenv("GCP_PROJECT_NUMBER", "")
 
 # Ingestion settings
 SKIP_EXISTING      = os.getenv("SKIP_EXISTING", "0").strip().lower() in {"1","true"}  # Skip already processed docs
+
+# Section filtering settings
+ENABLE_SECTION_FILTER = os.getenv("ENABLE_SECTION_FILTER", "1").strip().lower() in {"1","true"}  # Enable section filtering (only include pages with Part/Chapter headers)
 
 # Optional features / batching
 EMBED_BATCH     = int(os.getenv("EMBED_BATCH", "256"))
@@ -109,170 +111,248 @@ except Exception as e: print(f"[WARN] Could not ensure dir {DATA_DIR}: {e}")
 # --- ChromaDB Server Management ------------------------------------------------
 # Note: These functions use CHROMADB_PORT which is defined in settings section above
 _chromadb_server_process = None
-_gcsfuse_process = None
-_gcs_mount_path = None  # Temporary mount point for GCS FUSE
+_gcs_synced = False  # Track if we've synced with GCS
 
-def _sync_chromadb_to_gcs():
-    """Sync ChromaDB data to GCS.
+def _get_gcs_client():
+    """Get GCS storage client with proper credentials.
     
-    Since GCS FUSE is mounted directly to /chroma, ChromaDB writes directly to GCS.
-    We just need to ensure data is flushed to GCS.
+    Returns:
+        storage.Client instance configured with service account or default credentials
     """
-    chroma_path = CHROMADB_SERVER_DATA_PATH
-    if not os.path.exists(chroma_path):
-        print("[WARN] ChromaDB path does not exist - nothing to sync")
-        return
+    if not GCS_AVAILABLE:
+        raise Exception("GCS Python client not available. Install google-cloud-storage.")
+    
+    gcs_key_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/workspace/gcs-key.json")
     
     try:
-        # Force sync to ensure data is written to GCS FUSE
-        subprocess.run(["sync"], check=False, timeout=5)
-        time.sleep(2)  # Give GCS FUSE time to finish writing
-    except Exception as e:
-        print(f"[WARN] Failed to sync data to GCS: {e}")
-
-def _sync_chromadb_from_gcs(gcs_mount_path=None):
-    """Sync ChromaDB data from GCS to local directory.
-    
-    Uses GCS Python client to directly download files (more reliable than FUSE).
-    This ensures existing data is available to ChromaDB server.
-    
-    Args:
-        gcs_mount_path: Optional GCS mount path (not used, but kept for compatibility).
-    """
-    gcs_bucket_name = os.getenv("GCS_BUCKET_NAME")
-    if not gcs_bucket_name:
-        return
-    
-    chroma_path = CHROMADB_SERVER_DATA_PATH
-    os.makedirs(chroma_path, exist_ok=True)
-    
-    try:
-        print(f"[INFO] Syncing ChromaDB data from GCS bucket...")
-        
-        # Use GCS Python client directly (more reliable than FUSE for reading)
-        from google.cloud import storage
-        from google.oauth2 import service_account
-        
-        gcs_key_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/workspace/gcs-key.json")
         if os.path.exists(gcs_key_path):
             credentials = service_account.Credentials.from_service_account_file(gcs_key_path)
-            client = storage.Client(credentials=credentials)
+            return storage.Client(credentials=credentials)
         else:
-            client = storage.Client()
+            # Try default credentials (works in Cloud Run, GCE, etc.)
+            return storage.Client()
+    except Exception as e:
+        raise Exception(f"Failed to initialize GCS client: {e}")
+
+
+def _download_chromadb_from_gcs(bucket_name: str, local_path: str):
+    """Download ChromaDB files from GCS to local filesystem.
+    
+    Args:
+        bucket_name: GCS bucket name
+        local_path: Local directory path to download files to
+    """
+    if not GCS_AVAILABLE:
+        raise Exception("GCS Python client not available")
+    
+    print(f"[INFO] Downloading ChromaDB files from GCS bucket: {bucket_name}")
+    
+    try:
+        client = _get_gcs_client()
+        bucket = client.bucket(bucket_name)
         
-        bucket = client.bucket(gcs_bucket_name)
-        blobs = list(bucket.list_blobs())
-        
-        if not blobs:
+        # Check if bucket exists
+        if not bucket.exists():
+            print(f"[INFO] Bucket {bucket_name} does not exist yet (this is a new database)")
+            # Create local directory for new database
+            os.makedirs(local_path, exist_ok=True)
             return
         
-        # Filter out directory markers for accurate count (allow 0-byte files)
-        actual_files = [b for b in blobs if not b.name.endswith('/')]
-        print(f"[INFO] Found {len(actual_files)} files in GCS bucket - downloading...")
+        # Create local directory
+        os.makedirs(local_path, exist_ok=True)
         
-        # Download SQLite file
-        sqlite_blob = bucket.blob("chroma.sqlite3")
-        if sqlite_blob.exists():
-            local_sqlite = os.path.join(chroma_path, "chroma.sqlite3")
-            sqlite_blob.download_to_filename(local_sqlite)
-            if os.path.exists(local_sqlite):
-                file_size = os.path.getsize(local_sqlite)
-                print(f"[INFO] Downloaded chroma.sqlite3 ({file_size/1024:.1f} KB)")
-            else:
-                print(f"[ERROR] chroma.sqlite3 download failed")
-        else:
+        # List all blobs with prefix "chromadb/"
+        blobs = list(bucket.list_blobs(prefix="chromadb/"))
         
-        # Download UUID directories (collection data)
-        # Skip directory marker blobs (those ending with '/' or having 0 size)
-        uuid_dirs = set()
+        # Filter out directory markers (objects that end with "/" and have size 0)
+        blobs = [b for b in blobs if not (b.name.endswith("/") and b.size == 0)]
+        
+        if not blobs:
+            print(f"[INFO] No existing ChromaDB files found in bucket (this is a new database)")
+            return
+        
+        downloaded_count = 0
         for blob in blobs:
-            # Skip directory markers and root-level files (already handled above)
-            # Allow 0-byte files as they may be needed by ChromaDB
-            if '/' in blob.name and not blob.name.endswith('/'):
-                uuid_dir = blob.name.split('/')[0]
-                uuid_dirs.add(uuid_dir)
-        
-        for uuid_dir in uuid_dirs:
-            local_uuid_dir = os.path.join(chroma_path, uuid_dir)
-            os.makedirs(local_uuid_dir, exist_ok=True)
-            
-            # Download all files in this UUID directory (skip directory markers)
-            # Include 0-byte files (like link_lists.bin) as they may be needed by ChromaDB
-            dir_blobs = [b for b in blobs 
-                        if b.name.startswith(f"{uuid_dir}/") 
-                        and not b.name.endswith('/')]
-            
-            for blob in dir_blobs:
-                # Get relative path within the UUID directory
-                rel_path = blob.name[len(uuid_dir)+1:]  # Remove "uuid_dir/"
+            try:
+                # Remove "chromadb/" prefix if present to get relative path
+                if blob.name.startswith("chromadb/"):
+                    relative_path = blob.name[len("chromadb/"):]
+                else:
+                    relative_path = blob.name
                 
-                # Skip if empty (shouldn't happen now, but safety check)
-                if not rel_path:
+                # Skip if empty name after removing prefix
+                if not relative_path:
                     continue
                 
-                local_file = os.path.join(local_uuid_dir, rel_path)
+                # Create local file path
+                local_file = os.path.join(local_path, relative_path)
                 
-                # Create subdirectories if needed
+                # Create parent directories
                 os.makedirs(os.path.dirname(local_file), exist_ok=True)
                 
+                # Download file
                 blob.download_to_filename(local_file)
+                downloaded_count += 1
                 
-                # Verify file was downloaded
-                if os.path.exists(local_file):
-                    actual_size = os.path.getsize(local_file)
-                    if actual_size != blob.size:
-                        print(f"[WARN] {os.path.basename(local_file)} size mismatch: expected {blob.size} bytes, got {actual_size} bytes")
-                else:
-                    print(f"[ERROR] {os.path.basename(local_file)} download failed - file not found")
-            
+                if downloaded_count % 10 == 0:
+                    print(f"[INFO] Downloaded {downloaded_count} files...")
+                    
+            except Exception as e:
+                print(f"[WARN] Failed to download {blob.name}: {e}")
+                continue
         
-        # Count actual files downloaded (excluding directory markers)
-        actual_downloaded = len([b for b in blobs if not b.name.endswith('/')])
-        print(f"[INFO] Synced {actual_downloaded} files from GCS")
+        print(f"[INFO] Successfully downloaded {downloaded_count} files from GCS")
         
-        # WORKAROUND: Explicitly touch all files to ensure filesystem recognizes them
-        if os.path.exists(chroma_path):
-            try:
-                current_time = time.time()
-                
-                # Touch SQLite file
-                sqlite_file = os.path.join(chroma_path, "chroma.sqlite3")
-                if os.path.exists(sqlite_file):
-                    os.utime(sqlite_file, (current_time, current_time))
-                    os.chmod(sqlite_file, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-                
-                # Touch all files in UUID directories
-                for root, dirs, filenames in os.walk(chroma_path):
-                    for filename in filenames:
-                        file_path = os.path.join(root, filename)
-                        if os.path.exists(file_path):
-                            os.utime(file_path, (current_time, current_time))
-                            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-            except (OSError, PermissionError) as e:
-                print(f"[WARN] Failed to touch files: {e}")
+        # Touch all downloaded files to ensure proper timestamps
+        _touch_chromadb_files(local_path)
+        
     except Exception as e:
-        print(f"[WARN] Failed to sync data from GCS: {e}")
+        print(f"[ERROR] Failed to download ChromaDB files from GCS: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def _upload_chromadb_to_gcs(bucket_name: str, local_path: str):
+    """Upload ChromaDB files from local filesystem to GCS.
+    
+    Args:
+        bucket_name: GCS bucket name
+        local_path: Local directory path to upload files from
+    """
+    if not GCS_AVAILABLE:
+        raise Exception("GCS Python client not available")
+    
+    if not os.path.exists(local_path):
+        print(f"[WARN] Local path does not exist: {local_path}")
+        return
+    
+    print(f"[INFO] Uploading ChromaDB files to GCS bucket: {bucket_name}")
+    
+    try:
+        client = _get_gcs_client()
+        bucket = client.bucket(bucket_name)
+        
+        # Ensure bucket exists
+        if not bucket.exists():
+            print(f"[INFO] Creating GCS bucket: {bucket_name}")
+            bucket.create(location=GCS_BUCKET_LOCATION)
+            print(f"[INFO] Bucket created successfully")
+        
+        uploaded_count = 0
+        total_size = 0
+        
+        # Walk through local directory and upload all files
+        for root, dirs, files in os.walk(local_path):
+            for file in files:
+                local_file = os.path.join(root, file)
+                
+                # Skip if file doesn't exist
+                if not os.path.exists(local_file):
+                    continue
+                
+                try:
+                    # Get relative path from local_path
+                    rel_path = os.path.relpath(local_file, local_path)
+                    
+                    # Create GCS blob path with "chromadb/" prefix
+                    gcs_path = f"chromadb/{rel_path}".replace("\\", "/")  # Normalize path separators
+                    
+                    # Upload file
+                    blob = bucket.blob(gcs_path)
+                    blob.upload_from_filename(local_file)
+                    
+                    uploaded_count += 1
+                    file_size = os.path.getsize(local_file)
+                    total_size += file_size
+                    
+                    if uploaded_count % 10 == 0:
+                        print(f"[INFO] Uploaded {uploaded_count} files ({total_size / 1024 / 1024:.2f} MB)...")
+                        
+                except Exception as e:
+                    print(f"[WARN] Failed to upload {local_file}: {e}")
+                    continue
+        
+        print(f"[INFO] Successfully uploaded {uploaded_count} files to GCS ({total_size / 1024 / 1024:.2f} MB)")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to upload ChromaDB files to GCS: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def _touch_chromadb_files(chroma_path: str):
+    """Touch all ChromaDB files to refresh their timestamps.
+    
+    This ensures ChromaDB can discover and load existing database files.
+    
+    Args:
+        chroma_path: Path to ChromaDB data directory
+    """
+    if not os.path.exists(chroma_path):
+        return
+    
+    print(f"[INFO] Touching ChromaDB files in {chroma_path}...")
+    current_time = time.time()
+    touched_count = 0
+    
+    try:
+        # Touch chroma.sqlite3 if it exists
+        sqlite_file = os.path.join(chroma_path, "chroma.sqlite3")
+        if os.path.exists(sqlite_file):
+            try:
+                os.utime(sqlite_file, (current_time, current_time))
+                touched_count += 1
+                file_size = os.path.getsize(sqlite_file)
+                print(f"[INFO] ✓ Touched chroma.sqlite3 ({file_size} bytes)")
+            except (OSError, PermissionError) as e:
+                print(f"[WARN] Failed to touch chroma.sqlite3: {e}")
+        
+        # Touch all files in collection directories
+        if os.path.exists(chroma_path):
+            for item in os.listdir(chroma_path):
+                item_path = os.path.join(chroma_path, item)
+                if os.path.isdir(item_path):
+                    collection_file_count = 0
+                    for root, dirs, files in os.walk(item_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            try:
+                                if os.path.exists(file_path):
+                                    os.utime(file_path, (current_time, current_time))
+                                    collection_file_count += 1
+                                    touched_count += 1
+                            except (OSError, PermissionError):
+                                pass
+                    if collection_file_count > 0:
+                        print(f"[INFO] ✓ Touched {collection_file_count} files in collection: {item}")
+        
+        print(f"[INFO] Successfully touched {touched_count} files")
+        
+    except Exception as e:
+        print(f"[WARN] Error while touching files: {e}")
+
 
 def _start_chromadb_server():
-    """Start ChromaDB server in background if GCS_BUCKET_NAME is set.
+    """Start ChromaDB server with GCS Python client sync.
     
-    TEST: Mount GCS FUSE directly to /chroma and use file touching.
-    This tests if ChromaDB 1.3.4 can work with GCS FUSE directly.
+    Downloads ChromaDB files from GCS at startup, starts ChromaDB server,
+    and will upload files back to GCS on shutdown.
+    
+    Requires GCS_BUCKET_NAME to be set.
+    
+    Raises:
+        Exception: If GCS_BUCKET_NAME is not set or if sync fails.
     """
-    global _chromadb_server_process, _gcsfuse_process, _gcs_mount_path
+    global _chromadb_server_process, _gcs_synced
     
     gcs_bucket = os.getenv("GCS_BUCKET_NAME")
     if not gcs_bucket:
-        print("[INFO] GCS_BUCKET_NAME not set - assuming ChromaDB server is running separately")
-        return
+        raise Exception("GCS_BUCKET_NAME must be set. GCS Python client sync is required.")
     
-    print(f"[INFO] Starting ChromaDB server with GCS FUSE...")
-    
-    # Check if gcs-key.json exists
-    gcs_key_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/workspace/gcs-key.json")
-    if not os.path.exists(gcs_key_path):
-        print(f"[WARN] GCS key file not found at {gcs_key_path}")
-        print("[WARN] ChromaDB server may not start properly")
+    print(f"[INFO] Starting ChromaDB server with GCS Python client sync...")
+    print(f"[INFO] Bucket: {gcs_bucket}")
     
     # Check if ChromaDB server is already running
     try:
@@ -281,109 +361,31 @@ def _start_chromadb_server():
         result = sock.connect_ex(('localhost', CHROMADB_PORT))
         sock.close()
         if result == 0:
-            print(f"[INFO] ChromaDB server already running on port {CHROMADB_PORT}")
+            print("[INFO] ChromaDB server already running")
             return
     except Exception:
         pass
     
-    # Mount GCS FUSE directly to ChromaDB path
-    chroma_path = CHROMADB_SERVER_DATA_PATH  # This will be the FUSE mount
-    _gcs_mount_path = chroma_path  # Mount directly to chroma_path
-    
-    # Create ChromaDB directory (will be the FUSE mount point)
+    # Create local ChromaDB data directory
+    chroma_path = CHROMADB_SERVER_DATA_PATH
     os.makedirs(chroma_path, exist_ok=True)
     
-    # Check and create bucket if it doesn't exist
-    if GCS_AVAILABLE:
+    # Download ChromaDB files from GCS
+    if GCS_AVAILABLE and gcs_bucket:
         try:
-            # Use service account key if provided, otherwise use default credentials
-            if os.path.exists(gcs_key_path):
-                credentials = service_account.Credentials.from_service_account_file(gcs_key_path)
-                client = storage.Client(credentials=credentials)
-            else:
-                client = storage.Client()
-            
-            bucket = client.bucket(gcs_bucket)
-            if not bucket.exists():
-                try:
-                    bucket.create(location=GCS_BUCKET_LOCATION)
-                    print(f"[INFO] Created GCS bucket: gs://{gcs_bucket}")
-                except Exception as e:
-                    print(f"[ERROR] Failed to create bucket: {e}")
-                    raise
+            _download_chromadb_from_gcs(gcs_bucket, chroma_path)
+            _gcs_synced = True
         except Exception as e:
-            print(f"[WARN] Could not check/create bucket: {e}")
-            print("[WARN] Continuing - bucket may need to exist already")
-            # Continue anyway - gcsfuse will fail if bucket doesn't exist
+            print(f"[WARN] Failed to download from GCS: {e}")
+            print(f"[INFO] Continuing with local directory (may be empty)")
+            _gcs_synced = False
     
-    # Mount GCS bucket directly to ChromaDB path
-    try:
-        fuse_cmd = [
-            "gcsfuse",
-            "--key-file", gcs_key_path,
-            "--implicit-dirs",
-            # Enable file caching for better performance
-            "--file-mode", "0666",
-            "--dir-mode", "0777",
-            # Increase timeout for better reliability
-            "--stat-cache-ttl", "1h",
-            "--type-cache-ttl", "1h",
-            gcs_bucket,
-            chroma_path  # Mount directly here
-        ]
-        _gcsfuse_process = subprocess.Popen(
-            fuse_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        time.sleep(5)  # Wait longer for mount to be ready
-        
-        # Download existing data from GCS to FUSE mount using Python client
-        # This ensures files are on the FUSE mount before ChromaDB starts
-        _sync_chromadb_from_gcs(None)  # Pass None since we're using chroma_path directly
-        
-        
-        # Run vacuum on FUSE mount if database exists (after download)
-        old_db = os.path.join(chroma_path, "chroma.sqlite3")
-        if os.path.exists(old_db):
-            try:
-                vacuum_cmd = ["chroma", "vacuum", "--path", chroma_path, "--force"]
-                result = subprocess.run(vacuum_cmd, check=False, timeout=60, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if result.returncode != 0:
-                    print(f"[WARN] Vacuum failed (code {result.returncode})")
-            except Exception as e:
-                print(f"[WARN] Could not vacuum database: {e}")
-            
-            # WORKAROUND: Force filesystem sync and touch database file on FUSE mount
-            # This ensures ChromaDB can see the files when it starts
-            try:
-                # Force filesystem sync
-                subprocess.run(["sync"], check=False, timeout=5)
-                
-                # Touch the database file with current timestamp
-                current_time = time.time()
-                os.utime(old_db, (current_time, current_time))
-                os.chmod(old_db, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-                
-            except Exception as e:
-                print(f"[WARN] Could not touch database file: {e}")
-    except Exception as e:
-        print(f"[WARN] Failed to mount GCS bucket: {e}")
-        print("[WARN] Continuing without GCS FUSE - using local storage only")
-        _gcs_mount_path = None
-    
-    # Start ChromaDB server pointing to FUSE mount
-    # According to ChromaDB docs: https://docs.trychroma.com/docs/run-chroma/client-server
-    # The --path flag automatically handles persistence
-    # ChromaDB will automatically load existing database from the path if it exists
-    # Note: According to migration docs, writes are saved instantly (no .persist() needed)
+    # Start ChromaDB server pointing to local path
+    # ChromaDB will load existing database from the path if it exists
     print(f"[INFO] Starting ChromaDB server on port {CHROMADB_PORT}...")
+    print(f"[INFO] ChromaDB data path: {chroma_path}")
     
     # Set minimal environment variables
-    # According to docs, --path flag handles persistence automatically
-    # Settings are now provided via config file, but --path flag works for basic setup
-    # Only set telemetry vars - avoid IS_PERSISTENT/PERSIST_DIRECTORY
-    # which might interfere with --path behavior
     chromadb_env = os.environ.copy()
     chromadb_env["CHROMA_TELEMETRY_DISABLED"] = "1"
     chromadb_env["ANONYMIZED_TELEMETRY"] = "False"
@@ -405,7 +407,6 @@ def _start_chromadb_server():
         )
         
         # Log initial server output for debugging
-        # Capture stderr separately to catch migration errors
         import threading
         import queue
         output_queue = queue.Queue()
@@ -440,123 +441,81 @@ def _start_chromadb_server():
         error_check_thread.start()
         
         # Wait for server to be ready
-        # ChromaDB 1.3.4 may take longer to start or have migration delays
         import urllib.request
-        # Give server extra time for migrations in ChromaDB 1.3.4
         time.sleep(3)
-        for i in range(90):  # Increased timeout for ChromaDB 1.3.4
+        for i in range(90):
             try:
                 urllib.request.urlopen(f"http://localhost:{CHROMADB_PORT}/api/v1/heartbeat", timeout=1)
                 print("[INFO] ChromaDB server ready")
                 
                 # Additional wait to ensure server has fully initialized and loaded data
-                # ChromaDB 1.3.4 may need extra time to load existing database from GCS
                 time.sleep(5)
-                
-                # Try to query the server to see if it has any collections
-                # Retry a few times as the server may still be loading data
-                collections_loaded = False
-                collections = []
-                for retry in range(3):
-                    try:
-                        test_client = _get_chromadb_client()
-                        collections = test_client.list_collections()
-                        if collections:
-                            for coll in collections:
-                                count = coll.count()
-                                if count > 0:
-                                    collections_loaded = True
-                                    break
-                        if collections_loaded:
-                            break
-                        if retry < 2:
-                            time.sleep(3)
-                    except Exception:
-                        if retry < 2:
-                            time.sleep(3)
-                
-                if not collections_loaded and len(collections) > 0:
-                    print("[WARN] Collections exist but appear empty")
                 
                 return
             except Exception:
-                if i == 29:
-                    print("[WARN] ChromaDB server did not become ready in 30 seconds, continuing anyway...")
                 time.sleep(1)
     except Exception as e:
         print(f"[ERROR] Failed to start ChromaDB server: {e}")
-        print("[ERROR] Make sure ChromaDB is installed and GCS FUSE is available")
+        print("[ERROR] Make sure ChromaDB is installed")
         raise
 
 def _cleanup_chromadb_server():
-    """Cleanup ChromaDB server and GCS FUSE processes on exit.
-    Ensures data is synced to GCS before unmounting.
+    """Cleanup ChromaDB server and upload data to GCS on exit.
+    
+    Stops ChromaDB server and uploads ChromaDB files to GCS before shutdown.
     """
-    global _chromadb_server_process, _gcsfuse_process, _gcs_mount_path
+    global _chromadb_server_process, _gcs_synced
     
-    # Before stopping ChromaDB, sync local data to GCS
-    if _gcs_mount_path and _chromadb_server_process:
-        try:
-            print("[INFO] Syncing ChromaDB data to GCS before shutdown...")
-            _sync_chromadb_to_gcs()
-        except Exception as e:
-            print(f"[WARN] Could not sync data before shutdown: {e}")
-    
-    # Stop ChromaDB server first (give it time to flush)
+    # Stop ChromaDB server first
     if _chromadb_server_process:
         try:
-            # Give ChromaDB server time to flush data
-            print("[INFO] Stopping ChromaDB server...")
             _chromadb_server_process.terminate()
             _chromadb_server_process.wait(timeout=10)
-            
-            # Final sync after server stops
-            if os.getenv("GCS_BUCKET_NAME"):
-                try:
-                    subprocess.run(["sync"], check=False, timeout=5)
-                    time.sleep(1)
-                except Exception:
-                    pass
-            
-            print("[INFO] ChromaDB server stopped")
         except subprocess.TimeoutExpired:
-            print("[WARN] ChromaDB server did not stop gracefully, forcing kill...")
             try:
                 _chromadb_server_process.kill()
             except Exception:
                 pass
-        except Exception as e:
-            print(f"[WARN] Error stopping ChromaDB server: {e}")
-            try:
-                _chromadb_server_process.kill()
-            except Exception:
-                pass
-    
-    if _gcsfuse_process:
-        try:
-            print("[INFO] Unmounting GCS FUSE...")
-            # Final sync before unmount
-            if os.getenv("GCS_BUCKET_NAME"):
-                try:
-                    subprocess.run(["sync"], check=False, timeout=5)
-                    time.sleep(1)
-                except Exception:
-                    pass
-            
-            _gcsfuse_process.terminate()
-            _gcsfuse_process.wait(timeout=5)
         except Exception:
             try:
-                _gcsfuse_process.kill()
+                _chromadb_server_process.kill()
             except Exception:
                 pass
+        finally:
+            _chromadb_server_process = None
+    
+    # Upload ChromaDB files to GCS if we downloaded from GCS or made changes
+    gcs_bucket = os.getenv("GCS_BUCKET_NAME")
+    if GCS_AVAILABLE and gcs_bucket and _gcs_synced:
+        try:
+            print("[INFO] Uploading ChromaDB files to GCS before shutdown...")
+            _upload_chromadb_to_gcs(gcs_bucket, CHROMADB_SERVER_DATA_PATH)
+            print("[INFO] Successfully synced ChromaDB to GCS")
+        except Exception as e:
+            print(f"[ERROR] Failed to upload ChromaDB to GCS: {e}")
+            import traceback
+            traceback.print_exc()
+
+# Register cleanup on exit and signals
+import atexit
+import signal
+
+def _signal_handler(signum, frame):
+    """Handle signals for graceful shutdown."""
+    print(f"\n[INFO] Received signal {signum}, cleaning up...")
+    _cleanup_chromadb_server()
+    import sys
+    sys.exit(0)
+
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGTERM, _signal_handler)
+signal.signal(signal.SIGINT, _signal_handler)
 
 # Register cleanup on exit
-import atexit
 atexit.register(_cleanup_chromadb_server)
 
 # --- ChromaDB HTTP Client Factory ----------------------------------------------
-def _get_chromadb_client():
+def get_chromadb_client():
     """Get ChromaDB HTTP client to connect to remote server.
     
     Returns:
@@ -772,7 +731,7 @@ def _norm(text: str) -> str:
     
     return text.strip()
 
-def _normalize_query(q: str) -> str:
+def normalize_query(q: str) -> str:
     """Normalize query text for better caching and consistency.
     
     Args:
@@ -835,6 +794,75 @@ def _load_txt_md(path: str) -> List[Tuple[str, str]]:
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         txt = _norm(f.read())
     return [(path, txt)]
+
+def _has_chapter_or_part(text: str) -> bool:
+    """Check if page contains Part or Chapter header.
+    
+    Args:
+        text: Raw text from PDF page
+        
+    Returns:
+        True if page has Part or Chapter header, False otherwise
+    """
+    # Patterns to match:
+    # - "Part I", "Part 1", "Part One"
+    # - "Chapter 1", "Chapter 1:", "Chapter 1A"
+    # - "1.1", "1.2.3" (numbered sections within chapters)
+    
+    patterns = [
+        r'\bPart\s+[IVX\d]+\b',           # "Part I", "Part 1", "Part IV"
+        r'\bPart\s+[Oo]ne\b',             # "Part One"
+        r'\bChapter\s+\d+[A-Z]?[:.\s]',  # "Chapter 1:", "Chapter 1 ", "Chapter 1A"
+        r'\bChapter\s+\d+[A-Z]?\b',      # "Chapter 1", "Chapter 1A" (standalone)
+        r'^\d+\.\d+',                     # "1.1", "1.2.3" (numbered sections at start of line)
+    ]
+    
+    for pattern in patterns:
+        if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
+            return True
+    
+    return False
+
+def _is_non_chapter_section(text: str) -> bool:
+    """Check if page is a non-chapter section (back matter, front matter).
+    
+    Detects sections like Index, Bibliography, Table of Contents, Appendices, etc.
+    that should be filtered out.
+    
+    Args:
+        text: Raw text from PDF page
+        
+    Returns:
+        True if page is a non-chapter section, False otherwise
+    """
+    # Normalize text for pattern matching
+    text_lower = text.lower()
+    
+    # Non-chapter section markers (typically found at start of page or in headers)
+    non_chapter_patterns = [
+        r'\b(?:table\s+of\s+contents|contents)\b',
+        r'\b(?:list\s+of\s+)?(?:figures|tables)\b',
+        r'\b(?:references|bibliography|works\s+cited)\b',
+        r'\b(?:index|indices)\b',
+        r'\b(?:appendix\s+[a-z]|appendices)\b',
+        r'\b(?:glossary)\b',
+        r'\b(?:preface|foreword|acknowledgements?)\b',
+        r'\b(?:about\s+the\s+author|contributors)\b',
+    ]
+    
+    # Check if any pattern matches (especially at start of text or on its own line)
+    for pattern in non_chapter_patterns:
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            # Additional check: if it's a strong match (appears near start or as header)
+            # This helps avoid false positives when these terms appear in chapter content
+            lines = text_lower.split('\n')[:5]  # Check first 5 lines
+            for line in lines:
+                if re.search(pattern, line, re.IGNORECASE):
+                    # If the line is relatively short (< 100 chars), it's likely a section header
+                    if len(line.strip()) < 100:
+                        return True
+    
+    return False
 
 def _extract_chapter_section_info(text: str) -> Dict[str, str]:
     """Extract chapter/section information from text before header removal.
@@ -946,13 +974,62 @@ def _remove_headers_footers(text: str, page_num: int = None) -> str:
     
     return '\n'.join(cleaned)
 
+def _extract_page_text(page, page_num: int, base: str) -> str:
+    """Extract text from a PDF page using layout-aware extraction.
+    
+    Args:
+        page: PyMuPDF page object
+        page_num: Page number (for error messages)
+        base: Document base name (for error messages)
+        
+    Returns:
+        Extracted text, or None if extraction fails
+    """
+    try:
+        # Get text blocks with position info for better layout handling
+        blocks = page.get_text("dict")["blocks"]
+        text_parts = []
+        
+        for block in blocks:
+            if "lines" in block:  # Text block (not image)
+                block_text = ""
+                for line in block["lines"]:
+                    line_text = ""
+                    for span in line["spans"]:
+                        line_text += span["text"] + " "
+                    # Add newline after each line in block
+                    if line_text.strip():
+                        block_text += line_text.strip() + "\n"
+                if block_text.strip():
+                    text_parts.append(block_text.strip())
+        
+        if text_parts:
+            # Join blocks with paragraph breaks
+            return "\n\n".join(text_parts)
+    except Exception:
+        try:
+            return page.get_text("text")
+        except Exception:
+            return None
+    
+    return None
+
 def _load_pdf(path: str) -> List[Tuple[str, str]]:
-    """Enhanced PDF loading with layout-aware extraction and header/footer removal."""
+    """Enhanced PDF loading with layout-aware extraction, header/footer removal, and chapter-aware filtering.
+    
+    Uses a two-pass approach:
+    1. First pass: Identify chapter boundaries and non-chapter sections
+    2. Second pass: Include all pages from first chapter through last chapter,
+       excluding non-chapter sections (Index, Bibliography, TOC, etc.)
+    
+    This ensures all pages within chapters are included, not just pages with chapter headers.
+    """
     items: List[Tuple[str, str]] = []
+    filtered_count = 0
+    
     try:
         import fitz  # PyMuPDF
-    except Exception:
-        print(f"[WARN] PyMuPDF not installed; skipping PDF: {path}")
+    except ImportError:
         return items
     
     doc = fitz.open(path)
@@ -960,82 +1037,218 @@ def _load_pdf(path: str) -> List[Tuple[str, str]]:
     
     # Extract PDF metadata
     pdf_metadata = doc.metadata if hasattr(doc, 'metadata') else {}
+    total_pages = len(doc)
     
-    for i, page in enumerate(doc, start=1):
-        # Try layout-aware extraction first (better for multi-column layouts)
-        txt = None
-        try:
-            # Get text blocks with position info for better layout handling
-            blocks = page.get_text("dict")["blocks"]
-            text_parts = []
-            
-            for block in blocks:
-                if "lines" in block:  # Text block (not image)
-                    block_text = ""
-                    for line in block["lines"]:
-                        line_text = ""
-                        for span in line["spans"]:
-                            line_text += span["text"] + " "
-                        # Add newline after each line in block
-                        if line_text.strip():
-                            block_text += line_text.strip() + "\n"
-                    if block_text.strip():
-                        text_parts.append(block_text.strip())
-            
-            if text_parts:
-                # Join blocks with paragraph breaks
-                txt = "\n\n".join(text_parts)
-        except Exception as e:
-            # Fallback to simple text extraction if layout extraction fails
-            try:
-                txt = page.get_text("text")
-            except Exception as e2:
-                print(f"[WARN] Could not extract text from page {i} of {base}: {e2}")
+    if not ENABLE_SECTION_FILTER:
+        # No filtering - process all pages
+        for i, page in enumerate(doc, start=1):
+            txt = _extract_page_text(page, i, base)
+            if not txt or not txt.strip():
                 continue
+            
+            # Extract chapter/section info BEFORE removing headers
+            chapter_section_info = _extract_chapter_section_info(txt)
+            
+            # Remove headers, footers, and page numbers
+            txt = _remove_headers_footers(txt, page_num=i)
+            
+            if not txt or not txt.strip():
+                continue
+            
+            # Normalize text
+            txt = _norm(txt)
+            
+            # Add page context metadata
+            page_info = f"[Document: {base}] [Page {i} of {total_pages}] "
+            if pdf_metadata.get('title'):
+                page_info += f"[Title: {pdf_metadata.get('title')}] "
+            
+            if chapter_section_info.get('chapter_number'):
+                chapter_str = f"Chapter {chapter_section_info['chapter_number']}"
+                if chapter_section_info.get('chapter_title'):
+                    chapter_str += f": {chapter_section_info['chapter_title']}"
+                page_info += f"[{chapter_str}] "
+            
+            if chapter_section_info.get('section_number'):
+                section_str = f"Section {chapter_section_info['section_number']}"
+                if chapter_section_info.get('section_title'):
+                    section_str += f": {chapter_section_info['section_title']}"
+                page_info += f"[{section_str}] "
+            
+            txt = page_info + txt
+            items.append((f"{path}#page={i}", txt))
+    else:
+        # Two-pass approach for chapter-aware filtering
+        # Pass 1: Identify chapter boundaries and non-chapter sections
+        page_texts = {}  # page_num -> extracted text
+        page_states = {}  # page_num -> "chapter", "non_chapter", or "unknown"
+        first_chapter_page = None
+        last_chapter_page = None
+        pages_with_text = 0
         
-        if not txt or not txt.strip():
-            continue
+        for i, page in enumerate(doc, start=1):
+            txt = _extract_page_text(page, i, base)
+            if not txt or not txt.strip():
+                continue
+            
+            pages_with_text += 1
+            page_texts[i] = txt
+            
+            # Check for chapter markers
+            has_chapter = _has_chapter_or_part(txt)
+            # Check for non-chapter markers (Index, Bibliography, etc.)
+            is_non_chapter = _is_non_chapter_section(txt)
+            
+            if has_chapter:
+                page_states[i] = "chapter"
+                if first_chapter_page is None:
+                    first_chapter_page = i
+                last_chapter_page = i
+            elif is_non_chapter:
+                page_states[i] = "non_chapter"
+            else:
+                page_states[i] = "unknown"
         
-        # Extract chapter/section info BEFORE removing headers (they might be in headers)
-        chapter_section_info = _extract_chapter_section_info(txt)
+        if first_chapter_page is None:
+            first_chapter_page = 1
+            last_chapter_page = total_pages
         
-        # Remove headers, footers, and page numbers
-        txt = _remove_headers_footers(txt, page_num=i)
+        # Pass 2: Process pages based on state
+        # Include all pages from first_chapter_page to last_chapter_page,
+        # excluding non-chapter sections
+        for i, page in enumerate(doc, start=1):
+            txt = page_texts.get(i)
+            if not txt or not txt.strip():
+                continue
+            
+            state = page_states.get(i, "unknown")
+            
+            # Include page if:
+            # 1. Page is within chapter range (first_chapter_page to last_chapter_page)
+            # 2. AND it's not a non-chapter section (Index, Bibliography, etc.)
+            should_include = (
+                i >= first_chapter_page and
+                i <= last_chapter_page and
+                state != "non_chapter"
+            )
+            
+            if not should_include:
+                filtered_count += 1
+                continue
+            
+            # Extract chapter/section info BEFORE removing headers
+            chapter_section_info = _extract_chapter_section_info(txt)
+            
+            # Remove headers, footers, and page numbers
+            txt = _remove_headers_footers(txt, page_num=i)
+            
+            if not txt or not txt.strip():
+                filtered_count += 1
+                continue
+            
+            # Normalize text
+            txt = _norm(txt)
+            
+            # Add page context metadata
+            page_info = f"[Document: {base}] [Page {i} of {total_pages}] "
+            if pdf_metadata.get('title'):
+                page_info += f"[Title: {pdf_metadata.get('title')}] "
+            
+            if chapter_section_info.get('chapter_number'):
+                chapter_str = f"Chapter {chapter_section_info['chapter_number']}"
+                if chapter_section_info.get('chapter_title'):
+                    chapter_str += f": {chapter_section_info['chapter_title']}"
+                page_info += f"[{chapter_str}] "
+            
+            if chapter_section_info.get('section_number'):
+                section_str = f"Section {chapter_section_info['section_number']}"
+                if chapter_section_info.get('section_title'):
+                    section_str += f": {chapter_section_info['section_title']}"
+                page_info += f"[{section_str}] "
+            
+            txt = page_info + txt
+            items.append((f"{path}#page={i}", txt))
         
-        if not txt or not txt.strip():
-            continue
-        
-        # Normalize text with enhanced processing
-        txt = _norm(txt)
-        
-        # Add page context metadata as prefix for better retrieval
-        page_info = f"[Document: {base}] [Page {i} of {len(doc)}] "
-        if pdf_metadata.get('title'):
-            page_info += f"[Title: {pdf_metadata.get('title')}] "
-        
-        # Add chapter/section info if found
-        if chapter_section_info.get('chapter_number'):
-            chapter_str = f"Chapter {chapter_section_info['chapter_number']}"
-            if chapter_section_info.get('chapter_title'):
-                chapter_str += f": {chapter_section_info['chapter_title']}"
-            page_info += f"[{chapter_str}] "
-        
-        if chapter_section_info.get('section_number'):
-            section_str = f"Section {chapter_section_info['section_number']}"
-            if chapter_section_info.get('section_title'):
-                section_str += f": {chapter_section_info['section_title']}"
-            page_info += f"[{section_str}] "
-        
-        txt = page_info + txt
-        items.append((f"{path}#page={i}", txt))
+        if filtered_count > 0:
+            print(f"[INFO] Filtered {filtered_count} pages from {base} (pages {first_chapter_page}-{last_chapter_page} included)")
     
     doc.close()
+    return items
+
+def _load_csv(path: str) -> List[Tuple[str, str]]:
+    """Load Output_explanation.csv with special handling for feature explanations.
+    
+    Creates structured knowledge base format for queryable feature definitions.
+    Each feature becomes a self-contained chunk (no semantic splitting needed).
+    
+    Args:
+        path: Path to CSV file
+        
+    Returns:
+        List of (source_path, text_content) tuples
+    """
+    items: List[Tuple[str, str]] = []
+    base = os.path.basename(path)
+    
+    # Only process Output_explanation.csv files
+    if "Output_explanation" not in base and "output_explanation" not in base.lower():
+        return items
+    
+    try:
+        with open(path, "r", encoding="utf-8-sig", errors="ignore") as f:
+            # utf-8-sig automatically strips BOM if present
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            
+        if not rows:
+            return items
+        
+        # Process each feature definition
+        for row in rows:
+            # Handle BOM in column name (utf-8-sig should fix this, but be defensive)
+            feature = row.get("Feature", "").strip() or row.get("\ufeffFeature", "").strip()
+            if not feature:
+                continue
+            
+            # Build structured feature definition
+            parts = []
+            parts.append(f"Feature: {feature}")
+            
+            full_name = row.get("Full_Name_or_Formula", "").strip()
+            if full_name:
+                parts.append(f"Full Name or Formula: {full_name}")
+            
+            meaning = row.get("Meaning", "").strip()
+            if meaning:
+                parts.append(f"Meaning: {meaning}")
+            
+            interpretation = row.get("Interpretation_or_Signal", "").strip()
+            if interpretation:
+                parts.append(f"Interpretation or Signal: {interpretation}")
+                # Extract thresholds (e.g., ">15%", "<30", ">2")
+                thresholds = re.findall(r'([<>]=?)\s*(\d+(?:\.\d+)?)', interpretation)
+                if thresholds:
+                    threshold_text = ", ".join([f"{op} {val}" for op, val in thresholds])
+                    parts.append(f"Thresholds: {threshold_text}")
+            
+            use_case = row.get("Use_Case", "").strip()
+            if use_case:
+                parts.append(f"Use Case: {use_case}")
+            
+            # Create well-formatted chunk (already complete, no splitting needed)
+            text = "\n".join(parts)
+            text = _norm(text)
+            items.append((f"{path}#feature={feature}", text))
+    
+    except Exception:
+        pass
+    
     return items
 
 def load_all(data_dir: str) -> List[Tuple[str, str]]:
     out: List[Tuple[str, str]] = []
     # Early filter: only process supported extensions
-    ext_patterns = {".txt", ".md", ".pdf"}
+    ext_patterns = {".txt", ".md", ".pdf", ".csv"}
     for p in sorted(glob.glob(os.path.join(data_dir, "**", "*"), recursive=True)):
         if not os.path.isfile(p): continue
         ext = os.path.splitext(p)[1].lower()
@@ -1043,8 +1256,17 @@ def load_all(data_dir: str) -> List[Tuple[str, str]]:
         try:
             if ext in (".txt",".md"): out.extend(_load_txt_md(p))
             elif ext == ".pdf": out.extend(_load_pdf(p))
-        except Exception as e:
-            print(f"[WARN] failed to read {p}: {e}")
+            elif ext == ".csv":
+                # Only process Output_explanation.csv files
+                base = os.path.basename(p)
+                if "Output_explanation" in base or "output_explanation" in base.lower():
+                    csv_items = _load_csv(p)
+                    if csv_items:
+                        print(f"[INFO] Loaded {len(csv_items)} features from {base}")
+                    out.extend(csv_items)
+                # Skip other CSV files silently
+        except Exception:
+            pass
     return out
 
 # --- Token helpers ----------------------------------------------------------
@@ -1096,14 +1318,14 @@ def _pack_sentences_to_token_cap(text: str, max_tokens: int, sentence_split_rege
 
 # --- Shared embedder --------------------------------------------------------
 _EMBEDDER: Optional[TextEmbedding] = None
-def _get_embedder() -> TextEmbedding:
+def get_embedder() -> TextEmbedding:
     global _EMBEDDER
     if _EMBEDDER is None:
         _EMBEDDER = TextEmbedding(model_name=EMBEDDING_MODEL)
     return _EMBEDDER
 
-def _semantic_embed(texts, **kwargs):
-    model = _get_embedder()
+def semantic_embed(texts, **kwargs):
+    model = get_embedder()
     # Use EMBED_BATCH as default for better performance (was 50, now uses 256)
     batch_size = kwargs.get("batch_size", EMBED_BATCH)
     return [list(v) for v in model.embed(list(texts), batch_size=batch_size)]
@@ -1117,7 +1339,7 @@ def _get_semantic_splitter(sim_percentile: float = 95.0, buffer_size: int = 1) -
     cache_key = f"{sim_percentile}_{buffer_size}"
     if cache_key not in _semantic_splitter_cache:
         _semantic_splitter_cache[cache_key] = SemanticChunker(
-            embedding_function=_semantic_embed,
+            embedding_function=semantic_embed,
             buffer_size=buffer_size,
             breakpoint_threshold_type="percentile",
             breakpoint_threshold_amount=sim_percentile,
@@ -1286,11 +1508,11 @@ def _classify_chunk_type(text: str) -> str:
 def run_ingest(*, target_tokens: int = 900, max_tokens: int = 1400,
                overlap_sentences: int = 2, buffer_size: int = 1,
                sim_percentile: float = 95.0, max_depth: int = 3) -> Dict[str, Any]:
-    """Ingest documents into ChromaDB with semantic chunking and GCS sync.
+    """Ingest documents into ChromaDB with semantic chunking.
     
     Main ingestion function that loads documents, chunks them semantically,
-    creates embeddings, and stores them in ChromaDB. Supports GCS persistent
-    storage with automatic sync. Uses upsert to avoid duplicates.
+    creates embeddings, and stores them in ChromaDB. Data is synced to GCS
+    using Python client after ingestion (requires GCS_BUCKET_NAME to be set). Uses upsert to avoid duplicates.
     
     Args:
         target_tokens: Target tokens per chunk (default: 900)
@@ -1320,12 +1542,11 @@ def run_ingest(*, target_tokens: int = 900, max_tokens: int = 1400,
     # Note: Using HTTP client mode - data is persisted on ChromaDB server, no download needed
     
     docs = load_all(DATA_DIR)
-    if not docs: print(f"[WARN] No documents found under {DATA_DIR}")
     total_docs = len(docs)
 
-    client = _get_chromadb_client()
+    client = get_chromadb_client()
     coll = client.get_or_create_collection(name=VECTOR_COLLECTION)
-    embedder = _get_embedder()
+    embedder = get_embedder()
 
     ids_buf: List[str] = []; docs_buf: List[str] = []; metas_buf: List[Dict[str, Any]] = []
     added = 0; token_lens: List[int] = []
@@ -1387,26 +1608,20 @@ def run_ingest(*, target_tokens: int = 900, max_tokens: int = 1400,
             if existing_info and existing_info["embedding"]:
                 all_embs[i] = existing_info["embedding"]
             else:
-                # Fallback: compute embedding if we couldn't get existing one
                 try:
                     fallback_emb = next(embedder.passage_embed([docs_buf[i]], batch_size=1))
-                    all_embs[i] = fallback_emb.tolist() if hasattr(fallback_emb, "tolist") else (list(fallback_emb) if hasattr(fallback_emb, "__iter__") else [float(x) for x in fallback_emb])
-                except Exception as e:
-                    print(f"[WARN] Failed to compute fallback embedding for chunk {chunk_id}: {e}")
-                    # Use empty embedding as last resort (will cause query issues but won't crash)
-                    all_embs[i] = [0.0] * 384  # Default dimension for BGE-small
+                    all_embs[i] = fallback_emb.tolist() if hasattr(fallback_emb, "tolist") else list(fallback_emb)
+                except Exception:
+                    all_embs[i] = [0.0] * 384
         
         skipped_embeddings += len(skip_embedding_indices)
         
-        # Use upsert to handle duplicates - updates existing, adds new
         try:
             coll.upsert(ids=ids_buf, documents=docs_buf, metadatas=metas_buf, embeddings=all_embs)
-        except Exception as e:
-            # Fallback to add if upsert not available in older ChromaDB versions
+        except Exception:
             try:
                 coll.add(ids=ids_buf, documents=docs_buf, metadatas=metas_buf, embeddings=all_embs)
-            except Exception as e2:
-                print(f"[WARN] Failed to add/upsert batch: {e2}")
+            except Exception:
                 ids_buf.clear(); docs_buf.clear(); metas_buf.clear()
                 return
         
@@ -1443,17 +1658,8 @@ def run_ingest(*, target_tokens: int = 900, max_tokens: int = 1400,
                             if meta["source"] == expected_source:
                                 processed_sources.add(meta["source"])
             
-        except Exception as e:
-            print(f"[WARN] Batch source check failed: {e}, will check individually")
-            # Fall back to individual checking if batch fails
+        except Exception:
             processed_sources = None
-
-    # Compile regex patterns once for performance
-    _regex_cache = {
-        'numbers': re.compile(r'\d+'),
-        'code': re.compile(r'[{}();=]'),
-        'sentence_end': re.compile(r'[.!?]+'),
-    }
     
     # Process documents with progress indication
     for doc_idx, (src, txt) in enumerate(docs, 1):
@@ -1478,84 +1684,46 @@ def run_ingest(*, target_tokens: int = 900, max_tokens: int = 1400,
                             if isinstance(existing_meta, dict) and existing_meta.get("source") == src:
                                 print(f"[SKIP] {src} already processed, skipping...")
                                 continue
-                except Exception as e:
-                    print(f"[WARN] Could not check if {src} exists: {e}, continuing...")
+                except Exception:
+                    pass
         
-        # Extract document-level metadata for better retrieval context
-        # Compute once per document for memory efficiency
-        doc_structure = _extract_structure(txt)
-        doc_metadata = _extract_metadata(txt)
+        # Check if this is a CSV file (already chunked, skip semantic chunking)
+        is_csv_chunk = src.endswith(".csv") or "#feature=" in src or "#stats" in src
         
-        chs = semantic_chunks(
-            txt, sim_percentile=sim_percentile, buffer_size=buffer_size,
-            max_tokens=max_tokens, overlap_sentences=overlap_sentences, max_depth=max_depth
-        )
+        if is_csv_chunk:
+            # CSV chunks are already complete - use as-is (no semantic chunking)
+            chs = [txt]  # Single chunk, already formatted
+            # Skip context enrichment for CSV (not needed for structured data)
+        else:
+            # Regular documents: apply semantic chunking
+            chs = semantic_chunks(
+                txt, sim_percentile=sim_percentile, buffer_size=buffer_size,
+                max_tokens=max_tokens, overlap_sentences=overlap_sentences, max_depth=max_depth
+            )
+            # Enhanced chunking: add contextual information (with memory limit)
+            max_window = min(2, len(chs)//2) if len(chs) > 4 else 1  # Limit context window for memory
+            chs = _enrich_chunk_with_context(chs, window_size=max_window)
         
-        # Enhanced chunking: add contextual information (with memory limit)
-        max_window = min(2, len(chs)//2) if len(chs) > 4 else 1  # Limit context window for memory
-        chs = _enrich_chunk_with_context(chs, window_size=max_window)
-        
-        # Batch metadata extraction for performance (with early caching)
-        chunks_meta = []
-        for idx, ch in enumerate(chs):
-            # Use cached regex patterns for speed
-            has_numbers = bool(_regex_cache['numbers'].search(ch))
-            has_code = bool(_regex_cache['code'].search(ch))
-            sentence_count = len(_regex_cache['sentence_end'].findall(ch))
-            
-            # Cache key phrases and chunk type to avoid redundant computation
-            # Only extract if chunk is significant size to avoid overhead on tiny chunks
-            if len(ch) > 50:  # Only extract for meaningful chunks
-                key_phrases = _extract_key_phrases(ch)
-                chunk_type = _classify_chunk_type(ch)
-            else:
-                key_phrases = []
-                chunk_type = "paragraph"  # Default for small chunks
-            
-            chunks_meta.append({
-                "idx": idx,
-                "has_numbers": has_numbers,
-                "has_code": has_code,
-                "sentence_count": sentence_count,
-                "key_phrases": key_phrases,
-                "chunk_type": chunk_type,
-            })
-        
-        # Process chunks in batches
+        # Process chunks in batches - minimal metadata for performance
         for idx, ch in enumerate(chs):
             cid = f"{src}::chunk_{idx}"
-            chunk_meta = chunks_meta[idx]
             
             # Compute content hash for duplicate detection
             content_hash = hashlib.md5(ch.encode('utf-8')).hexdigest()
             
+            # Minimal metadata: only essential fields for retrieval and duplicate detection
             meta = {
-                "source": src, 
-                "chunker": "semantic", 
-                "target_tokens": target_tokens,
-                "max_tokens": max_tokens, 
-                "overlap_sentences": overlap_sentences,
-                "buffer_size": buffer_size, 
-                "sim_percentile": sim_percentile, 
-                "max_depth": max_depth,
-                "chunk_index": idx,
-                "total_chunks": len(chs),
-                "chunk_type": chunk_meta["chunk_type"],
-                "key_phrases": ", ".join(chunk_meta["key_phrases"]) if chunk_meta["key_phrases"] else "",
-                "has_numbers": "True" if chunk_meta["has_numbers"] else "False",
-                "has_code": "True" if chunk_meta["has_code"] else "False",
-                "sentence_count": chunk_meta["sentence_count"],
-                "content_hash": content_hash,  # For duplicate detection
-                # Document-level metadata for context (only for first chunk to save memory)
-                "doc_structure": str(doc_structure) if (idx == 0 and doc_structure) else "",
-                "doc_metadata": str(doc_metadata) if (idx == 0 and doc_metadata) else "",
+                "source": src,  # Required for source attribution
+                "content_hash": content_hash,  # Required for duplicate detection
+                "chunk_index": idx,  # Useful for ordering within document
+                "total_chunks": len(chs),  # Useful context
             }
             ids_buf.append(cid); docs_buf.append(ch); metas_buf.append(meta)
             token_lens.append(_approx_token_len(ch))
             if len(ids_buf) >= UPSERT_BATCH: _flush()
         
         # Clear intermediate variables to free memory
-        del chs, chunks_meta, txt
+        del chs, txt
         
         # Adaptive garbage collection: run more frequently if buffer is large or every 20 documents
         # This helps manage memory better without excessive GC overhead
@@ -1564,12 +1732,25 @@ def run_ingest(*, target_tokens: int = 900, max_tokens: int = 1400,
     
     _flush()
     
-    # Sync local data to GCS after ingestion
-    if os.getenv("GCS_BUCKET_NAME"):
+    # Upload ChromaDB files to GCS after ingestion
+    global _gcs_synced
+    gcs_bucket = os.getenv("GCS_BUCKET_NAME")
+    if GCS_AVAILABLE and gcs_bucket:
         try:
-            _sync_chromadb_to_gcs()
+            print("[INFO] Uploading ChromaDB files to GCS after ingestion...")
+            _upload_chromadb_to_gcs(gcs_bucket, CHROMADB_SERVER_DATA_PATH)
+            print("[INFO] Successfully uploaded ChromaDB to GCS")
+            _gcs_synced = True
         except Exception as e:
-            print(f"[WARN] Could not sync data to GCS: {e}")
+            print(f"[ERROR] Failed to upload ChromaDB to GCS: {e}")
+            import traceback
+            traceback.print_exc()
+            raise Exception("Failed to persist ChromaDB to GCS. Data may be lost.")
+    else:
+        if not gcs_bucket:
+            print("[WARN] GCS_BUCKET_NAME not set - ChromaDB data will not be persisted to GCS")
+        elif not GCS_AVAILABLE:
+            print("[WARN] GCS Python client not available - ChromaDB data will not be persisted to GCS")
 
     chunk_stats = {
         "chunker": "semantic", "n_chunks": added,
@@ -1595,11 +1776,11 @@ from functools import lru_cache
 import hashlib
 _embedding_cache = {}
 
-def _cached_embed(text: str) -> List[float]:
+def cached_embed(text: str) -> List[float]:
     """Cached embedding function for repeated queries."""
     if text in _embedding_cache:
         return _embedding_cache[text]
-    model = _get_embedder()
+    model = get_embedder()
     result = list(next(model.query_embed(text)))
     if len(_embedding_cache) < CACHE_SIZE:
         _embedding_cache[text] = result
@@ -1624,7 +1805,7 @@ class Retriever:
     """
     def __init__(self):
         # Using HTTP client - data is on ChromaDB server, no download needed
-        self.client = _get_chromadb_client()
+        self.client = get_chromadb_client()
         self.collection = self.client.get_or_create_collection(name=VECTOR_COLLECTION)
         # Using FastEmbed directly (LangChain removed)
         self.mode = "chroma-dist"
@@ -1641,7 +1822,7 @@ class Retriever:
         if not isinstance(q, str) or not q.strip(): return []
         
         # Normalize query for better cache hits
-        q_normalized = _normalize_query(q)
+        q_normalized = normalize_query(q)
         if not q_normalized:
             return []
         
@@ -1654,12 +1835,12 @@ class Retriever:
         # Use FastEmbed directly for query embedding (use normalized query)
         if ENABLE_CACHE:
             try:
-                q_vec = _cached_embed(q_normalized)
+                q_vec = cached_embed(q_normalized)
             except Exception:
-                embedder = _get_embedder()
+                embedder = get_embedder()
                 q_vec = next(embedder.query_embed(q_normalized))
         else:
-            embedder = _get_embedder()
+            embedder = get_embedder()
             q_vec = next(embedder.query_embed(q_normalized))
         
         # Ensure q_vec is a flat list of floats (not nested)
@@ -1677,13 +1858,10 @@ class Retriever:
         
         # Final check: ensure q_vec is a flat list of numbers
         if isinstance(q_vec, list) and len(q_vec) > 0:
-            if not isinstance(q_vec[0], (int, float)):
-                print(f"[WARN] q_vec is not a list of numbers, attempting to fix...")
-                # Try to extract the actual embedding if it's wrapped
-                if isinstance(q_vec[0], (list, np.ndarray)):
-                    q_vec = q_vec[0]
-                    if hasattr(q_vec, "tolist"):
-                        q_vec = q_vec.tolist()
+            if not isinstance(q_vec[0], (int, float)) and isinstance(q_vec[0], (list, np.ndarray)):
+                q_vec = q_vec[0]
+                if hasattr(q_vec, "tolist"):
+                    q_vec = q_vec.tolist()
         
         # Convert to numpy array for ChromaDB (it handles numpy arrays better)
         # ChromaDB expects query_embeddings to be a list of embeddings (one per query)
@@ -1726,30 +1904,148 @@ def make_app():
     
     Returns:
         FastAPI app instance with:
-        - /health endpoint: Health check with collection stats
-        - /query endpoint: Semantic search query interface
+        - /health endpoint: Enhanced health check with collection stats
+        - /query endpoint: Semantic search query interface with full metadata
+        - /query/text endpoint: Simplified query interface for orchestrator/tool integration
         
     The app initializes a Retriever instance on startup for handling queries.
+    Includes CORS middleware for cross-origin requests (orchestrator integration).
     """
-    from fastapi import FastAPI
+    from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
+    
     app = FastAPI(title="AC215 MS3 RAG API (Semantic + LangChain)")
+    
+    # Add CORS middleware for orchestrator integration
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # TODO: Restrict in production to specific origins
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
+    
     retr = Retriever()
+    
     class QueryReq(BaseModel):
-        q: str; k: int = 4
+        q: str
+        k: int = 4
+    
+    class QueryTextReq(BaseModel):
+        q: str
+        k: int = 3
+        format: str = "text"  # "text" or "detailed"
+    
     @app.get("/health")
-    def health(): return {"status": "ok", **retr.stats()}
+    def health():
+        """Enhanced health check endpoint for orchestrator monitoring.
+        
+        Returns:
+            JSON with status, service info, and ChromaDB connectivity status.
+        """
+        try:
+            stats = retr.stats()
+            return {
+                "status": "ok",
+                "service": "rag-api",
+                "chromadb": "connected",
+                **stats
+            }
+        except Exception as e:
+            return {
+                "status": "degraded",
+                "service": "rag-api",
+                "chromadb": "error",
+                "error": str(e)
+            }
+    
     @app.post("/query")
     def query(req: QueryReq):
+        """Main query endpoint with full metadata.
+        
+        Args:
+            req: Query request with query string and result count
+            
+        Returns:
+            JSON with query, results (full metadata), and result count
+        """
         try:
             results = retr.query(req.q, req.k)
-            return {"query": req.q, "results": results}
+            return {
+                "query": req.q,
+                "results": results,
+                "found": len(results) > 0,
+                "count": len(results)
+            }
         except Exception as e:
-            import traceback
-            error_msg = f"Query error: {str(e)}\n{traceback.format_exc()}"
-            print(f"[ERROR] {error_msg}")
-            from fastapi import HTTPException
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": str(e),
+                    "query": req.q
+                }
+            )
+    
+    @app.post("/query/text")
+    def query_text(req: QueryTextReq):
+        """Simplified query endpoint for orchestrator/tool integration.
+        
+        Returns clean text suitable for LLM consumption. This endpoint is designed
+        for integration with conversational agents and LLM tools.
+        
+        Args:
+            req: Query request with query string, result count, and format preference
+            
+        Returns:
+            JSON with:
+            - query: The original query
+            - answer: Concatenated text from top results (for "text" format) or full results (for "detailed")
+            - found: Boolean indicating if results were found
+            - source_count: Number of sources retrieved
+        """
+        try:
+            results = retr.query(req.q, req.k)
+            
+            if not results:
+                return {
+                    "query": req.q,
+                    "answer": "No relevant information found in the knowledge base.",
+                    "found": False,
+                    "source_count": 0
+                }
+            
+            if req.format == "text":
+                # Concatenate top results for LLM consumption (limit each to 500 chars for brevity)
+                texts = [r.get("text", "") for r in results[:3]]  # Top 3 results
+                answer = "\n\n".join([
+                    f"Information {i+1}: {text[:500]}"  # Limit each to 500 chars
+                    for i, text in enumerate(texts) if text
+                ])
+                
+                return {
+                    "query": req.q,
+                    "answer": answer,
+                    "found": True,
+                    "source_count": len(results)
+                }
+            else:
+                # Detailed format - return full results
+                return {
+                    "query": req.q,
+                    "results": results,
+                    "found": True,
+                    "count": len(results)
+                }
+                
+        except Exception as e:
+            return {
+                "query": req.q,
+                "answer": f"Error accessing knowledge base: {str(e)}",
+                "found": False,
+                "error": str(e)
+            }
+    
     return app
 
 def serve():
@@ -1759,7 +2055,7 @@ def serve():
     """
     import uvicorn
     app = make_app()
-    uvicorn.run(app, host="0.0.0.0", port=API_PORT, reload=False)
+    uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)
 
 # --- CLI -------------------------------------------------------------------
 def main():
@@ -1772,16 +2068,18 @@ def main():
     
     Environment variables from .env are loaded automatically.
     
-    If GCS_BUCKET_NAME is set, automatically starts ChromaDB server with GCS FUSE.
+    Requires GCS_BUCKET_NAME to be set. Automatically starts ChromaDB server with GCS Python client sync.
+    GCS Python client sync is required - downloads from GCS at startup, uploads on shutdown.
     """
-    # Start ChromaDB server if needed (when using GCS FUSE)
+    # Start ChromaDB server with GCS Python client sync (required if GCS_BUCKET_NAME is set)
     # Only auto-start if GCS_BUCKET_NAME is set and AUTO_START_CHROMADB is not disabled
     if os.getenv("GCS_BUCKET_NAME") and os.getenv("AUTO_START_CHROMADB", "1") != "0":
         try:
             _start_chromadb_server()
         except Exception as e:
-            print(f"[WARN] Failed to auto-start ChromaDB server: {e}")
-            print("[WARN] Continuing - assuming ChromaDB server is running separately")
+            print(f"[ERROR] Failed to start ChromaDB server with GCS sync: {e}")
+            print("[ERROR] GCS Python client sync is required. Cannot continue without it.")
+            raise
     
     p = argparse.ArgumentParser(description="AC215-MS3 RAG CLI (Semantic + optional LangChain)")
     p.add_argument("--ingest", action="store_true", help="Run ingestion")
@@ -1803,10 +2101,7 @@ def main():
             sim_percentile=args.sim_percentile, max_depth=args.max_depth
         )
         print(json.dumps({"ingest_done": True, **stats}, indent=2))
-        # Small delay to ensure ChromaDB has synced data before starting server
         if args.serve:
-            import time
-            print("[INFO] Waiting 2 seconds for ChromaDB to sync data...")
             time.sleep(2)
     if args.serve:
         serve()

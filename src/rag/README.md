@@ -13,20 +13,10 @@ RAG/
 ├─ data/                  # source docs (.pdf, .txt, .md)
 │
 ├─ artifacts/             # pipeline outputs
-│  ├── sanitized/ # cleaned text chunks
 │  ├── ingest_summary.json # ingest summary
 │  ├── metadata.json # metadata about ingested docs
 │  ├── retrieval_sample.json # retrieval sample
 │  └── sample_vector.json # vector embedding sample
-│
-├─ screenshot_logs/       # log screenshots of building and running container
-│  ├─ docker build rag image.png         
-│  ├─ docker running container.png   
-│  ├─ pulling sample vector from chromadb.png
-│  └─ Sample Query in Container.png
-│
-├─ volumes/
-│  └─ chroma/             # persisted Chroma vector store
 │
 ├─ rag.py                 # SINGLE Python file (CLI + pipeline + API)
 ├─ pyproject.toml         # runtime dependencies
@@ -41,65 +31,66 @@ RAG/
 - Docker Desktop (with WSL2 backend)
 
 ## Configuration
-Your `.env` should contain:
+Your `.env` should contain (see `env.template` for full list):
 ```
-API_PORT=8000
-VECTOR_STORE_PATH=/workspace/volumes/chroma
+API_PORT=9000
+CHROMADB_HOST=localhost
+CHROMADB_PORT=8000
 VECTOR_COLLECTION=stocks_rag_v1
+GCS_BUCKET_NAME=your-bucket-name
 DATA_DIR=/workspace/data
 ARTIFACTS_DIR=/workspace/artifacts
-CHUNK_SIZE=1200
-CHUNK_OVERLAP=200
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 CHROMA_TELEMETRY_DISABLED=1
+GOOGLE_APPLICATION_CREDENTIALS=/workspace/gcs-key.json
 ```
+**Note**: ChromaDB data is persisted in GCS bucket. ChromaDB server runs in the container on port 8000, API runs on port 9000.
 ---
 
 ## Quick Start
-1. Ensure you are in the AC215_StockBusters folder as your working directory
+1. Ensure you are in the root directory (`CSCI115-AI-Agent`) as your working directory
 
 Example:
 ```
-cd AC215_StockBusters
-(base) PS C:\Users\user\AC215_StockBusters>
+cd CSCI115-AI-Agent
 ```
 2. Optional: Clean up any old container name
 ```
-docker rm -f ac215-rag 2>$null
+docker stop rag-service 2>$null
+docker rm rag-service 2>$null
 ```
-3. Build the image  
+3. Build the image (build context: root directory)
 ```
-docker build -t ac215-rag -f src\rag\Dockerfile src\rag
+docker build -t rag-service:latest -f src/rag/Dockerfile .
 ```
-4. Run everything (Ingest + Serve in one container)  
+4. Run everything (Ingest + Serve in one container)
 ```
-docker run -it -p 8000:8000 --env-file src\rag\.env --name ac215-rag ac215-rag --ingest --dump-vector --serve
+docker network create rag-network 2>$null
+docker run -d --name rag-service --network rag-network -p 9000:9000 --env-file src/rag/.env rag-service:latest --ingest --serve
 ```
 
 
 This:
 - Ingests documents from `data/`
-- Cleans and saves text in `artifacts/sanitized/`
-- Records chunking info in `artifacts/injest_summary.json`
+- Records chunking info in `artifacts/ingest_summary.json`
 - Writes ingest metadata to `artifacts/metadata.json`
-- Builds a vector store in `volumes/chroma/`
-- Prints chunks and vectors for visualization
-- Starts the FastAPI server on port 8000
-- Outputs sample vector from ChromaDB in `artifacts/`
+- Stores vectors in ChromaDB (persisted in GCS bucket)
+- Starts ChromaDB server on port 8000 (internal)
+- Starts the FastAPI server on port 9000
 
 ```
 # For only ingestion (no querying)
-docker run -it --env-file src\rag\.env ac215-rag
+docker run --rm --network rag-network --env-file src/rag/.env rag-service:latest --ingest
 ```
 # Optional API:
 Once running, open:  
-http://localhost:8000/docs  
+http://localhost:9000/docs  
 to see the interactive API docs.
 
 ## Query Example (PowerShell pretty JSON)
 After the container is running, run this from another PowerShell window:
 ```
-irm -Method Post -Uri "http://localhost:8000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6
+irm -Method Post -Uri "http://localhost:9000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6
 ```
 Example output:
 ```
@@ -117,7 +108,7 @@ Example output:
 
 ## Dump a Sample Vector
 ```
-docker run -it --env-file src\rag\.env ac215-rag --dump-vector
+docker run --rm --network rag-network --env-file src/rag/.env rag-service:latest --dump-vector
 ```
 This saves:
 artifacts/sample_vector.json  
@@ -132,31 +123,36 @@ Example contents:
 ```
 
 ## Stop the container
-Press Ctrl + C in the terminal window where it’s running.  
 If you ran it detached (with -d), stop it with:  
 ```
-docker rm -f ac215-rag
+docker stop rag-service
+docker rm rag-service
 ```
 
-## Copy artifacts and vector store to local
+## Copy artifacts to local
 ```
-docker cp ac215-rag:/workspace/artifacts .\artifacts
-docker cp ac215-rag:/workspace/volumes .\volumes
+docker cp rag-service:/workspace/artifacts .\artifacts
 ```
+**Note**: ChromaDB data is stored in GCS bucket, not in local volumes.
 
 ---
 ---
+## Integration with Orchestrator
+
+The RAG service integrates with the orchestrator service (`src/agents/orchestrator/`) via the `/query/text` endpoint. The orchestrator uses the RAG service to answer financial questions during conversations.
+
+See `INTEGRATION_CHANGES.md` for details on the integration.
+
 ## Summary
 | Step              | Command                                                                                                                             | Purpose                                  |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------|
-| Build image       | `docker build -t ac215-rag -f src\rag\Dockerfile src\rag`                                                                           | Build the image                          |
-| Run end-to-end    | `docker run -it -p 8000:8000 --env-file src\rag\.env --name ac215-rag ac215-rag --ingest --serve`                                   | Ingest & serve in one persistent container |
-| Run ingest only   | `docker run -it --env-file src\rag\.env ac215-rag`                                                                                  | Run ingestion only (default behavior)    |
-| Run API only      | `docker run -it -p 8000:8000 --env-file src\rag\.env --name ac215-rag ac215-rag --serve`                                            | Start the FastAPI server only            |
-| Query             | (PowerShell) `irm -Method Post -Uri "http://localhost:8000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6` | Query the API                              |
-| Dump vector       | `docker run -it --env-file src\rag\.env ac215-rag --dump-vector`                                                                    | Inspect one embedding                     |
-| Stop API          | `Ctrl + C` (if foreground) or `docker rm -f ac215-rag` (if detached)                                                                | Stop container                            |
-| Copy artifacts    | `docker cp ac215-rag:/workspace/artifacts .\artifacts`<br>`docker cp ac215-rag:/workspace/volumes .\volumes`                         | Copy results & vector DB to host          |
+| Build image       | `docker build -t rag-service:latest -f src/rag/Dockerfile .`                                                                        | Build the image (build context: root)    |
+| Run end-to-end    | `docker run -d --name rag-service --network rag-network -p 9000:9000 --env-file src/rag/.env rag-service:latest --ingest --serve`   | Ingest & serve in one persistent container |
+| Run ingest only   | `docker run --rm --network rag-network --env-file src/rag/.env rag-service:latest --ingest`                                         | Run ingestion only                       |
+| Run API only      | `docker run -d --name rag-service --network rag-network -p 9000:9000 --env-file src/rag/.env rag-service:latest --serve`            | Start the FastAPI server only            |
+| Query             | (PowerShell) `irm -Method Post -Uri "http://localhost:9000/query" -ContentType "application/json" -Body (@{ q = "Explain P/E ratio"; k = 5 } | ConvertTo-Json) | ConvertTo-Json -Depth 6` | Query the API                              |
+| Stop API          | `docker stop rag-service; docker rm rag-service`                                                                                    | Stop container                            |
+| Copy artifacts    | `docker cp rag-service:/workspace/artifacts .\artifacts`                                                                            | Copy results to host (data in GCS)       |
 
 
 ---
@@ -165,9 +161,9 @@ docker cp ac215-rag:/workspace/volumes .\volumes
 
 | **Deliverable**                                                                             | **Repository Location**              | **Description**                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Screenshot of running instances (cloud or local)**                                        | `RAG/screenshot_logs/`               | Screenshots showing Docker container(s) or local PowerShell instances running the RAG pipeline (e.g., build, run, query, and vector retrieval).                                                                                                                    |
+| **Screenshot of running instances (cloud or local)**                                        | N/A (removed)                        | Screenshots showing Docker container(s) or local PowerShell instances running the RAG pipeline (e.g., build, run, query, and vector retrieval).                                                                                                                    |
 | **Documentation and Build Instructions**                                                    | `RAG/Dockerfile` and `RAG/README.md` | Comprehensive documentation of the RAG pipeline design, architecture, configuration, and run instructions. Includes the Dockerfile used to build the containerized environment and the “Quick Start” guide for ingestion and API serving.                          |
 | **pyproject.toml (using uv)**                                                               | `RAG/pyproject.toml`                 | Defines Python dependencies and environment configuration for the container (managed with **uv**).                                                                                                                                                                  |
 | **Scripts or docker-compose.yml (when applicable)**                                         | `RAG/rag.py` *(main script)*         | `rag.py` acts as the unified CLI and pipeline script handling ingestion, chunking, embedding, vector storage, and API serving. *(No docker-compose.yml is required because the pipeline runs with a single Dockerfile command. docker-composed moved to _archived folder)*                                   |
 | **Containerized RAG pipeline with scripts for chunking, vectorization, and DB integration** | `RAG/rag.py`                         | Implements ingestion, sanitization, text splitting, embedding (FastEmbed), and vector store integration (Chroma).                                                                                                            |
-| **Pipeline Evidence and Logs**                                                              | `RAG/artifacts/`                     | Contains automatically generated outputs and logs verifying end-to-end pipeline execution — including cleaned text (`sanitized/`), chunking summaries (`metadata.json`), ingestion logs (`ingest_summary.json`), and sample embeddings (`sample_vector.json`). |
+| **Pipeline Evidence and Logs**                                                              | `RAG/artifacts/`                     | Contains automatically generated outputs and logs verifying end-to-end pipeline execution — including chunking summaries (`metadata.json`), ingestion logs (`ingest_summary.json`), and sample embeddings (`sample_vector.json`). |
