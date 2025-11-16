@@ -4,9 +4,78 @@
 
 **Group Name**  Stock Busters
 
-**What is new in MS3?**
+**What is new in MS4?**
 
-The main change in MS3 is an updated on the Quantamental model notebook **
+The main change in MS4 is an updated on the Quantamental model notebook **
+
+### Project Milestone 4 Organization
+```
+AC215_StockBusters/
+│
+├── src/
+│   ├── quant-pipeline/              ← Your quantamental model, hybrid, backtest
+│   │   ├── data_fetch.py
+│   │   ├── data_preprocess.py
+│   │   ├── feature_engineering.py
+│   │   ├── model_train.py
+│   │   ├── hybrid_score.py
+│   │   ├── backtest.py
+│   │   ├── export_outputs.py
+│   │   ├── config.py
+│   │   └── run_pipeline.py          ← final pipeline orchestrator
+│   │
+│   ├── api-service/                 ← FastAPI backend
+│   │   ├── main.py
+│   │   ├── routers/
+│   │   ├── services/
+│   │   ├── gcs_client.py
+│   │   ├── model_loader.py
+│   │   └── Dockerfile
+│   │
+│   ├── agent-orchestrator/           ← LLM multi-agent brain
+│   │   ├── agent_controller.py
+│   │   ├── planner_agent.py
+│   │   ├── quant_agent.py
+│   │   ├── rag_agent.py
+│   │   ├── llm_client.py
+│   │   └── Dockerfile
+│   │
+│   ├── rag-vector-db/                ← Chroma / PGVector
+│   │   ├── build_index.py
+│   │   ├── query_index.py
+│   │   └── Dockerfile
+│   │
+│   ├── model-deploy/                 ← Vertex AI or Cloud Run infra
+│   │   ├── deploy_model.py
+│   │   ├── deploy_api.py
+│   │   └── cloudbuild.yaml
+│   │
+│   ├── ml-workflow/                  ← Vertex AI pipelines (optional)
+│   │   ├── pipeline.yaml
+│   │   └── components/
+│   │
+│   ├── frontend-react/               ← React UI
+│   │   ├── src/
+│   │   ├── public/
+│   │   └── package.json
+│   │
+│   └── notebooks/                    ← Your raw development notebooks
+│       ├── Quantamental_MS4.ipynb
+│       ├── RAG_Processing.ipynb
+│       └── Agent_Prototype.ipynb
+│
+├── secrets/
+│   └── service-account.json          ← for GCS
+│
+├── dvc.yaml                           ← data versioning
+├── requirements.txt
+├── README.md
+└── .env.example
+```
+
+
+
+
 
 ### Project Milestone 3 Organization
 
