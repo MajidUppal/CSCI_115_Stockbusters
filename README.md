@@ -77,7 +77,7 @@ AC215_StockBusters/
 
 
 
-### Project Milestone 3 Organization
+### Project Milestone 3 Organization  (to be removed)
 
 
 ```
