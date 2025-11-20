@@ -12,6 +12,7 @@ Usage:
         get_rag_connection,
         get_chroma_db,
         query_rag_texts,
+        store_query_in_chromadb,
     )
 
     # Option A: One-liner to get just the texts
@@ -302,15 +303,17 @@ def get_chroma_db(collection_name: Optional[str] = None):
         
         # Perform semantic search query
         # Returns documents, metadata, distances, and IDs for the k most similar documents
+        # Note: IDs are always returned, so we don't include them in the include parameter
         res = coll.query(
             query_embeddings=[q_vec],
             n_results=max(1, min(int(k), 50)),  # Ensure k is between 1 and 50
-            include=["documents", "metadatas", "distances", "ids"]
+            include=["documents", "metadatas", "distances"]
         )
         
         # Extract results from ChromaDB response format
         # ChromaDB returns nested lists: [[id1, id2, ...], [doc1, doc2, ...], ...]
         # We need the first (and only) inner list
+        # IDs are always returned even if not in include
         get_first = lambda x: x[0] if x else []
         ids = get_first(res.get("ids", []))
         docs = get_first(res.get("documents", []))
@@ -372,3 +375,130 @@ def query_rag_texts(query_string: str, collection_name: Optional[str] = None, k:
     # Perform query and return only document texts
     results = chroma_db.query(query_string, collection=collection_name, k=k)
     return [r.get("document", "") for r in results if r.get("document")]
+
+
+def store_query_in_chromadb(
+    query: str,
+    collection_name: Optional[str] = None,
+    query_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    upload_to_gcs: bool = False
+) -> Dict[str, Any]:
+    """
+    Store a query in ChromaDB collection with embedding.
+    
+    This function takes a query string (e.g., "E/F ratio"), creates an embedding for it,
+    and stores it in the specified ChromaDB collection. The query can later be retrieved
+    or used for similarity matching.
+    
+    Args:
+        query: Query string to store (e.g., "E/F ratio", "What is ROE?").
+        collection_name: Optional collection name. If None, uses default from environment.
+        query_id: Optional query ID. If None, auto-generates based on normalized query.
+        metadata: Optional metadata dictionary (e.g., {"timestamp": "...", "user": "..."}).
+        upload_to_gcs: If True, uploads updated ChromaDB files back to GCS after storing.
+                      Default: False (changes are local only).
+    
+    Returns:
+        Dictionary with:
+        - stored: Always 1 (single query stored)
+        - query_id: The ID used to store the query
+        - collection: Collection name used
+        - embedding_model: Embedding model used
+    
+    Raises:
+        ValueError: If query is empty or GCS_BUCKET_NAME not set (when upload_to_gcs=True).
+        RuntimeError: If embedding or storage fails.
+    
+    Example:
+        # Store a query
+        result = store_query_in_chromadb(
+            query="E/F ratio",
+            collection_name="queries",
+            metadata={"timestamp": "2024-01-15", "source": "user_input"}
+        )
+        print(f"Stored query with ID: {result['query_id']}")
+        
+        # Store query with custom ID
+        result = store_query_in_chromadb(
+            query="What is P/E ratio?",
+            query_id="query_pe_ratio",
+            collection_name="financial_queries"
+        )
+    """
+    if not query or not query.strip():
+        raise ValueError("query cannot be empty")
+    
+    # Ensure connection is set up
+    get_rag_connection(collection_name)
+    key = collection_name or "default"
+    chroma_client, default_collection = _cache[key]
+    
+    # Use provided collection or default
+    target_collection = collection_name or default_collection
+    coll = chroma_client.get_or_create_collection(name=target_collection)
+    
+    # Generate query ID if not provided (based on normalized query)
+    if query_id is None:
+        q_normalized = normalize_query(query)
+        # Create a simple ID from normalized query (replace spaces with underscores)
+        query_id = f"query_{q_normalized.replace(' ', '_')[:50]}"
+    
+    # Default metadata if not provided (ChromaDB requires non-empty dict)
+    if metadata is None or not metadata:
+        metadata = {"stored_by": "rag_helpers"}
+    
+    # Create embedding for the query (use query_embed for queries)
+    embedder = get_embedder()
+    q_normalized = normalize_query(query)
+    
+    try:
+        q_vec = next(embedder.query_embed(q_normalized))
+        if hasattr(q_vec, "tolist"):
+            q_vec = q_vec.tolist()
+        elif isinstance(q_vec, list):
+            q_vec = q_vec
+        else:
+            q_vec = list(q_vec)
+    except Exception as e:
+        raise RuntimeError(f"Failed to create embedding for query: {e}")
+    
+    # Store query in ChromaDB (upsert: updates if exists, adds if new)
+    # Store the query text as the document
+    try:
+        coll.upsert(
+            ids=[query_id],
+            documents=[query],  # Store the original query text
+            metadatas=[metadata],
+            embeddings=[q_vec]
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to store query in ChromaDB: {e}")
+    
+    # Upload to GCS if requested
+    if upload_to_gcs:
+        bucket_name = os.getenv("GCS_BUCKET_NAME")
+        if not bucket_name:
+            raise ValueError("GCS_BUCKET_NAME not set (required for upload_to_gcs=True)")
+        
+        local_path = os.path.join(tempfile.gettempdir(), "chromadb_rag_helpers")
+        bucket = storage.Client().bucket(bucket_name)
+        
+        # Upload all files from local ChromaDB directory back to GCS
+        for root, dirs, files in os.walk(local_path):
+            for file in files:
+                local_file = os.path.join(root, file)
+                rel_path = os.path.relpath(local_file, local_path)
+                gcs_path = f"chromadb/{rel_path}".replace("\\", "/")
+                
+                blob = bucket.blob(gcs_path)
+                blob.upload_from_filename(local_file)
+        
+        print(f"Uploaded ChromaDB files to GCS (bucket: {bucket_name})")
+    
+    return {
+        "stored": 1,
+        "query_id": query_id,
+        "collection": target_collection,
+        "embedding_model": EMBEDDING_MODEL
+    }
