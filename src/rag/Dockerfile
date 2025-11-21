@@ -29,16 +29,29 @@ WORKDIR /workspace
 # Build context is root directory, so paths are relative to root
 COPY src/rag/pyproject.toml ./
 COPY src/rag/rag.py ./
+COPY src/rag/rag_helpers.py ./
+
+# Copy test files for CI
+COPY src/rag/tests/ ./tests/
+COPY src/rag/pytest.ini ./
+
+# Copy entrypoint script and helper scripts
+COPY src/rag/docker-entrypoint.sh ./
+COPY src/rag/docker-shell.sh ./
 
 # Note: .env file is NOT copied into image for security and flexibility
 # Use --env-file at runtime: docker run --env-file src/rag/.env ...
 
-# GCS service account key from shared secrets directory
+# GCS service account key from shared secrets directory (optional)
 # Build context should be root directory (CSCI115-AI-Agent) to access secrets/
-COPY secrets/gcs-key.json* ./gcs-key.json
+# CI will create a dummy file if secrets don't exist
+COPY secrets/gcs-key.json ./gcs-key.json
 
 # Install Python deps declared in pyproject.toml
-RUN uv sync
+# Try uv sync first, fallback to pip if uv fails
+RUN (uv sync && echo "uv sync succeeded") || (echo "uv sync failed, using pip" && pip install --no-cache-dir .)
+# Install dev dependencies for testing in CI
+RUN pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || echo "Dev deps installation had issues"
 
 # Bake docs into the image so you don't need -v mounts
 # Everything under src/rag/data/ on the host becomes /workspace/data in the image
@@ -47,11 +60,14 @@ COPY src/rag/data/ /workspace/data/
 # Create ChromaDB data directory (will be synced with GCS using Python client)
 RUN mkdir -p /chroma
 
-# Expose FastAPI port and ChromaDB port
-EXPOSE 8000
+# Make scripts executable
+RUN chmod +x docker-entrypoint.sh docker-shell.sh
 
-# Use Python directly - rag.py handles ChromaDB server startup
-ENTRYPOINT ["/.venv/bin/python", "rag.py"]
+# Expose FastAPI port and ChromaDB port
+EXPOSE 8000 9000
+
+# Use entrypoint script for flexible command execution
+ENTRYPOINT ["/bin/bash", "docker-entrypoint.sh"]
 
 
   
