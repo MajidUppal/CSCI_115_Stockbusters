@@ -2610,14 +2610,24 @@ class Retriever:
 
     def __init__(self):
         # Using HTTP client - data is on ChromaDB server, no download needed
-        self.client = get_chromadb_client()
-        self.collection = self.client.get_or_create_collection(name=VECTOR_COLLECTION)
+        try:
+            self.client = get_chromadb_client()
+            self.collection = self.client.get_or_create_collection(name=VECTOR_COLLECTION)
+            self._connection_error = None
+        except Exception as e:
+            # Store connection error for graceful degradation
+            # Server can start even if ChromaDB isn't available
+            self.client = None
+            self.collection = None
+            self._connection_error = e
         # Using FastEmbed directly (LangChain removed)
         self.mode = "chroma-dist"
         # Add query cache
         self._query_cache = {} if ENABLE_CACHE else None
 
     def stats(self):
+        if self._connection_error is not None or self.collection is None:
+            raise self._connection_error if self._connection_error else Exception("ChromaDB not connected")
         cnt = self.collection.count()
         meta = getattr(self.collection, "metadata", {}) or {}
         return {
