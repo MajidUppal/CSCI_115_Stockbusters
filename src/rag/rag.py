@@ -2749,7 +2749,16 @@ def make_app():
         allow_headers=["*"],
     )
 
-    retr = Retriever()
+    # Lazy initialization - only create Retriever when needed
+    # This allows server to start even if ChromaDB isn't available
+    _retriever_instance = None
+
+    def get_retriever():
+        """Get or create Retriever instance (lazy initialization)."""
+        nonlocal _retriever_instance
+        if _retriever_instance is None:
+            _retriever_instance = Retriever()
+        return _retriever_instance
 
     class QueryReq(BaseModel):
         q: str
@@ -2768,6 +2777,7 @@ def make_app():
             JSON with status, service info, and ChromaDB connectivity status.
         """
         try:
+            retr = get_retriever()
             stats = retr.stats()
             return {"status": "ok", "service": "rag-api", "chromadb": "connected", **stats}
         except Exception as e:
@@ -2784,6 +2794,7 @@ def make_app():
             JSON with query, results (full metadata), and result count
         """
         try:
+            retr = get_retriever()
             results = retr.query(req.q, req.k)
             return {"query": req.q, "results": results, "found": len(results) > 0, "count": len(results)}
         except Exception as e:
@@ -2807,6 +2818,7 @@ def make_app():
             - source_count: Number of sources retrieved
         """
         try:
+            retr = get_retriever()
             results = retr.query(req.q, req.k)
 
             if not results:
