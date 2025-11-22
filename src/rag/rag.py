@@ -521,7 +521,7 @@ def _cleanup_chromadb_server():
 
     Stops ChromaDB server and uploads ChromaDB files to GCS before shutdown.
     """
-    global _chromadb_server_process, _gcs_synced
+    global _chromadb_server_process
 
     # Stop ChromaDB server first
     if _chromadb_server_process:
@@ -543,7 +543,6 @@ def _cleanup_chromadb_server():
 
     # Upload ChromaDB files to GCS if we downloaded from GCS or made changes
     # Skip if we already uploaded after ingestion (avoid redundant upload)
-    global _gcs_uploaded_after_ingest
     gcs_bucket = os.getenv("GCS_BUCKET_NAME")
     if GCS_AVAILABLE and gcs_bucket and _gcs_synced:
         if not _gcs_uploaded_after_ingest:
@@ -2188,7 +2187,11 @@ def run_ingest(
     total_docs_processed = 0  # Track total documents processed
 
     def _flush():
-        nonlocal added, ids_buf, docs_buf, metas_buf, skipped_embeddings
+        # Note: ids_buf, docs_buf, metas_buf are mutated (not assigned), so nonlocal is needed
+        # but flake8 F824 complains. We suppress it since mutation requires nonlocal.
+        nonlocal added, skipped_embeddings  # noqa: F824
+        # ids_buf, docs_buf, metas_buf are mutated via .clear() and .append()
+        nonlocal ids_buf, docs_buf, metas_buf  # noqa: F824
         if not ids_buf:
             return
 

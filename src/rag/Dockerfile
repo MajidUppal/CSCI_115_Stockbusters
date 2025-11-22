@@ -60,7 +60,8 @@ RUN set -e; \
         pip install --no-cache-dir . || (echo "ERROR: Both uv and pip installation failed" && exit 1); \
     fi
 # Verify fastembed is installed (critical dependency)
-RUN python -c "import fastembed; print('✓ fastembed version:', fastembed.__version__)" || (echo "ERROR: fastembed not installed" && exit 1)
+# Use /.venv/bin/python to ensure we're using the venv where dependencies are installed
+RUN /.venv/bin/python -c "import fastembed; print('✓ fastembed version:', fastembed.__version__)" || (echo "ERROR: fastembed not installed" && exit 1)
 # Install dev dependencies for testing in CI
 RUN pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || echo "⚠ Dev deps installation had issues"
 
