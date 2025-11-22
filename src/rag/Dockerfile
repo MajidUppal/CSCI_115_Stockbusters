@@ -44,8 +44,15 @@ COPY src/rag/docker-shell.sh ./
 
 # GCS service account key from shared secrets directory (optional)
 # Build context should be root directory (CSCI115-AI-Agent) to access secrets/
-# CI will create a dummy file if secrets don't exist
-COPY secrets/gcs-key.json ./gcs-key.json
+# CI creates secrets/gcs-key.json in "Create dummy secrets and build" step before build runs
+# Try to copy the secrets directory - if it doesn't exist, that's OK, we'll create dummy in RUN
+COPY secrets/ ./secrets-tmp/
+RUN if [ -f ./secrets-tmp/gcs-key.json ]; then \
+        cp ./secrets-tmp/gcs-key.json ./gcs-key.json && echo "Copied gcs-key.json from secrets"; \
+    else \
+        echo '{}' > ./gcs-key.json && echo "Created dummy gcs-key.json"; \
+    fi && \
+    rm -rf ./secrets-tmp || true
 
 # Install Python deps declared in pyproject.toml
 # Try uv sync first, fallback to pip if uv fails
@@ -55,6 +62,8 @@ RUN pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre
 
 # Bake docs into the image so you don't need -v mounts
 # Everything under src/rag/data/ on the host becomes /workspace/data in the image
+# Create data directory first to ensure it exists
+RUN mkdir -p /workspace/data
 COPY src/rag/data/ /workspace/data/
 
 # Create ChromaDB data directory (will be synced with GCS using Python client)
