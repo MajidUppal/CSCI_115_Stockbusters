@@ -555,6 +555,12 @@ def _cleanup_chromadb_server():
                 traceback.print_exc()
 
 
+# GCS support (optional) - Initialize EARLY to avoid NameError in atexit callbacks
+# Must be defined before atexit.register() in case imports fail
+GCS_AVAILABLE = False
+storage = None
+service_account = None
+
 # Register cleanup on exit and signals
 import atexit
 import signal
@@ -618,19 +624,16 @@ import chromadb
 from chromadb import HttpClient
 from fastembed import TextEmbedding
 
-# GCS support (optional)
-# Initialize GCS_AVAILABLE to False by default to avoid NameError in atexit callbacks
-GCS_AVAILABLE = False
-storage = None
-service_account = None
-
+# GCS support (optional) - Try to import, update GCS_AVAILABLE if successful
+# Note: GCS_AVAILABLE is already initialized earlier (before atexit.register)
+# to prevent NameError if imports fail
 try:
     from google.cloud import storage
     from google.oauth2 import service_account
 
     GCS_AVAILABLE = True
 except ImportError:
-    # GCS libraries not available, keep defaults
+    # GCS libraries not available, keep defaults (GCS_AVAILABLE already False)
     pass
 
 # LangChain removed - using ChromaDB and FastEmbed directly
