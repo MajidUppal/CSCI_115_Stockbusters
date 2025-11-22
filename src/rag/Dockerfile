@@ -49,24 +49,24 @@ COPY src/rag/docker-shell.sh ./
 # CI will provide real credentials via secrets/ if available
 RUN echo '{}' > ./gcs-key.json
 
-# Install Python deps declared in pyproject.toml
-# Try uv sync first, fallback to pip if uv fails
+# Install Python deps declared in pyproject.toml (including dev dependencies)
+# Use uv sync with --extra dev to install both main and dev dependencies
+# Fallback to pip if uv fails
 # Ensure installation succeeds - fail build if both methods fail
-RUN set -e; \
-    if uv sync; then \
-        echo "✓ uv sync succeeded"; \
+RUN if uv sync --extra dev; then \
+        echo "✓ uv sync (with dev deps) succeeded"; \
     else \
         echo "⚠ uv sync failed, trying pip..."; \
-        /.venv/bin/pip install --no-cache-dir . || (echo "ERROR: Both uv and pip installation failed" && exit 1); \
+        # Ensure venv exists before using pip fallback (uv may have created it, but ensure it exists)
+        python3 -m venv /.venv 2>/dev/null || true; \
+        /.venv/bin/pip install --upgrade pip --quiet || true; \
+        /.venv/bin/pip install --no-cache-dir . || (echo "ERROR: pip installation failed" && exit 1); \
+        /.venv/bin/pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || (echo "ERROR: Dev deps installation failed" && exit 1); \
     fi
 # Verify fastembed is installed (critical dependency)
 # Use /.venv/bin/python to ensure we're using the venv where dependencies are installed
 RUN /.venv/bin/python -c "import fastembed; print('✓ fastembed version:', fastembed.__version__)" || (echo "ERROR: fastembed not installed" && exit 1)
-# Install dev dependencies for testing in CI
-# Use /.venv/bin/pip to ensure dev deps are installed in the venv
-# Fail build if dev deps installation fails
-RUN /.venv/bin/pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || (echo "ERROR: Dev deps installation failed" && exit 1)
-# Verify pytest is installed
+# Verify pytest is installed (dev dependency)
 RUN /.venv/bin/python -c "import pytest; print('✓ pytest version:', pytest.__version__)" || (echo "ERROR: pytest not installed" && exit 1)
 
 # Bake docs into the image so you don't need -v mounts
