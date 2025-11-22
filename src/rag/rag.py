@@ -2693,10 +2693,19 @@ class Retriever:
         if isinstance(q_vec, list):
             q_vec = np.array(q_vec, dtype=np.float32)
 
+        # Check if ChromaDB is connected
+        if self._connection_error is not None or self.collection is None:
+            return []
+        
         # Pass as list containing the numpy array (one query, one embedding)
-        res = self.collection.query(
-            query_embeddings=[q_vec], n_results=k, include=["documents", "metadatas", "distances"]
-        )
+        try:
+            res = self.collection.query(
+                query_embeddings=[q_vec], n_results=k, include=["documents", "metadatas", "distances"]
+            )
+        except Exception as e:
+            # If query fails, return empty results
+            print(f"[WARN] Query failed: {e}")
+            return []
         # Handle empty results gracefully - ChromaDB returns empty lists when no results
         ids_list = res.get("ids", [[]])
         docs_list = res.get("documents", [[]])
