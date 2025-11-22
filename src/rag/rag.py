@@ -2696,7 +2696,7 @@ class Retriever:
         # Check if ChromaDB is connected
         if self._connection_error is not None or self.collection is None:
             return []
-        
+
         # Pass as list containing the numpy array (one query, one embedding)
         try:
             res = self.collection.query(
