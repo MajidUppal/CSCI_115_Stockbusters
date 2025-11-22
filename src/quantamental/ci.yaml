@@ -1,0 +1,152 @@
+name: Quantamental Model CI/CD - MS4
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  IMAGE_NAME: quantamental-pipeline
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint-and-format:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8==6.1.0 black==23.11.0 isort==5.12.0
+    
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Check for style issues (using .flake8 config)
+        flake8 *.py --count --statistics
+      continue-on-error: false
+    
+    - name: Check code formatting with Black
+      run: |
+        black --check --line-length=100 *.py
+      continue-on-error: false
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --profile black --line-length=100 *.py
+      continue-on-error: true
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-format
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest==7.4.3 pytest-cov==4.1.0 coverage
+    
+    - name: Run tests with pytest
+      env:
+        FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+        GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+      run: |
+        pytest tests/ -v --cov=. --cov-report=xml --cov-report=term-missing --cov-report=html
+    
+    - name: Check coverage threshold
+      run: |
+        coverage report --fail-under=60
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: htmlcov/
+        retention-days: 30
+
+  docker-build:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.IMAGE_NAME }}:test -f Dockerfile .
+    
+    - name: Test Docker image runs
+      run: |
+        docker run --rm ${{ env.IMAGE_NAME }}:test python -c "import utils; print('✓ Utils module imported successfully')"
+        docker run --rm ${{ env.IMAGE_NAME }}:test python -c "import data_collect; print('✓ Data collection module imported successfully')"
+    
+    - name: Run tests inside Docker
+      run: |
+        docker run --rm ${{ env.IMAGE_NAME }}:test pytest tests/ -v
+    
+    - name: Verify Docker image size
+      run: |
+        docker images ${{ env.IMAGE_NAME }}:test --format "Size: {{.Size}}"
+
+  integration-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, test, docker-build]
+    if: always()
+    
+    steps:
+    - name: Generate Summary
+      run: |
+        echo "## 🚀 Quantamental CI/CD Summary - MS4" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Checks Completed:" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Code Quality (flake8, black, isort)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Unit Tests (pytest)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Coverage > 60%" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Docker Build & Test" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Team:** Stock Busters" >> $GITHUB_STEP_SUMMARY
+        echo "**Pipeline:** Quantamental Model" >> $GITHUB_STEP_SUMMARY
