@@ -593,6 +593,10 @@ def get_chromadb_client():
         CHROMADB_HOST: Server hostname (default: localhost)
         CHROMADB_PORT: Server port (default: 8000)
         CHROMADB_AUTH_TOKEN: Optional authentication token
+
+    Note:
+        HttpClient() constructor does not validate connection - it's lazy.
+        Connection is only validated when methods are called.
     """
     try:
         if CHROMADB_AUTH_TOKEN:
@@ -605,8 +609,12 @@ def get_chromadb_client():
         else:
             # Use unauthenticated client
             return HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT)
-    except Exception as e:
-        print(f"[ERROR] Failed to connect to ChromaDB server at {CHROMADB_HOST}:{CHROMADB_PORT}: {e}")
+    except BaseException as e:
+        # Re-raise SystemExit and KeyboardInterrupt to allow proper shutdown
+        if isinstance(e, (SystemExit, KeyboardInterrupt)):
+            raise
+        # For other exceptions, log and re-raise
+        print(f"[ERROR] Failed to create ChromaDB client for {CHROMADB_HOST}:{CHROMADB_PORT}: {e}")
         print(
             "[ERROR] Make sure ChromaDB server is running: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest"
         )
@@ -2610,16 +2618,27 @@ class Retriever:
 
     def __init__(self):
         # Using HTTP client - data is on ChromaDB server, no download needed
+        self.client = None
+        self.collection = None
+        self._connection_error = None
         try:
             self.client = get_chromadb_client()
+            # get_or_create_collection may raise if ChromaDB server is not available
+            # Catch all exceptions to allow server to start in degraded mode
             self.collection = self.client.get_or_create_collection(name=VECTOR_COLLECTION)
-            self._connection_error = None
-        except Exception as e:
+        except BaseException as e:
             # Store connection error for graceful degradation
             # Server can start even if ChromaDB isn't available
+            # Catch BaseException to handle all exception types (including SystemExit, KeyboardInterrupt)
+            # but re-raise SystemExit and KeyboardInterrupt to allow proper shutdown
+            if isinstance(e, (SystemExit, KeyboardInterrupt)):
+                raise
             self.client = None
             self.collection = None
             self._connection_error = e
+            # Log the error but don't crash
+            print(f"[WARN] ChromaDB connection failed: {e}")
+            print("[WARN] Server will start in degraded mode (ChromaDB unavailable)")
         # Using FastEmbed directly (LangChain removed)
         self.mode = "chroma-dist"
         # Add query cache
