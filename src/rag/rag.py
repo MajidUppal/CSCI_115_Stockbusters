@@ -2727,11 +2727,11 @@ _retriever_instance = None
 
 def get_retriever():
     """Get or create Retriever instance (lazy initialization).
-    
+
     This is a module-level function to allow easy patching in tests.
     The Retriever is only created when first needed, allowing the server
     to start even if ChromaDB isn't available.
-    
+
     Returns:
         Retriever instance (singleton)
     """
