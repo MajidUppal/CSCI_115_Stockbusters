@@ -51,9 +51,18 @@ RUN echo '{}' > ./gcs-key.json
 
 # Install Python deps declared in pyproject.toml
 # Try uv sync first, fallback to pip if uv fails
-RUN (uv sync && echo "uv sync succeeded") || (echo "uv sync failed, using pip" && pip install --no-cache-dir .)
+# Ensure installation succeeds - fail build if both methods fail
+RUN set -e; \
+    if uv sync; then \
+        echo "✓ uv sync succeeded"; \
+    else \
+        echo "⚠ uv sync failed, trying pip..."; \
+        pip install --no-cache-dir . || (echo "ERROR: Both uv and pip installation failed" && exit 1); \
+    fi
+# Verify fastembed is installed (critical dependency)
+RUN python -c "import fastembed; print('✓ fastembed version:', fastembed.__version__)" || (echo "ERROR: fastembed not installed" && exit 1)
 # Install dev dependencies for testing in CI
-RUN pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || echo "Dev deps installation had issues"
+RUN pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || echo "⚠ Dev deps installation had issues"
 
 # Bake docs into the image so you don't need -v mounts
 # Everything under src/rag/data/ on the host becomes /workspace/data in the image

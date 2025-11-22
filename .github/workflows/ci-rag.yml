@@ -48,6 +48,7 @@ jobs:
 
       - name: Build Docker image with cache
         uses: docker/build-push-action@v5
+        id: build
         with:
           context: .
           file: ./src/rag/Dockerfile
@@ -56,20 +57,21 @@ jobs:
           tags: rag-service:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64
         env:
           DOCKER_BUILDKIT: 1
         timeout-minutes: 4
       
       - name: Verify image exists
         run: |
-          docker images | grep rag-service || echo "Image not found"
-          docker inspect rag-service:${{ github.sha }} || echo "Image inspect failed"
+          echo "Checking for image: rag-service:${{ github.sha }}"
+          docker images | grep rag-service || echo "Image not found in docker images"
+          docker inspect rag-service:${{ github.sha }} && echo "✓ Image exists and is inspectable" || echo "✗ Image inspect failed"
         timeout-minutes: 1
       
       - name: Save and upload Docker image
         run: |
           docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
+          ls -lh /tmp/rag-service.tar
         timeout-minutes: 1
 
       - name: Upload Docker image artifact

@@ -620,15 +620,19 @@ from chromadb import HttpClient
 from fastembed import TextEmbedding
 
 # GCS support (optional)
+# Initialize GCS_AVAILABLE to False by default to avoid NameError in atexit callbacks
+GCS_AVAILABLE = False
+storage = None
+service_account = None
+
 try:
     from google.cloud import storage
     from google.oauth2 import service_account
 
     GCS_AVAILABLE = True
 except ImportError:
-    GCS_AVAILABLE = False
-    storage = None
-    service_account = None
+    # GCS libraries not available, keep defaults
+    pass
 
 # LangChain removed - using ChromaDB and FastEmbed directly
 # Simple document type for semantic chunking
@@ -1937,26 +1941,22 @@ def semantic_embed(texts, **kwargs):
 
 class SemanticSplitterCache:
     """Cache for semantic splitter instances with isolated state.
-    
+
     This class encapsulates the caching logic for SemanticChunker instances,
     allowing for easy test isolation by creating fresh instances in tests.
     """
-    
+
     def __init__(self):
         """Initialize empty cache."""
         self._cache: Dict[str, SemanticChunker] = {}
-    
-    def get_splitter(
-        self, 
-        sim_percentile: float = 95.0, 
-        buffer_size: int = 1
-    ) -> SemanticChunker:
+
+    def get_splitter(self, sim_percentile: float = 95.0, buffer_size: int = 1) -> SemanticChunker:
         """Get or create a cached semantic chunker instance.
-        
+
         Args:
             sim_percentile: Similarity percentile threshold
             buffer_size: Buffer size for chunking
-            
+
         Returns:
             Cached or newly created SemanticChunker instance
         """
@@ -1969,14 +1969,14 @@ class SemanticSplitterCache:
                 breakpoint_threshold_amount=sim_percentile,
             )
         return self._cache[cache_key]
-    
+
     def clear(self):
         """Clear all cached splitters."""
         self._cache.clear()
-    
+
     def size(self) -> int:
         """Get number of cached splitters.
-        
+
         Returns:
             Number of cached SemanticChunker instances
         """
@@ -1989,14 +1989,14 @@ _splitter_cache = SemanticSplitterCache()
 
 def _get_semantic_splitter(sim_percentile: float = 95.0, buffer_size: int = 1) -> SemanticChunker:
     """Get or create a cached semantic chunker instance.
-    
+
     Uses module-level cache instance. For testing, replace _splitter_cache
     with a fresh SemanticSplitterCache() instance.
-    
+
     Args:
         sim_percentile: Similarity percentile threshold
         buffer_size: Buffer size for chunking
-        
+
     Returns:
         Cached or newly created SemanticChunker instance
     """
