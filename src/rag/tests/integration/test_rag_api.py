@@ -46,18 +46,17 @@ def app_client(mock_retriever):
         pytest.skip("fastapi not available, skipping integration tests")
 
     # Patch dependencies before importing
-    # Patch Retriever class to return mock instance when instantiated
+    # Create a mock function that returns the mock retriever
+    def mock_get_retriever_func():
+        return mock_retriever
+
     with (
         patch("rag.get_chromadb_client"),
         patch("rag._get_gcs_client"),
         patch("rag._start_chromadb_server"),
-        patch("rag.Retriever", return_value=mock_retriever),  # Patch Retriever class to return mock
+        patch("rag.get_retriever", mock_get_retriever_func),  # Directly replace get_retriever function
         patch("rag.ENABLE_CACHE", False),
     ):
-
-        # Reset _retriever_instance before importing to ensure clean state
-        import rag
-        rag._retriever_instance = None
 
         from rag import make_app
 
