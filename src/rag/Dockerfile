@@ -64,7 +64,10 @@ RUN set -e; \
 RUN /.venv/bin/python -c "import fastembed; print('✓ fastembed version:', fastembed.__version__)" || (echo "ERROR: fastembed not installed" && exit 1)
 # Install dev dependencies for testing in CI
 # Use /.venv/bin/pip to ensure dev deps are installed in the venv
-RUN /.venv/bin/pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || echo "⚠ Dev deps installation had issues"
+# Fail build if dev deps installation fails
+RUN /.venv/bin/pip install --no-cache-dir pytest pytest-cov black flake8 httpx requests pre-commit || (echo "ERROR: Dev deps installation failed" && exit 1)
+# Verify pytest is installed
+RUN /.venv/bin/python -c "import pytest; print('✓ pytest version:', pytest.__version__)" || (echo "ERROR: pytest not installed" && exit 1)
 
 # Bake docs into the image so you don't need -v mounts
 # Everything under src/rag/data/ on the host becomes /workspace/data in the image

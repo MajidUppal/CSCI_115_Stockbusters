@@ -100,7 +100,7 @@ jobs:
           docker load -i /tmp/rag-service.tar
           # Run Black and Flake8 in single container to save startup time
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
-            rag-service:${{ github.sha }} sh -c "/.venv/bin/black --check --line-length 120 rag.py && /.venv/bin/flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 rag.py" || exit_code=$?
+            rag-service:${{ github.sha }} sh -c "black --check --line-length 120 rag.py && flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 rag.py" || exit_code=$?
           if [ ${exit_code:-0} -ne 0 ]; then
             echo "⚠️ Linting failed"
             exit ${exit_code}
@@ -131,7 +131,7 @@ jobs:
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
             -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} \
-            /.venv/bin/pytest tests/unit/ --cov=rag --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
+            pytest tests/unit/ --cov=rag --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
           exit ${exit_code:-0}
         env:
           CHROMADB_HOST: localhost
@@ -169,7 +169,7 @@ jobs:
         run: |
           docker load -i /tmp/rag-service.tar
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
-            rag-service:${{ github.sha }} /.venv/bin/pytest tests/integration/ --tb=line -m integration --maxfail=1 -x -q
+            rag-service:${{ github.sha }} pytest tests/integration/ --tb=line -m integration --maxfail=1 -x -q
         env:
           CHROMADB_HOST: localhost
           CHROMADB_PORT: "8000"
@@ -222,7 +222,7 @@ jobs:
       - name: Run system tests
         run: |
           docker run --rm --network host -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
-            rag-service:${{ github.sha }} /.venv/bin/pytest tests/system/ --tb=line -m system --maxfail=1 -x -q
+            rag-service:${{ github.sha }} pytest tests/system/ --tb=line -m system --maxfail=1 -x -q
         env:
           API_BASE_URL: http://localhost:9000
         timeout-minutes: 2
