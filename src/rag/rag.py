@@ -44,6 +44,7 @@ Prerequisites:
 """
 
 import os
+import sys
 import re
 import glob
 import json
@@ -2912,8 +2913,15 @@ def serve():
     """
     import uvicorn
 
-    app = make_app()
-    uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)
+    try:
+        app = make_app()
+        print(f"[INFO] Starting server on {API_HOST}:{API_PORT}")
+        uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)
+    except Exception as e:
+        print(f"[ERROR] Failed to start server: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 # --- CLI -------------------------------------------------------------------
@@ -2954,21 +2962,40 @@ def main():
     if not (args.ingest or args.serve):
         args.ingest = True
 
-    if args.ingest:
-        stats = run_ingest(
-            target_tokens=args.target_tokens,
-            max_tokens=args.max_tokens,
-            overlap_sentences=args.overlap_sentences,
-            buffer_size=args.buffer_size,
-            sim_percentile=args.sim_percentile,
-            max_depth=args.max_depth,
-        )
-        print(json.dumps({"ingest_done": True, **stats}, indent=2))
+    try:
+        if args.ingest:
+            stats = run_ingest(
+                target_tokens=args.target_tokens,
+                max_tokens=args.max_tokens,
+                overlap_sentences=args.overlap_sentences,
+                buffer_size=args.buffer_size,
+                sim_percentile=args.sim_percentile,
+                max_depth=args.max_depth,
+            )
+            print(json.dumps({"ingest_done": True, **stats}, indent=2))
+            if args.serve:
+                time.sleep(2)
         if args.serve:
-            time.sleep(2)
-    if args.serve:
-        serve()
+            serve()
+    except KeyboardInterrupt:
+        print("\n[INFO] Server shutdown requested")
+        raise
+    except Exception as e:
+        print(f"[ERROR] Fatal error in main(): {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        print("[INFO] Starting RAG application...")
+        main()
+    except KeyboardInterrupt:
+        print("\n[INFO] Interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"[ERROR] Unhandled exception in main: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
