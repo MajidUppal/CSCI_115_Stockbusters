@@ -2626,8 +2626,10 @@ class Retriever:
         self._query_cache = {} if ENABLE_CACHE else None
 
     def stats(self):
-        if self._connection_error is not None or self.collection is None:
-            raise self._connection_error if self._connection_error else Exception("ChromaDB not connected")
+        if self._connection_error is not None:
+            raise self._connection_error
+        if self.collection is None:
+            raise Exception("ChromaDB not connected")
         cnt = self.collection.count()
         meta = getattr(self.collection, "metadata", {}) or {}
         return {
