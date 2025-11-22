@@ -51,7 +51,7 @@ class TestRAGSystemEndpoints:
 
     def test_query_endpoint_with_text(self):
         """Test /query/text endpoint with a simple query."""
-        response = requests.post(f"{API_BASE_URL}/query/text", json={"query": "What is ROE?"}, timeout=10)
+        response = requests.post(f"{API_BASE_URL}/query/text", json={"q": "What is ROE?"}, timeout=10)
 
         # Should return 200 even if no data (empty collection is OK)
         assert response.status_code == 200

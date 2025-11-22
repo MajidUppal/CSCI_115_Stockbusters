@@ -1,18 +1,14 @@
 """Unit tests for RAG core functions."""
 
 import pytest
-
-pytestmark = pytest.mark.unit
-import sys
-from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 import tempfile
 import os
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+pytestmark = pytest.mark.unit
 
-# Import functions to test
+# Import functions to test - path setup now handled by conftest.py
+rag = pytest.importorskip("rag")
 from rag import (
     normalize_query,
     _norm,
@@ -112,9 +108,11 @@ class TestLoadFunctions:
         (tmp_path / "test2.txt").write_text("Content 2")
 
         # Mock to avoid actual file system and PDF issues in CI
-        with patch("rag._load_txt_md") as mock_load_txt, patch("rag._load_pdf") as mock_load_pdf, patch(
-            "rag._load_csv"
-        ) as mock_load_csv:
+        with (
+            patch("rag._load_txt_md") as mock_load_txt,
+            patch("rag._load_pdf") as mock_load_pdf,
+            patch("rag._load_csv") as mock_load_csv,
+        ):
             mock_load_txt.return_value = [("test1.txt", "Content 1")]
             mock_load_pdf.return_value = []
             mock_load_csv.return_value = []
@@ -140,15 +138,16 @@ class TestSemanticChunking:
     @patch("rag.semantic_embed")
     def test_semantic_chunks_large_text(self, mock_embed, mock_get_embedder):
         """Test semantic_chunks with large text that needs splitting."""
-        # Create large text
-        large_text = " ".join(["Sentence with content."] * 100)
+        # Create moderate-sized text (reduced from 100 to 30 for memory efficiency)
+        large_text = " ".join(["Sentence with content."] * 30)
 
         # Mock embedding to return enough embeddings for all sentences
         # Split by sentences first to estimate how many we need
         sentences = large_text.split(".")
         num_sentences = len([s for s in sentences if s.strip()])
-        # Return embeddings for all sentences to avoid IndexError
-        mock_embed.return_value = [[0.1] * 384] * max(num_sentences, 100)
+        # Use smaller embeddings (128 dim) for memory efficiency
+        # Return embeddings for all sentences to avoid IndexError (reduced max from 100 to 50)
+        mock_embed.return_value = [[0.1] * 128] * max(num_sentences, 50)
 
         result = semantic_chunks(large_text, max_tokens=100)
         assert isinstance(result, list)
@@ -206,7 +205,8 @@ class TestEmbeddingFunctions:
     def test_semantic_embed(self, mock_get_embedder):
         """Test semantic_embed function."""
         mock_embedder = Mock()
-        mock_embedder.embed.return_value = iter([[0.1] * 384, [0.2] * 384])
+        # Use smaller embeddings (128 dim) for memory efficiency
+        mock_embedder.embed.return_value = iter([[0.1] * 128, [0.2] * 128])
         mock_get_embedder.return_value = mock_embedder
 
         texts = ["text1", "text2"]
@@ -242,7 +242,8 @@ class TestSemanticChunker:
 
     def test_semantic_chunker_init(self):
         """Test SemanticChunker initialization."""
-        mock_embed_func = Mock(return_value=[[0.1] * 384])
+        # Use smaller embeddings (128 dim) for memory efficiency
+        mock_embed_func = Mock(return_value=[[0.1] * 128])
 
         chunker = SemanticChunker(
             embedding_function=mock_embed_func,

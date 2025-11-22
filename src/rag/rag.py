@@ -43,8 +43,17 @@ Prerequisites:
     Start server: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest
 """
 
-import os, re, glob, json, time, argparse, logging, gc, subprocess, stat, csv
-from typing import List, Tuple, Dict, Any, Optional, Sequence, Literal, cast, Set
+import os
+import re
+import glob
+import json
+import time
+import argparse
+import logging
+import gc
+import subprocess
+import csv
+from typing import List, Tuple, Dict, Any, Optional, Literal, cast, Set
 from pathlib import Path
 from functools import lru_cache
 from collections import OrderedDict
@@ -161,7 +170,8 @@ def _get_gcs_client():
     gcs_key_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/workspace/gcs-key.json")
 
     try:
-        if os.path.exists(gcs_key_path):
+        # Handle empty string or None - don't try to use empty path
+        if gcs_key_path and os.path.exists(gcs_key_path):
             credentials = service_account.Credentials.from_service_account_file(gcs_key_path)
             return storage.Client(credentials=credentials)
         else:
@@ -593,7 +603,7 @@ def get_chromadb_client():
     except Exception as e:
         print(f"[ERROR] Failed to connect to ChromaDB server at {CHROMADB_HOST}:{CHROMADB_PORT}: {e}")
         print(
-            f"[ERROR] Make sure ChromaDB server is running: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest"
+            "[ERROR] Make sure ChromaDB server is running: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest"
         )
         raise
 
@@ -604,7 +614,8 @@ for name in ("chromadb", "chromadb.telemetry", "posthog"):
     logging.getLogger(name).setLevel(logging.ERROR)
 
 from chromadb.config import Settings as ChromaSettings
-import numpy as np, chromadb
+import numpy as np
+import chromadb
 from chromadb import HttpClient
 from fastembed import TextEmbedding
 
@@ -1485,7 +1496,7 @@ def _load_pdf(path: str) -> List[Tuple[str, str]]:
 
         if len(toc_chapter_map) == 0:
             print(f"[WARN] PDF table of contents not available for {base}. Chapter detection requires TOC.")
-            print(f"[WARN] Processing all pages without chapter filtering.")
+            print("[WARN] Processing all pages without chapter filtering.")
             # Fall back to processing all pages without chapter filtering
             for i, page in enumerate(doc, start=1):
                 txt = _extract_page_text(page, i, base)
@@ -1922,21 +1933,74 @@ def semantic_embed(texts, **kwargs):
 
 
 # --- Semantic chunking wrapper ----------------------------------------------
-# Cache splitter instance to avoid recreation
-_semantic_splitter_cache: Dict[str, SemanticChunker] = {}
+
+
+class SemanticSplitterCache:
+    """Cache for semantic splitter instances with isolated state.
+    
+    This class encapsulates the caching logic for SemanticChunker instances,
+    allowing for easy test isolation by creating fresh instances in tests.
+    """
+    
+    def __init__(self):
+        """Initialize empty cache."""
+        self._cache: Dict[str, SemanticChunker] = {}
+    
+    def get_splitter(
+        self, 
+        sim_percentile: float = 95.0, 
+        buffer_size: int = 1
+    ) -> SemanticChunker:
+        """Get or create a cached semantic chunker instance.
+        
+        Args:
+            sim_percentile: Similarity percentile threshold
+            buffer_size: Buffer size for chunking
+            
+        Returns:
+            Cached or newly created SemanticChunker instance
+        """
+        cache_key = f"{sim_percentile}_{buffer_size}"
+        if cache_key not in self._cache:
+            self._cache[cache_key] = SemanticChunker(
+                embedding_function=semantic_embed,
+                buffer_size=buffer_size,
+                breakpoint_threshold_type="percentile",
+                breakpoint_threshold_amount=sim_percentile,
+            )
+        return self._cache[cache_key]
+    
+    def clear(self):
+        """Clear all cached splitters."""
+        self._cache.clear()
+    
+    def size(self) -> int:
+        """Get number of cached splitters.
+        
+        Returns:
+            Number of cached SemanticChunker instances
+        """
+        return len(self._cache)
+
+
+# Module-level cache instance (can be replaced in tests for isolation)
+_splitter_cache = SemanticSplitterCache()
 
 
 def _get_semantic_splitter(sim_percentile: float = 95.0, buffer_size: int = 1) -> SemanticChunker:
-    """Get or create a cached semantic chunker instance."""
-    cache_key = f"{sim_percentile}_{buffer_size}"
-    if cache_key not in _semantic_splitter_cache:
-        _semantic_splitter_cache[cache_key] = SemanticChunker(
-            embedding_function=semantic_embed,
-            buffer_size=buffer_size,
-            breakpoint_threshold_type="percentile",
-            breakpoint_threshold_amount=sim_percentile,
-        )
-    return _semantic_splitter_cache[cache_key]
+    """Get or create a cached semantic chunker instance.
+    
+    Uses module-level cache instance. For testing, replace _splitter_cache
+    with a fresh SemanticSplitterCache() instance.
+    
+    Args:
+        sim_percentile: Similarity percentile threshold
+        buffer_size: Buffer size for chunking
+        
+    Returns:
+        Cached or newly created SemanticChunker instance
+    """
+    return _splitter_cache.get_splitter(sim_percentile, buffer_size)
 
 
 def semantic_chunks(
@@ -2491,6 +2555,7 @@ def run_ingest(
         "num_input_docs": total_docs_processed,
         "elapsed_sec": round(time.time() - t0, 2),
     }
+
     with open(os.path.join(ARTIFACTS_DIR, "ingest_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     with open(os.path.join(ARTIFACTS_DIR, "chunk_stats.json"), "w", encoding="utf-8") as f:

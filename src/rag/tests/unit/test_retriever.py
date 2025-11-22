@@ -111,7 +111,8 @@ class TestRetrieverQuery:
         mock_norm.return_value = "test query"
 
         mock_embedder = Mock()
-        mock_embedder.query_embed.return_value = iter([np.array([0.1] * 384, dtype=np.float32)])
+        # Use smaller embeddings (128 dim) for memory efficiency
+        mock_embedder.query_embed.return_value = iter([np.array([0.1] * 128, dtype=np.float32)])
         mock_get_embedder.return_value = mock_embedder
 
         retriever = Retriever()
@@ -163,7 +164,8 @@ class TestRetrieverQuery:
         mock_norm.return_value = "cached query"
 
         mock_embedder = Mock()
-        mock_embedder.query_embed.return_value = iter([np.array([0.1] * 384, dtype=np.float32)])
+        # Use smaller embeddings (128 dim) for memory efficiency
+        mock_embedder.query_embed.return_value = iter([np.array([0.1] * 128, dtype=np.float32)])
         mock_get_embedder.return_value = mock_embedder
 
         retriever = Retriever()
@@ -194,8 +196,9 @@ class TestRetrieverQuery:
         mock_embedder = Mock()
 
         # Return an iterator that can be called multiple times
+        # Use smaller embeddings (128 dim) for memory efficiency
         def mock_embed_iter():
-            return iter([np.array([0.1] * 384, dtype=np.float32)])
+            return iter([np.array([0.1] * 128, dtype=np.float32)])
 
         mock_embedder.query_embed.return_value = mock_embed_iter()
         mock_get_embedder.return_value = mock_embedder

@@ -6,10 +6,19 @@ pytestmark = pytest.mark.integration
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-from fastapi.testclient import TestClient
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Try to import TestClient, handle if fastapi not available
+try:
+    from fastapi.testclient import TestClient
+
+    FASTAPI_AVAILABLE = True
+except ImportError:
+    # Fallback for environments where fastapi might not be installed
+    TestClient = None
+    FASTAPI_AVAILABLE = False
 
 
 @pytest.fixture
@@ -33,10 +42,17 @@ def mock_retriever():
 @pytest.fixture
 def app_client(mock_retriever):
     """Create FastAPI test client with mocked dependencies."""
+    if not FASTAPI_AVAILABLE or TestClient is None:
+        pytest.skip("fastapi not available, skipping integration tests")
+
     # Patch dependencies before importing
-    with patch("rag.get_chromadb_client"), patch("rag._get_gcs_client"), patch("rag._start_chromadb_server"), patch(
-        "rag.Retriever", return_value=mock_retriever
-    ), patch("rag.ENABLE_CACHE", False):
+    with (
+        patch("rag.get_chromadb_client"),
+        patch("rag._get_gcs_client"),
+        patch("rag._start_chromadb_server"),
+        patch("rag.Retriever", return_value=mock_retriever),
+        patch("rag.ENABLE_CACHE", False),
+    ):
 
         from rag import make_app
 

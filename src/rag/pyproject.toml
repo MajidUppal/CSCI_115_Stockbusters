@@ -33,12 +33,76 @@ dev = [
   "pytest>=7.0.0",
   "pytest-cov>=4.0.0",
   "pytest-asyncio>=0.21.0",
+  "pytest-xdist>=3.0.0",  # For parallel test execution
   "black>=23.0.0",
   "flake8>=6.0.0",
   "httpx>=0.24.0",  # For FastAPI TestClient
   "pydantic>=2.0.0",  # For FastAPI BaseModel
   "requests>=2.31.0",  # For system tests
   "pre-commit>=3.6.0",  # For pre-commit hooks
+]
+
+[tool.black]
+line-length = 120
+target-version = ['py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503", "E501", "E722", "W504"]
+exclude = [
+    ".eggs",
+    ".eggs/*",
+    "*.egg",
+    "*.egg-info",
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+]
+per-file-ignores = [
+    "__init__.py:F401",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "-q",  # Quiet mode for faster output
+    "--tb=line",  # Line-only traceback for speed
+    "--strict-markers",
+    "-ra",  # Show extra test summary info for failures only
+    "--disable-warnings",  # Disable warnings for speed
+    # Parallel execution: use -n auto when pytest-xdist is available
+    # "-n", "auto",  # Enable parallel execution (uncomment if pytest-xdist installed)
+    "--maxfail=5",  # Stop after 5 failures to save time
+]
+markers = [
+    "unit: Unit tests (run quickly, no external dependencies)",
+    "integration: Integration tests (require mocked services)",
+    "system: System tests (require running server)",
+    "slow: Tests that take significant time to run",
 ]
 
 
