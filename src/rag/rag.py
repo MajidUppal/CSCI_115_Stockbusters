@@ -2721,6 +2721,26 @@ class Retriever:
         return out
 
 
+# --- Retriever lazy initialization (module-level for testability) -----------
+_retriever_instance = None
+
+
+def get_retriever():
+    """Get or create Retriever instance (lazy initialization).
+    
+    This is a module-level function to allow easy patching in tests.
+    The Retriever is only created when first needed, allowing the server
+    to start even if ChromaDB isn't available.
+    
+    Returns:
+        Retriever instance (singleton)
+    """
+    global _retriever_instance
+    if _retriever_instance is None:
+        _retriever_instance = Retriever()
+    return _retriever_instance
+
+
 # --- FastAPI server ---------------------------------------------------------
 def make_app():
     """Create and configure FastAPI application.
@@ -2748,21 +2768,6 @@ def make_app():
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
-
-    # Lazy initialization - only create Retriever when needed
-    # This allows server to start even if ChromaDB isn't available
-    _retriever_instance = None
-
-    def get_retriever():
-        """Get or create Retriever instance (lazy initialization)."""
-        # Use sys.modules to get Retriever class, allowing it to be patched in tests
-        import sys
-        rag_module = sys.modules[__name__]
-        RetrieverClass = getattr(rag_module, 'Retriever')
-        nonlocal _retriever_instance
-        if _retriever_instance is None:
-            _retriever_instance = RetrieverClass()
-        return _retriever_instance
 
     class QueryReq(BaseModel):
         q: str

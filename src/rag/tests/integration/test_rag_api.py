@@ -50,7 +50,7 @@ def app_client(mock_retriever):
         patch("rag.get_chromadb_client"),
         patch("rag._get_gcs_client"),
         patch("rag._start_chromadb_server"),
-        patch("rag.Retriever", return_value=mock_retriever),
+        patch("rag.get_retriever", return_value=mock_retriever),  # Patch get_retriever directly (cleaner)
         patch("rag.ENABLE_CACHE", False),
     ):
 
