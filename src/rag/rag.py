@@ -2755,9 +2755,13 @@ def make_app():
 
     def get_retriever():
         """Get or create Retriever instance (lazy initialization)."""
+        # Use sys.modules to get Retriever class, allowing it to be patched in tests
+        import sys
+        rag_module = sys.modules[__name__]
+        RetrieverClass = getattr(rag_module, 'Retriever')
         nonlocal _retriever_instance
         if _retriever_instance is None:
-            _retriever_instance = Retriever()
+            _retriever_instance = RetrieverClass()
         return _retriever_instance
 
     class QueryReq(BaseModel):
