@@ -2920,6 +2920,7 @@ def serve():
     except Exception as e:
         print(f"[ERROR] Failed to start server: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -2983,6 +2984,7 @@ def main():
     except Exception as e:
         print(f"[ERROR] Fatal error in main(): {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -2997,5 +2999,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[ERROR] Unhandled exception in main: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
