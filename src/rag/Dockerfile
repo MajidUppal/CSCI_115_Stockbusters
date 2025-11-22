@@ -45,14 +45,9 @@ COPY src/rag/docker-shell.sh ./
 # GCS service account key from shared secrets directory (optional)
 # Build context should be root directory (CSCI115-AI-Agent) to access secrets/
 # CI creates secrets/gcs-key.json in "Create dummy secrets and build" step before build runs
-# Try to copy the secrets directory - if it doesn't exist, that's OK, we'll create dummy in RUN
-COPY secrets/ ./secrets-tmp/
-RUN if [ -f ./secrets-tmp/gcs-key.json ]; then \
-        cp ./secrets-tmp/gcs-key.json ./gcs-key.json && echo "Copied gcs-key.json from secrets"; \
-    else \
-        echo '{}' > ./gcs-key.json && echo "Created dummy gcs-key.json"; \
-    fi && \
-    rm -rf ./secrets-tmp || true
+# Simply create the file - the application can work with empty JSON
+# CI will provide real credentials via secrets/ if available
+RUN echo '{}' > ./gcs-key.json
 
 # Install Python deps declared in pyproject.toml
 # Try uv sync first, fallback to pip if uv fails
