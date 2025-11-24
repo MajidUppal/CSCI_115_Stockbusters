@@ -23,13 +23,13 @@ Milestone 4 focuses on:
 
 ### Project Milestone 4 - Code Organization
 
-## please review your own section  - Seraphim /Majid/Mahmood/Siri ##
+## please review your own section. it is mocked up structure - Seraphim /Majid/Mahmood/Siri ##
 
 ```
 AC215_StockBusters/
 │
 ├── src/
-│   ├── quant-pipeline/              ← Your quantamental model, hybrid, backtest
+│   ├── quant-pipeline/              ← Data pipeline, quantamental model, hybrid score calculation , backtest
 │   │   ├── data_fetch.py
 │   │   ├── data_preprocess.py
 │   │   ├── feature_engineering.py
@@ -38,7 +38,7 @@ AC215_StockBusters/
 │   │   ├── backtest.py
 │   │   ├── export_outputs.py
 │   │   ├── config.py
-│   │   └── run_pipeline.py          ← final pipeline orchestrator
+│   │   └── run_pipeline.py          
 │   │
 │   ├── api-service/                 ← FastAPI backend   
 │   │   ├── main.py
