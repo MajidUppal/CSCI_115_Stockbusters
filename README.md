@@ -100,12 +100,12 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 
 
-### Application Design Document ###              (Mahmood/Majid)
+### Application Design Document ###              (Mahmood/Majid/Seraphim)
 
-## Solution Architecture ## (Mahmood/Majid)
-    < from MS4 requirement, please add   High-level overview of system components and their interactions (e.g., data flow, APIs, frontend, model). >  <-- delete this line once completed
+## Solution Architecture ## (Mahmood/Majid/Seraphim)
+  ** from MS4 requirement, please add   High-level overview of system components and their interactions (e.g., data flow, APIs, frontend, model). >  <-- delete this line once completed **
 
-## Technical Architecture ##  (Mahmood/Majid)
+## Technical Architecture ##  (Mahmood/Majid/Seraphim)
 
 <from MS4 requirement please add Technologies, frameworks, and design patterns used, and how they support your overall system design.> <-- delete this line once completed
 
@@ -214,157 +214,11 @@ Comments or docstrings that clarify functionality and module purpose.  >
 
 
 
----
-**2. Containerized Pipeline**
-
-Build Dockerized components for ingestion, preprocessing, and RAG workflow.
-
-Combine into a single runnable pipeline (docker compose up).
-
-**Deliverables:**
-
-
-The current version has two containers.
-- Data pipeline container
-- RAG container
-  
-These containers are build and run with single command as required through Docker Compose file. The docker compose file can be seen here at [compose.yml](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone2/compose.yml).
-Run the compose.yml using the following command
-
-`sudo docker compose up`
-
-The UV dependency is handled by each individual container.
-
-Below are snapshots for the Docker compose executed in the AC215_StockBusters.
-
-***Docker Creation***
-<img width="1688" height="1310" alt="image" src="https://github.com/user-attachments/assets/e624c591-ee41-4fb8-a6de-300033743d0c" />
-
-
-<img width="1626" height="536" alt="image" src="https://github.com/user-attachments/assets/2ffe8d75-fdbf-4049-ab68-07a7d42ac6f1" />
-
-Here the two containers working independently can be seen downloading the data for data pipeline while the RAG container is creating embeddings. 
-
-<img width="1678" height="514" alt="image" src="https://github.com/user-attachments/assets/a5bac83c-7b20-47d1-9a9d-bd709fbc31f4" />
-
-
-
-Below are the images of the created containers
-
-<img width="1114" height="108" alt="image" src="https://github.com/user-attachments/assets/d5055582-738c-45b0-9049-9ae6eec6ea3f" />
-
----
-**3. RAG pipeline**  
-
-
-Implement data collection, chunking, and vector database integration. Enable retrieval from financial text sources.
-
-**Deliverables:**
-
-- **Containerized RAG modules** (Ingest → Chunk → Embed → Store → Query)  
-  *Location*: `src/rag/rag.py`  
-- **Evidence of working vector DB** (Chroma with FastEmbed embeddings)  
-  *Locations*: `src/rag/volumes/chroma/`, `src/rag/artifacts/sample_vector.json`
-- **Logs of successful ingestion, retrieval, and API queries**  
-  *Locations*: `src/rag/artifacts/` (`ingest_summary.json`, `retrieval_sample.json`, etc.), `src/rag/artifacts/sanitized` (chuncks),     
-- **Screenshots of build, run, and query steps**  
-  *Location*: `src/rag/screenshot_logs/`  
-- **Documentation** (`README.md`, `Dockerfile`, Quick Start guide)  
-  *Location*: `src/rag/README.md`
-
----
-**RAG Workflow**
-
-**Ingest**
-- Documents from `rag/data/` (PDF, TXT, MD) are loaded.  
-- Text is sanitized (removal of BOM, unicode normalization, whitespace cleanup).  
-- Outputs written to `artifacts/sanitized/`.  
-
-**Chunking**
-- Text split into overlapping windows.  
-- Metadata (chunk counts, sizes) recorded in `src/rag/artifacts/chunk_stats.json`.  
-
-**Embedding**
-- Each chunk is encoded using **FastEmbed** with the `BAAI/bge-small-en-v1.5` model.  
-- Embedding dimension: 384.  
-- Sample vector dump available in `src/rag/artifacts/sample_vector.json`.  
-
-**Vector Storage**
-- Chunks + embeddings stored in **Chroma** (`src/rag/volumes/chroma/`).  
-- Collection name configurable via `.env` (default: `stocks_rag_v1`).  
-- Database persists across runs for reproducibility.  
-
-**Query (API)**
-- FastAPI server runs inside the container (`API_PORT=8000`).  
-- Exposes `/query` endpoint for semantic retrieval. 
-
----
-
- **4. Finance Data ingestion** 
-
-**Update in Milestone 3** 
-**Why We Moved Away from yfinance :**
-
-In MS2, we considered using yfinance to download historical market data.
-However, we faced two major issues:
-
-- Rate limits: yfinance frequently blocks or throttles requests when fetching data for hundreds of tickers.
-
-- Data quality: Some tickers had missing or inconsistent values, and certain delisted stocks returned incomplete histories.
-
-To address this, we switched to Financial Modeling Prep (FMP) because it provides:
-
-- Reliable OHLCV and fundamental data.
-
-- Both quarterly and annual reports.
-
-- Faster downloads using asynchronous requests (aiohttp).
-
-- .parquet caching for speed and reproducibility.
-
-
-This change significantly improved data completeness, speed, and reliability for our quantamental pipeline.
-
-**2. Quantamental Model (Random Forest Classification)**
-    
-- Adding Quantamental Model (which is based on Random forest classification)
-
-**3. Create Hybrid score for Stock ranking**
-
-- Create Hybrid Score which combines the fundamental features and technical features together 
-
-<img width="1902" height="673" alt="image" src="https://github.com/user-attachments/assets/efd50c36-4cd3-4eea-b9d5-0bf81e9c29ed" />
 
 
 ---
-**5. Stock Busters Mock-up App Description:`**
 
-The Stock Busters application is designed as an agentic, mobile-first interface to demonstrate a financial analysis tool powered by AI. Its core function is to guide users through complex financial screening processes via a multi-step conversational flow.
-
-Core Features:
-Agentic Chat Interface: The app uses a conversational design to simulate an intelligent agent, replacing complex forms with simple dialogue. The agent asks clarifying questions (e.g., confirming the time horizon for "positive momentum") to refine the user's initial query before generating results.
-
-**5-Step Conversational Flow: The wireframe demonstrates a full user journey:**
-
-- Agent Greeting
-
-- User Initial Query (e.g., "Find large-cap tech stocks...")
-
-- Agent Clarification (Asking for missing criteria)
-
-- User Response (Providing the final criteria)
-
-- Final Results: A structured output with a stock table, fundamental data (ROE, Sector, Price Change), backtesting insights (CAGR, Max Drawdown), and detailed explanations.
-
-<img width="1210" height="596" alt="image" src="https://github.com/user-attachments/assets/e10bf308-512d-43be-812f-77f27d4e64e5" />
-
-Side Menu Navigation: A hidden menu provides access to auxiliary functions: Recent Searches (to review past queries), Settings (to manage preferences), and About (including a legal disclaimer).
-
-<img width="1001" height="577" alt="image" src="https://github.com/user-attachments/assets/8d81c4c5-52cd-4fc8-bcfa-fa76bcfea0bc" />
-
-
-The primary goal of this wireframe is to visually communicate the seamless, iterative nature of a sophisticated AI model that uses clarification to deliver precise, data-driven financial recommendations.
-
+** Below is from MS3 **
 ---
 **6. Solution Architecture:**
 
