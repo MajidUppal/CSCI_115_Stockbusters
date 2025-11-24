@@ -3,7 +3,8 @@ AC215 MS3 Semantic RAG Application with ChromaDB HTTP Client + GCS Python Client
 
 A Retrieval-Augmented Generation (RAG) system that processes documents using semantic chunking,
 stores embeddings in ChromaDB via HTTP client, and provides a FastAPI interface for querying.
-Requires ChromaDB server to be running separately. Uses GCS Python client to sync ChromaDB data to/from GCS.
+ChromaDB server is automatically started as a subprocess in the same container (if AUTO_START_CHROMADB is enabled).
+Uses GCS Python client to sync ChromaDB data to/from GCS.
 
 Usage:
     python rag.py --ingest              # Ingest documents and create embeddings
@@ -39,8 +40,8 @@ Dependencies:
     Requires: fastembed, chromadb, fastapi, uvicorn, numpy, pymupdf, google-cloud-storage
 
 Prerequisites:
-    ChromaDB server must be running (see CHROMADB_HTTP_SETUP.md)
-    Start server: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest
+    ChromaDB server is automatically started in the container (if AUTO_START_CHROMADB=1).
+    For manual setup, see CHROMADB_HTTP_SETUP.md or start server: docker run -d --name chromadb-server -p 8000:8000 chromadb/chroma:latest
 """
 
 import os
@@ -53,7 +54,6 @@ import argparse
 import logging
 import gc
 import subprocess
-import csv
 from typing import List, Tuple, Dict, Any, Optional, Literal, cast, Set
 from pathlib import Path
 from functools import lru_cache
@@ -1628,14 +1628,22 @@ def _load_pdf(path: str) -> List[Tuple[str, str]]:
     return items
 
 
-def _load_csv(path: str) -> List[Tuple[str, str]]:
-    """Load Output_explanation.csv with special handling for feature explanations.
+def _load_md_feature_file(path: str) -> List[Tuple[str, str]]:
+    """Load LLM-Quant_Expanded_RAG_with_context.md with special handling for feature explanations.
+
+    Parses markdown file with structure:
+    - ## feature_name (header)
+    - **Definition / Formula:** value
+    - **Meaning:** value
+    - **Interpretation / Signal:** value
+    - **Financial Context:** value
+    - --- (separator)
 
     Creates structured knowledge base format for queryable feature definitions.
     Each feature becomes a self-contained chunk (no semantic splitting needed).
 
     Args:
-        path: Path to CSV file
+        path: Path to markdown file
 
     Returns:
         List of (source_path, text_content) tuples
@@ -1643,56 +1651,169 @@ def _load_csv(path: str) -> List[Tuple[str, str]]:
     items: List[Tuple[str, str]] = []
     base = os.path.basename(path)
 
-    # Only process Output_explanation.csv files
-    if "Output_explanation" not in base and "output_explanation" not in base.lower():
+    # Only process LLM-Quant_Expanded_RAG_with_context.md files
+    if "LLM-Quant_Expanded_RAG_with_context" not in base and "llm-quant_expanded_rag_with_context" not in base.lower():
         return items
 
     try:
-        with open(path, "r", encoding="utf-8-sig", errors="ignore") as f:
-            # utf-8-sig automatically strips BOM if present
-            reader = csv.DictReader(f)
-            rows = list(reader)
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
 
-        if not rows:
+        if not lines:
             return items
 
-        # Process each feature definition
-        for row in rows:
-            # Handle BOM in column name (utf-8-sig should fix this, but be defensive)
-            feature = row.get("Feature", "").strip() or row.get("\ufeffFeature", "").strip()
-            if not feature:
+        current_feature = None
+        feature_data = {}
+
+        for line in lines:
+            line_stripped = line.strip()
+
+            # Skip empty lines
+            if not line_stripped:
                 continue
 
-            # Build structured feature definition
-            parts = []
-            parts.append(f"Feature: {feature}")
+            # Check for feature header (## feature_name)
+            if line_stripped.startswith("## "):
+                # Save previous feature if exists
+                if current_feature:
+                    _save_feature(items, path, current_feature, feature_data)
 
-            full_name = row.get("Full_Name_or_Formula", "").strip()
-            if full_name:
-                parts.append(f"Full Name or Formula: {full_name}")
+                # Extract feature name from header (remove ## and strip)
+                feature_name = line_stripped[3:].strip()
+                if feature_name:
+                    current_feature = feature_name
+                    feature_data = {}
+                continue
 
-            meaning = row.get("Meaning", "").strip()
-            if meaning:
-                parts.append(f"Meaning: {meaning}")
+            # Skip horizontal rule separators (---)
+            if line_stripped == "---":
+                continue
 
-            interpretation = row.get("Interpretation_or_Signal", "").strip()
-            if interpretation:
-                parts.append(f"Interpretation or Signal: {interpretation}")
-                # Extract thresholds (e.g., ">15%", "<30", ">2")
-                thresholds = re.findall(r"([<>]=?)\s*(\d+(?:\.\d+)?)", interpretation)
-                if thresholds:
-                    threshold_text = ", ".join([f"{op} {val}" for op, val in thresholds])
-                    parts.append(f"Thresholds: {threshold_text}")
+            # Parse bold field lines: **Field Name:** value
+            if line_stripped.startswith("**") and ":**" in line_stripped:
+                # Extract field name and value
+                # Format: **Field Name:** value
+                parts = line_stripped.split(":**", 1)
+                if len(parts) == 2:
+                    field_name = parts[0].replace("**", "").strip()
+                    field_value = parts[1].strip()
 
-            use_case = row.get("Use_Case", "").strip()
-            if use_case:
-                parts.append(f"Use Case: {use_case}")
+                    if current_feature and field_value:
+                        # Map field names to standard keys
+                        field_lower = field_name.lower()
+                        if "definition" in field_lower or "formula" in field_lower:
+                            feature_data["full_name_or_formula"] = field_value
+                        elif "meaning" in field_lower:
+                            feature_data["meaning"] = field_value
+                        elif "interpretation" in field_lower or "signal" in field_lower:
+                            feature_data["interpretation_or_signal"] = field_value
+                        elif "financial context" in field_lower:
+                            feature_data["financial_context"] = field_value
+                        else:
+                            # Store any other fields
+                            feature_data[field_name.lower().replace(" ", "_")] = field_value
 
-            # Create well-formatted chunk (already complete, no splitting needed)
-            text = "\n".join(parts)
-            text = _norm(text)
-            items.append((f"{path}#feature={feature}", text))
+        # Save last feature
+        if current_feature:
+            _save_feature(items, path, current_feature, feature_data)
 
+        # If no features were found, treat entire file as single document (fallback)
+        if not items:
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                text = _norm(content)
+                items.append((path, text))
+            except Exception:
+                pass
+
+    except Exception:
+        # If parsing fails, fall back to treating entire file as single document
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            text = _norm(content)
+            items.append((path, text))
+        except Exception:
+            pass
+
+    return items
+
+
+def _save_feature(items: List[Tuple[str, str]], path: str, feature: str, feature_data: Dict[str, str]) -> None:
+    """Helper function to save a feature definition to items list.
+
+    Args:
+        items: List to append to
+        path: Source file path
+        feature: Feature name
+        feature_data: Dictionary of feature attributes
+    """
+    if not feature:
+        return
+
+    parts = []
+    parts.append(f"Feature: {feature}")
+
+    full_name = feature_data.get("full_name_or_formula", "").strip()
+    if full_name:
+        parts.append(f"Full Name or Formula: {full_name}")
+
+    meaning = feature_data.get("meaning", "").strip()
+    if meaning:
+        parts.append(f"Meaning: {meaning}")
+
+    interpretation = feature_data.get("interpretation_or_signal", "").strip()
+    if interpretation:
+        parts.append(f"Interpretation or Signal: {interpretation}")
+        # Extract thresholds (e.g., ">15%", "<30", ">2")
+        thresholds = re.findall(r"([<>]=?)\s*(\d+(?:\.\d+)?)", interpretation)
+        if thresholds:
+            threshold_text = ", ".join([f"{op} {val}" for op, val in thresholds])
+            parts.append(f"Thresholds: {threshold_text}")
+
+    financial_context = feature_data.get("financial_context", "").strip()
+    if financial_context:
+        parts.append(f"Financial Context: {financial_context}")
+
+    # Include any additional fields
+    for key, value in feature_data.items():
+        if (
+            key not in ["full_name_or_formula", "meaning", "interpretation_or_signal", "financial_context"]
+            and value.strip()
+        ):
+            # Capitalize key for display
+            display_key = key.replace("_", " ").title()
+            parts.append(f"{display_key}: {value}")
+
+    # Create well-formatted chunk (already complete, no splitting needed)
+    text = "\n".join(parts)
+    text = _norm(text)
+    items.append((f"{path}#feature={feature}", text))
+
+
+def _load_full_md_file(path: str) -> List[Tuple[str, str]]:
+    """Load the entire markdown file as a single document for context retrieval.
+
+    This function loads the complete markdown file content without parsing it into
+    individual features. This allows the full document to be retrieved later for
+    providing comprehensive context.
+
+    Args:
+        path: Path to the markdown file
+
+    Returns:
+        List containing a single tuple: (source_path, full_file_content)
+        The source_path uses the special marker "#full_document" to distinguish
+        it from feature-specific chunks.
+    """
+    items: List[Tuple[str, str]] = []
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        text = _norm(content)
+        # Use special source marker to identify this as the full document
+        items.append((f"{path}#full_document", text))
     except Exception:
         pass
 
@@ -1709,8 +1830,8 @@ def load_all(data_dir: str) -> List[Tuple[str, str]]:
     data_path = os.path.join(data_dir, "**", "*")
     files = sorted(glob.glob(data_path, recursive=True))
 
-    # Pre-compile CSV filename check pattern
-    csv_check_lower = "output_explanation"
+    # Pre-compile markdown filename check pattern
+    md_check_lower = "llm-quant_expanded_rag_with_context"
 
     for p in files:
         # Early exit: skip non-files immediately
@@ -1723,19 +1844,28 @@ def load_all(data_dir: str) -> List[Tuple[str, str]]:
             continue
 
         try:
-            if ext in (".txt", ".md"):
+            if ext == ".txt":
                 out.extend(_load_txt_md(p))
+            elif ext == ".md":
+                # Check if this is the specific feature explanation markdown file
+                base = os.path.basename(p)
+                base_lower = base.lower()
+                if "LLM-Quant_Expanded_RAG_with_context" in base or md_check_lower in base_lower:
+                    # Use specialized markdown loader for feature file
+                    # This extracts individual features
+                    md_items = _load_md_feature_file(p)
+                    out.extend(md_items)
+                    # Also load the entire file as a single document for context retrieval
+                    out.extend(_load_full_md_file(p))
+                else:
+                    # Use generic markdown loader for other markdown files
+                    out.extend(_load_txt_md(p))
             elif ext == ".pdf":
                 out.extend(_load_pdf(p))
             elif ext == ".csv":
-                # Only process Output_explanation.csv files
-                # Optimize: check lowercase once
-                base = os.path.basename(p)
-                base_lower = base.lower()
-                if "Output_explanation" in base or csv_check_lower in base_lower:
-                    csv_items = _load_csv(p)
-                    out.extend(csv_items)
-                # Skip other CSV files silently
+                # CSV files are no longer processed (replaced by markdown file)
+                # Skip CSV files silently
+                pass
         except Exception:
             pass
 
@@ -2350,11 +2480,9 @@ def run_ingest(
         ]
     )
 
-    # Filter CSV files (only process Output_explanation.csv)
-    csv_check_lower = "output_explanation"
-    file_paths = [
-        p for p in file_paths if not p.lower().endswith(".csv") or csv_check_lower in os.path.basename(p).lower()
-    ]
+    # Filter: Skip CSV files (replaced by LLM-Quant_Expanded_RAG_with_context.md)
+    # All other files (.txt, .md, .pdf) are processed normally
+    file_paths = [p for p in file_paths if not p.lower().endswith(".csv")]
 
     total_files = len(file_paths)
 
@@ -2381,13 +2509,15 @@ def run_ingest(
                 for meta in all_chunks["metadatas"]:
                     if isinstance(meta, dict) and "source" in meta:
                         source = meta["source"]
-                        # Extract base file path from source (remove chapter/page/feature markers)
+                        # Extract base file path from source (remove chapter/page/feature/full_document markers)
                         if "#chapter=" in source:
                             base_path = source.split("#chapter=")[0]
                         elif "#page=" in source:
                             base_path = source.split("#page=")[0]
                         elif "#feature=" in source:
                             base_path = source.split("#feature=")[0]
+                        elif "#full_document" in source:
+                            base_path = source.split("#full_document")[0]
                         else:
                             base_path = source
                         seen_file_paths.add(base_path)
@@ -2404,8 +2534,14 @@ def run_ingest(
                     if file_path not in processed_sources:
                         # Try exact chunk ID patterns as fallback
                         try:
-                            if file_path.lower().endswith(".csv"):
-                                chunk_id = f"{file_path}::chunk_0"
+                            # Check for feature file (markdown) or PDF files with special chunk ID patterns
+                            base = os.path.basename(file_path)
+                            if (
+                                "LLM-Quant_Expanded_RAG_with_context" in base
+                                or "llm-quant_expanded_rag_with_context" in base.lower()
+                            ):
+                                # Feature markdown file: check for first feature chunk
+                                chunk_id = f"{file_path}#feature=first::chunk_0"
                             elif file_path.lower().endswith(".pdf"):
                                 chunk_id = f"{file_path}#chapter=1::chunk_0"
                             else:
@@ -2443,12 +2579,27 @@ def run_ingest(
         # Load and process this file only (memory efficient)
         try:
             ext = os.path.splitext(file_path)[1].lower()
-            if ext in (".txt", ".md"):
+            if ext == ".txt":
                 file_docs = _load_txt_md(file_path)
+            elif ext == ".md":
+                # Check if this is the specific feature explanation markdown file
+                base = os.path.basename(file_path)
+                base_lower = base.lower()
+                if "LLM-Quant_Expanded_RAG_with_context" in base or "llm-quant_expanded_rag_with_context" in base_lower:
+                    # Use specialized markdown loader for feature file
+                    # This extracts individual features
+                    file_docs = _load_md_feature_file(file_path)
+                    # Also load the entire file as a single document for context retrieval
+                    full_doc = _load_full_md_file(file_path)
+                    file_docs.extend(full_doc)
+                else:
+                    # Use generic markdown loader for other markdown files
+                    file_docs = _load_txt_md(file_path)
             elif ext == ".pdf":
                 file_docs = _load_pdf(file_path)
             elif ext == ".csv":
-                file_docs = _load_csv(file_path)
+                # CSV files are no longer processed (replaced by markdown file)
+                continue
             else:
                 continue
         except Exception as e:
@@ -2459,13 +2610,14 @@ def run_ingest(
         for src, txt in file_docs:
             total_docs_processed += 1
 
-            # Check if this is a CSV file (already chunked, skip semantic chunking)
-            is_csv_chunk = src.endswith(".csv") or "#feature=" in src or "#stats" in src
+            # Check if this is a feature file chunk or full document (already chunked, skip semantic chunking)
+            is_feature_chunk = "#feature=" in src or "#stats" in src
+            is_full_document = "#full_document" in src
 
-            if is_csv_chunk:
-                # CSV chunks are already complete - use as-is (no semantic chunking)
+            if is_feature_chunk or is_full_document:
+                # Feature file chunks and full documents are already complete - use as-is (no semantic chunking)
                 chs = [txt]  # Single chunk, already formatted
-                # Skip context enrichment for CSV (not needed for structured data)
+                # Skip context enrichment for feature chunks and full documents (not needed for structured data)
             else:
                 # Regular documents: apply semantic chunking
                 chs = semantic_chunks(
@@ -2549,6 +2701,86 @@ def run_ingest(
             print("[WARN] GCS_BUCKET_NAME not set - ChromaDB data will not be persisted to GCS")
         elif not GCS_AVAILABLE:
             print("[WARN] GCS Python client not available - ChromaDB data will not be persisted to GCS")
+
+    # DVC versioning: Create version snapshot after successful ingestion
+    # This is non-critical - ingestion succeeds even if DVC versioning fails
+    try:
+        import subprocess
+
+        chroma_path = CHROMADB_SERVER_DATA_PATH
+        # Check if DVC is available and data directory exists
+        if os.path.exists(chroma_path) and os.path.isdir(chroma_path):
+            # Check if DVC is initialized (look for .dvc directory in current working directory or project root)
+            # Try multiple possible locations for .dvc directory
+            cwd = os.getcwd()
+            possible_dvc_dirs = [
+                os.path.join(cwd, ".dvc"),
+                os.path.join(os.path.dirname(os.path.dirname(__file__)), ".dvc"),  # Project root from src/rag/rag.py
+            ]
+            dvc_initialized = any(os.path.exists(d) for d in possible_dvc_dirs)
+
+            if dvc_initialized:
+                # Add ChromaDB data to DVC tracking (updates .dvc file if it exists, creates if not)
+                # Note: dvc add requires relative path from DVC root, so we use the absolute path
+                # Use --no-commit to keep files in place (don't move to .dvc/cache/)
+                # This ensures ChromaDB server and GCS sync continue to work with original file locations
+                result = subprocess.run(
+                    ["dvc", "add", "--no-commit", chroma_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,  # 5 minute timeout
+                )
+                if result.returncode == 0:
+                    print("[INFO] ChromaDB data added to DVC tracking")
+
+                    # Find the .dvc file created by dvc add
+                    # DVC creates the file based on the path provided:
+                    # - If absolute path like /chroma, creates /chroma.dvc at root
+                    # - If relative path, creates at DVC root (where .dvc/config is)
+                    dvc_file_path = None
+                    possible_dvc_files = [
+                        "/chroma.dvc",  # Absolute path creates file at root
+                        os.path.join(cwd, "chroma.dvc"),  # Current working directory
+                        os.path.join(os.path.dirname(os.path.dirname(__file__)), "chroma.dvc"),  # Project root
+                        os.path.join("/workspace", "chroma.dvc"),  # Workspace directory
+                    ]
+                    for path in possible_dvc_files:
+                        if os.path.exists(path):
+                            dvc_file_path = path
+                            break
+
+                    # Upload .dvc file to GCS (works in Docker containers)
+                    if dvc_file_path and GCS_AVAILABLE and gcs_bucket:
+                        try:
+                            from datetime import datetime
+
+                            client = _get_gcs_client()
+                            bucket = client.bucket(gcs_bucket)
+
+                            # Upload with timestamp for versioning
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            timestamped_path = f"dvc-metadata/chroma_{timestamp}.dvc"
+                            timestamped_blob = bucket.blob(timestamped_path)
+                            timestamped_blob.upload_from_filename(dvc_file_path)
+
+                            # Also upload as "latest" for easy access
+                            latest_path = "dvc-metadata/chroma_latest.dvc"
+                            latest_blob = bucket.blob(latest_path)
+                            latest_blob.upload_from_filename(dvc_file_path)
+
+                            print(f"[INFO] .dvc file uploaded to GCS: {timestamped_path} and {latest_path}")
+                        except Exception as e:
+                            print(f"[WARN] Failed to upload .dvc file to GCS (non-critical): {e}")
+                    else:
+                        print("[WARN] chroma.dvc file not found after dvc add")
+
+                    # Note: dvc push is skipped - data remains only in operational chromadb/ storage
+                    # The .dvc file is uploaded to GCS for version tracking (git commit is manual)
+                else:
+                    print(f"[WARN] DVC add failed (non-critical): {result.stderr}")
+    except Exception as e:
+        # Don't fail ingestion if DVC versioning fails
+        print(f"[WARN] DVC versioning failed (non-critical): {e}")
 
     chunk_stats = {
         "chunker": "semantic",

@@ -179,7 +179,7 @@ class TestAPIErrorHandling:
 
     def test_invalid_json(self, app_client):
         """Test API handles invalid JSON."""
-        response = app_client.post("/query", data="invalid json", headers={"Content-Type": "application/json"})
+        response = app_client.post("/query", content="invalid json", headers={"Content-Type": "application/json"})
         # Should return 422 or 400 for invalid JSON
         assert response.status_code in [400, 422]
 

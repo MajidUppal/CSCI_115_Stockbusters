@@ -11,35 +11,35 @@ The RAG (Retrieval-Augmented Generation) component is a semantic search and know
 The RAG component serves as the knowledge base layer in the Stock Busters architecture, providing financial term definitions, explanations, and contextual information to support the orchestrator's conversational AI agent.
 
 ```
-┌─────────────────┐
-│   Orchestrator  │
-│  (LLM Agent)    │
+┌──────────────────┐
+│   Orchestrator   │
+│  (LLM Agent)     │
 └────────┬─────────┘
          │ HTTP API
          │ /query/text
          ▼
-┌─────────────────────────────────────┐
-│         RAG Service                │
-│  ┌──────────┐    ┌──────────────┐  │
-│  │ FastAPI  │───▶│   Retriever  │  │
-│  │   API    │    │   (Semantic  │  │
-│  └──────────┘    │    Search)   │  │
-│       │          └──────┬───────┘  │
-│       │                 │          │
-│       │                 ▼          │
-│       │          ┌──────────────┐  │
-│       │          │   ChromaDB   │  │
-│       │          │  (Vector DB) │  │
-│       │          └──────┬───────┘  │
-│       │                 │          │
-│       └─────────────────┴─────────┘
-│                        │
-│                        ▼
-│                 ┌──────────────┐
-│                 │  GCS Bucket  │
-│                 │ (Persistence)│
-│                 └──────────────┘
-└─────────────────────────────────────┘
+
+         RAG Service                
+  ┌──────────┐    ┌──────────────┐  
+  │ FastAPI  │──▶ │   Retriever  │  
+  │   API    │    │   (Semantic  │  
+  └──────────┘    │    Search)   │  
+       │          └──────┬───────┘  
+       │                 │          
+       │                 ▼          
+       │          ┌──────────────┐  
+       │          │   ChromaDB   │  
+       │          │  (Vector DB) │  
+       │          └──────┬───────┘  
+       │                 │          
+       └─────────────────┴
+                        │
+                        ▼
+                ┌──────────────┐
+                │  GCS Bucket  │
+                │ (Persistence)│
+                └──────────────┘
+
 ```
 
 ### System Components and Interactions
@@ -65,7 +65,7 @@ The RAG component serves as the knowledge base layer in the Stock Busters archit
 
 #### 3. **Data Persistence**
 - **ChromaDB**: In-memory vector database with persistent storage
-  - Runs as embedded server in container
+  - Runs as subprocess server in container (started via `chroma run` command)
   - Stores document chunks, embeddings, and metadata
 - **GCS Sync**: Bi-directional sync with Google Cloud Storage
   - Download on startup (restore state)
@@ -95,15 +95,15 @@ User Query → API → Retriever → Query Embedding → Vector Search → Resul
 ### Technologies and Frameworks
 
 #### Core Technologies
-- **Python 3.12**: Runtime environment
-- **FastAPI 0.111+**: REST API framework with async support
+- **Python 3.11+**: Runtime environment (requires Python >=3.11)
+- **FastAPI >=0.111**: REST API framework with async support
 - **Uvicorn**: ASGI server for production deployment
-- **ChromaDB 1.0+**: Vector database for semantic search
-- **FastEmbed 0.3.4**: Lightweight embedding library
+- **ChromaDB >=1.0.0**: Vector database for semantic search
+- **FastEmbed >=0.3.4,<0.4**: Lightweight embedding library
   - Model: `BAAI/bge-small-en-v1.5` (384-dimensional embeddings)
   - Optimized for CPU inference with ONNX runtime
-- **PyMuPDF**: PDF text extraction
-- **Google Cloud Storage**: Persistent vector storage
+- **PyMuPDF >=1.24.0,<1.25**: PDF text extraction
+- **Google Cloud Storage >=2.10.0**: Persistent vector storage
 
 #### Design Patterns
 
@@ -127,7 +127,7 @@ User Query → API → Retriever → Query Embedding → Vector Search → Resul
    - Batch processing for performance
 
 4. **Containerized Deployment**
-   - Single Docker image with embedded ChromaDB server
+   - Single Docker image with ChromaDB server running as subprocess
    - GCS Python client for cloud-native persistence
    - Environment-based configuration
    - Health checks and graceful shutdown
@@ -135,7 +135,7 @@ User Query → API → Retriever → Query Embedding → Vector Search → Resul
 ### Key Modules
 
 #### `rag.py` (Main Application)
-- **Size**: ~2800 lines (monolithic design for MS3/MS4)
+- **Size**: ~2625 lines (monolithic design for MS3/MS4)
 - **Responsibilities**:
   - Document loading and text extraction
   - Semantic chunking implementation
@@ -144,23 +144,16 @@ User Query → API → Retriever → Query Embedding → Vector Search → Resul
   - FastAPI application and endpoints
   - CLI interface (`--ingest`, `--serve`)
 - **Key Classes**:
-  - `SemanticChunker`: LangChain-compatible document transformer
-  - `Retriever`: Semantic search with caching
+  - `SemanticChunker`: Semantic chunking with sentence-level embedding analysis
+  - `Retriever`: Semantic search with caching and ChromaDB HTTP client
 
-#### `rag_helpers.py` (Utilities)
-- **Purpose**: Standalone helper functions for RAG connectivity
-- **Functions**:
-  - `get_rag_connection()`: GCS download and ChromaDB setup
-  - `get_chroma_db()`: Query interface abstraction
-  - `query_rag_texts()`: Convenience wrapper for text retrieval
-  - `store_query_in_chromadb()`: Query storage for analytics
 
 ### Deployment Architecture
 
 #### Single Container Design
 ```
 Docker Container (rag-service)
-├── ChromaDB Server (port 8000, internal)
+├── ChromaDB Server (port 8000, internal, started via subprocess)
 ├── FastAPI Application (port 9000, exposed)
 ├── FastEmbed Model Cache
 ├── GCS Python Client
@@ -187,14 +180,11 @@ Docker Container (rag-service)
 - **Sync**: Bi-directional (download on start, upload on change)
 - **Optimization**: MD5 checksum comparison to skip unchanged files
 
-#### Artifacts
-- **Location**: `artifacts/` directory
-- **Files**:
-  - `ingest_summary.json`: Ingestion statistics
-  - `metadata.json`: Collection metadata and data versioning info (DVC)
-  - `chunk_stats.json`: Chunking parameters and statistics
-  - `sample_vector.json`: Sample embedding for verification
-- **Versioning**: DVC (Data Version Control) - use `dvc add artifacts/` to track
+#### Artifacts (Internal)
+- **Location**: `artifacts/` directory (created automatically in container at `/workspace/artifacts` during ingestion)
+- **Purpose**: Internal logging and debugging files generated during ingestion
+- **Files**: `ingest_summary.json`, `metadata.json`, `chunk_stats.json`, `sample_vector.json`, `sanitized/`
+- **Note**: Artifacts are internal to the container and not required for normal operation. ChromaDB data is the primary versioned asset via DVC.
 
 ## Model Architecture and Embeddings
 

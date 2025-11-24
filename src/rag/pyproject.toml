@@ -26,6 +26,9 @@ dependencies = [
   
   # GCS storage (optional, for persistent vector storage)
   "google-cloud-storage>=2.10.0",
+  
+  # Data versioning
+  "dvc[gs]>=3.0.0",  # DVC with GCS support
 ]
 
 [project.optional-dependencies]
@@ -82,30 +85,5 @@ exclude = [
 per-file-ignores = [
     "__init__.py:F401",
 ]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-python_classes = "Test*"
-python_functions = "test_*"
-addopts = [
-    "-q",  # Quiet mode for faster output
-    "--tb=line",  # Line-only traceback for speed
-    "--strict-markers",
-    "-ra",  # Show extra test summary info for failures only
-    "--disable-warnings",  # Disable warnings for speed
-    # Parallel execution: use -n auto when pytest-xdist is available
-    # "-n", "auto",  # Enable parallel execution (uncomment if pytest-xdist installed)
-    "--maxfail=5",  # Stop after 5 failures to save time
-]
-markers = [
-    "unit: Unit tests (run quickly, no external dependencies)",
-    "integration: Integration tests (require mocked services)",
-    "system: System tests (require running server)",
-    "slow: Tests that take significant time to run",
-]
-
-
-
 
 

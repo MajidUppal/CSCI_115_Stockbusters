@@ -94,7 +94,7 @@ jobs:
         with:
           name: docker-image
           path: /tmp
-      
+
       - name: Load image and run linting
         run: |
           docker load -i /tmp/rag-service.tar
@@ -123,7 +123,7 @@ jobs:
         with:
           name: docker-image
           path: /tmp
-      
+
       - name: Load image and run tests
         run: |
           docker load -i /tmp/rag-service.tar
@@ -131,7 +131,7 @@ jobs:
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
             -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} \
-            pytest tests/unit/ --cov=rag --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
+            pytest tests/unit/ --cov=rag --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-report=html:coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
           exit ${exit_code:-0}
         env:
           CHROMADB_HOST: localhost
@@ -150,6 +150,7 @@ jobs:
         with:
           name: coverage-report
           path: src/rag/coverage/
+          retention-days: 7
         if: always()
 
   # Job 4: Run integration tests
@@ -164,7 +165,7 @@ jobs:
         with:
           name: docker-image
           path: /tmp
-      
+
       - name: Load image and run tests
         run: |
           docker load -i /tmp/rag-service.tar
@@ -249,9 +250,29 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, system-tests]
+    needs: [build, lint-and-format, unit-tests, integration-tests, system-tests]
     if: always()
     steps:
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report
+        if: always()
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          if [ -f coverage-report/coverage.xml ]; then
+            COVERAGE=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage-report/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "Coverage: $COVERAGE"
+          else
+            echo "coverage=N/A" >> $GITHUB_OUTPUT
+            echo "Coverage report not found"
+          fi
+        if: always()
+
       - name: Check test results
         id: test-results
         run: |
@@ -274,10 +295,20 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & Format | ${{ needs.lint-and-format.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| System Tests | ${{ needs.system-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint & Format | ${{ needs.lint-and-format.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Code Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Coverage: ${{ steps.coverage.outputs.coverage }}** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage reports are available as artifacts:" >> $GITHUB_STEP_SUMMARY
+          echo "- Terminal output in Unit Tests job logs" >> $GITHUB_STEP_SUMMARY
+          echo "- XML report: `coverage-report/coverage.xml`" >> $GITHUB_STEP_SUMMARY
+          echo "- HTML report: `coverage-report/htmlcov/index.html`" >> $GITHUB_STEP_SUMMARY
       
       - name: Check if Slack webhook is configured
         id: slack-check

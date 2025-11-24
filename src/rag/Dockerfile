@@ -28,8 +28,8 @@ WORKDIR /workspace
 # Project metadata + app code
 # Build context is root directory, so paths are relative to root
 COPY src/rag/pyproject.toml ./
+COPY src/rag/uv.lock ./
 COPY src/rag/rag.py ./
-COPY src/rag/rag_helpers.py ./
 
 # Copy test files for CI
 COPY src/rag/tests/ ./tests/
@@ -42,12 +42,11 @@ COPY src/rag/docker-shell.sh ./
 # Note: .env file is NOT copied into image for security and flexibility
 # Use --env-file at runtime: docker run --env-file src/rag/.env ...
 
-# GCS service account key from shared secrets directory (optional)
+# GCS service account key from shared secrets directory
 # Build context should be root directory (CSCI115-AI-Agent) to access secrets/
-# CI creates secrets/gcs-key.json in "Create dummy secrets and build" step before build runs
-# Simply create the file - the application can work with empty JSON
-# CI will provide real credentials via secrets/ if available
-RUN echo '{}' > ./gcs-key.json
+# Copy real credentials if available (will fail if missing, which is fine for CI)
+# CI creates secrets/gcs-key.json before build, local builds use real credentials
+COPY secrets/gcs-key.json ./gcs-key.json
 
 # Install Python deps declared in pyproject.toml (including dev dependencies)
 # Use uv sync with --extra dev to install both main and dev dependencies
@@ -77,6 +76,9 @@ COPY src/rag/data/ /workspace/data/
 
 # Create ChromaDB data directory (will be synced with GCS using Python client)
 RUN mkdir -p /chroma
+
+# Copy DVC configuration for data versioning
+COPY .dvc/ /.dvc/
 
 # Make scripts executable
 RUN chmod +x docker-entrypoint.sh docker-shell.sh
