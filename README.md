@@ -6,9 +6,25 @@
 
 **What is new in MS4?**
 
-The main change in MS4 is an updated on the Quantamental model notebook **
+This repository contains the development-ready version of the LLM-Powered Quantamental Stock Screener application for AC215/E115 Milestone 4.
+Milestone 4 focuses on:
 
-### Project Milestone 4 Organization
+    - End-to-end local functionality
+
+    - Clean code organization
+
+    - Fully working backend APIs, agents, model, and frontend
+
+    - Continuous Integration with automated tests
+
+    - Data versioning and reproducibility
+
+    - A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
+
+### Project Milestone 4 - Code Organization
+
+## please review your own section  - Seraphim /Majid/Mahmood/Siri ##
+
 ```
 AC215_StockBusters/
 │
@@ -24,7 +40,7 @@ AC215_StockBusters/
 │   │   ├── config.py
 │   │   └── run_pipeline.py          ← final pipeline orchestrator
 │   │
-│   ├── api-service/                 ← FastAPI backend
+│   ├── api-service/                 ← FastAPI backend   
 │   │   ├── main.py
 │   │   ├── routers/
 │   │   ├── services/
@@ -75,96 +91,126 @@ AC215_StockBusters/
 
 
 
+### Milestone4 : Development and Deployment ###
+
+Milestone 4 focuses on integrating all components developed in previous milestones into a complete, working application. The goal is to make your system fully functional and testable locally, with clean code organization, automated testing, and continuous integration in place.
+
+By the end of this milestone, your project should be deployment-ready — meaning that all components run reliably on your local environment and can be packaged or containerized for future cloud deployment.
+Full cloud deployment and scalability considerations will be addressed in Milestone 5.
 
 
-### Project Milestone 3 Organization  (to be removed)
+
+### Application Design Document ###              (Mahmood/Majid)
+
+## Solution Architecture ## (Mahmood/Majid)
+    < from MS4 requirement, please add   High-level overview of system components and their interactions (e.g., data flow, APIs, frontend, model). >  <-- delete this line once completed
+
+## Technical Architecture ##  (Mahmood/Majid)
+
+<from MS4 requirement please add Technologies, frameworks, and design patterns used, and how they support your overall system design.> <-- delete this line once completed
+
+### APIs and Frontend Implementation ###  (Mahmood/Majid)
+
+<from MS4 requirement please add 
+Source code for both the backend APIs and the frontend interface, showing full end-to-end functionality.
+Should include:
+README: Setup instructions, environment configuration, and usage guidelines (how to run locally).
+Repository Structure:
+Organized and documented code following a consistent style guide (e.g., PEP 8 for Python, Airbnb for JS).
+Clear separation of logic by domain (e.g., api/, models/, services/, ui/, tests/).
+Comments or docstrings that clarify functionality and module purpose.  >
 
 
-```
-AC215_StockBusters/
-│
-├── .gitignore
-├── LICENSE
-├── README.md                     
-│
-├── docker-compose.yml             
-│
-├── data/
-│   └── .gitkeep
-│
-├── notebooks/
-│   ├── .gitkeep
-│   └── Finance_data_download.ipynb (MS2)
-│   └── **Quantamental_Model_MS3_2 (MS3)**
-│
-├── reference/
-│   ├── .gitkeep
-│   └── A Multi-Agent System for Stock Recommendations_MS1.pdf
-│   └── Stock Busters App Wireframe.pdf
-│
-└── src/
-    ├── fin_data_download/
-    │   ├── data_download.py
-    │   ├── gcs_utils.py
-    │   ├── Dockerfile
-    │   ├── pyproject.toml
-    │   ├── requirements.txt
-    │   ├── README.md
-    │   └── .dockerignore
-    │
-    ├── rag/
-    │   ├── rag.py # SINGLE Python file (CLI + pipeline + API)
-    │   ├── Dockerfile # single image for ingest + serve
-    │   ├── _archived/
-    │   │ └── docker-compose.yml # legacy local-only compose file
-    │   ├── pyproject.toml # runtime dependencies
-    │   ├── .env # local config
-    │   ├── uv.lock # uv lock file
-    │   ├── README.md # RAG-specific README
-    │   │
-    │   ├── data/ # source docs (.pdf, .txt, .md)
-    │   │ └── PrinciplesofFinanceSample.pdf
-    │   │
-    │   ├── artifacts/ # pipeline outputs
-    │   │ ├── sanitized/ # cleaned text chunks
-    │   │ ├── ingest_summary.json # chunking summary
-    │   │ ├── metadata.json # metadata about ingested docs
-    │   │ ├── retrieval_sample.json # optional retrieval sample
-    │   │ └── sample_vector.json # optional sample embedding dump
-    │   │
-    │   ├── screenshot_logs/ # build/run/query logs
-    │   │
-    │   └── volumes/
-    │   └── chroma/ # persisted Chroma store
-    │   ├── chroma.sqlite3
-    │   └── [vector index bins]
-    │
-        
-   
+### Continuous Integration and Testing  ###   (Siri/Seraphim/Majid/Mahmood - please add example of CI of your own section) 
+
+## Model CI Pipeline ##  (Siri)
+    Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
+    The pipeline must:
+    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
+    Run Tests: Execute all test suites (unit, integration, and end-to-end).
+    Report Coverage: Generate and display code coverage reports (minimum 50%).
 
 
-```
+
+## RAG CI Pipeline & Evidence ##  (Seraphim)
+    < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
+    The pipeline must:
+    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
+    Run Tests: Execute all test suites (unit, integration, and end-to-end).
+    Report Coverage: Generate and display code coverage reports (minimum 50%).  >
+
+    CI Evidence:
+    Screenshot(s) of a passing CI run showing:
+    Successful build and linting
+    All tests passing
+    Code coverage report (minimum 50%)
+
+## Front End CI Pipeline & Evidence ## (Mahmood)
+    < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
+    The pipeline must:
+    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
+    Run Tests: Execute all test suites (unit, integration, and end-to-end).
+    Report Coverage: Generate and display code coverage reports (minimum 50%).  >
+
+    CI Evidence:
+    Screenshot(s) of a passing CI run showing:
+    Successful build and linting
+    All tests passing
+    Code coverage report (minimum 50%)
 
 
-### Project ###
+## API CI pipeline ## (Majid)
+    < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
+    The pipeline must:
+    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
+    Run Tests: Execute all test suites (unit, integration, and end-to-end).
+    Report Coverage: Generate and display code coverage reports (minimum 50%).  >
 
-The A Multi-Agent System for Stock Recommendations is an AI-driven, multi-agent system designed to integrate quantitative and fundamental financial data with expert-inspired reasoning. The system generates explainable stock recommendations tailored to individual investors’ goals and risk profiles.
+    CI Evidence:
+    Screenshot(s) of a passing CI run showing:
+    Successful build and linting
+    All tests passing
+    Code coverage report (minimum 50%)
 
-In Milestone 3, our focus is on building the MLOps infrastructure that powers this system — containerizing all major components to ensure reproducibility, scalability, and modular deployment.
 
-### Milestone3 : MLOps Infrastructure and ML Components ###
+## Data Versioning and Reproducibility##   (Siri)
 
-**1. Virtual Environment Setup**
+    <MS4 : Implement and document your data versioning workflow (e.g., using DVC or an equivalent approach).
+    Should include:
+    The chosen method and a short justification for it. Version history for datasets or large artifacts (commits, tags, or snapshots).
+    Instructions for data retrieval (dvc pull, push, or equivalent). If applicable, include LLM prompts and outputs for generated data. >
 
-- Create and document working environments (local & cloud-based).
+    
 
-- Demonstrate successful containerized runs.
+## Model Fine-Tuning## (Siri)
+    Should include:
+    Training scripts/config files, dataset references (versioned), and experiment logs.
+    A concise summary of key results and how the fine-tuned model affects your deployment strategy.
 
-**Deliverable: Screenshot of running container instances.**
+    Data Versioning documentation (methodology, justification, and usage instructions)
+    Model Training/Fine-Tuning summary (training process, results, and deployment implications)
 
-The virtual environment has been created in GCP. All containers are being run in GCP.
 
-<img width="1157" height="160" alt="image" src="https://github.com/user-attachments/assets/dd109b2d-b577-478b-9aa3-504a29f2b0b1" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
