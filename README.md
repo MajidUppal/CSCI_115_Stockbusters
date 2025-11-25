@@ -138,10 +138,17 @@ Modern Next.js 15 web application providing an AI-powered conversational interfa
 
 ## Features
 - **Home Page**: Provides Easy naviagtion to the website
+  
   <img width="1272" height="527" alt="image" src="https://github.com/user-attachments/assets/bec01d2b-b21a-47fe-8d87-4dcf6259ebff" />
 
 - **AI Chat Interface**: Conversational AI for investment queries and recommendations
+  
+  <img width="1261" height="546" alt="image" src="https://github.com/user-attachments/assets/d1cab26c-a071-46d4-b332-7d7a80cb5584" />
+  <img width="1945" height="1297" alt="image" src="https://github.com/user-attachments/assets/f255323f-26a2-4569-82bb-d1f5e70e52e7" />
+
 - **Stock Reports**: Sortable tables with Technical/Fundamental/Hybrid AI scores
+
+  
 - **Stock Analysis**: Interactive candlestick charts, volume analysis, and 8 time ranges (1W-MAX)
 - **User Settings**: Investment profile management (risk tolerance, goals, sectors, time horizon) - In progress
 - **Theme Support**: Light/Dark mode toggle
