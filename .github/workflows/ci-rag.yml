@@ -437,36 +437,48 @@ jobs:
           
           # Check if we can download from GCS
           if [ -n "${{ secrets.GCS_KEY_JSON_PATH }}" ]; then
-            # Install google-cloud-storage, but don't fail if it doesn't work
-            pip install google-cloud-storage 2>&1 || echo "⚠️ Failed to install google-cloud-storage, will skip GCS download"
+            # Install google-cloud-storage using python3 -m pip to ensure correct Python
+            python3 -m pip install --quiet google-cloud-storage 2>&1 || {
+              echo "⚠️ Failed to install google-cloud-storage, will skip GCS download"
+              COVERAGE_XML=""
+            }
             
-            # Try to download from GCS, but don't fail if it doesn't work
-            python3 << 'PYEOF' || true
-            try:
-                from google.cloud import storage
-                import os
-                import sys
-                
-                creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-                if creds_path and os.path.exists(creds_path):
-                    client = storage.Client.from_service_account_json(creds_path)
-                else:
-                    client = storage.Client()
-                
-                bucket = client.bucket("stock-busters-chroma-bucket")
-                commit_sha = os.environ['GITHUB_SHA']
-                repo_name = os.environ['GITHUB_REPOSITORY'].replace('/', '-')
-                gcs_path = f"coverage-reports/{repo_name}/{commit_sha}/coverage.xml"
-                
-                blob = bucket.blob(gcs_path)
-                if blob.exists():
-                    blob.download_to_filename("coverage.xml")
-                    print(f"✅ Downloaded coverage.xml from GCS")
-            except ImportError as e:
-                print(f"⚠️ google-cloud-storage not available: {e}")
-            except Exception as e:
-                print(f"⚠️ Could not download from GCS: {e}")
-            PYEOF
+            # Try to download from GCS only if pip install succeeded
+            if command -v python3 >/dev/null 2>&1; then
+              python3 << 'PYEOF'
+import sys
+import os
+
+try:
+    from google.cloud import storage
+    
+    creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+    if creds_path and os.path.exists(creds_path):
+        client = storage.Client.from_service_account_json(creds_path)
+    else:
+        client = storage.Client()
+    
+    bucket = client.bucket("stock-busters-chroma-bucket")
+    commit_sha = os.environ['GITHUB_SHA']
+    repo_name = os.environ['GITHUB_REPOSITORY'].replace('/', '-')
+    gcs_path = f"coverage-reports/{repo_name}/{commit_sha}/coverage.xml"
+    
+    blob = bucket.blob(gcs_path)
+    if blob.exists():
+        blob.download_to_filename("coverage.xml")
+        print(f"✅ Downloaded coverage.xml from GCS")
+        sys.exit(0)
+    else:
+        print(f"⚠️ Coverage XML not found in GCS at {gcs_path}")
+        sys.exit(0)
+except ImportError as e:
+    print(f"⚠️ google-cloud-storage not available: {e}")
+    sys.exit(0)
+except Exception as e:
+    print(f"⚠️ Could not download from GCS: {e}")
+    sys.exit(0)
+PYEOF
+            fi
             
             if [ -f coverage.xml ]; then
               COVERAGE_XML="coverage.xml"
