@@ -439,8 +439,8 @@ jobs:
           if [ -n "${{ secrets.GCS_KEY_JSON_PATH }}" ]; then
             # Install google-cloud-storage using python3 -m pip to ensure correct Python
             if python3 -m pip install --quiet google-cloud-storage 2>&1; then
-              # Try to download from GCS
-              python3 -c "
+              # Try to download from GCS - write Python script to temp file to avoid heredoc issues
+              cat > /tmp/download_coverage.py << 'PYSCRIPT'
 import sys
 import os
 
@@ -472,7 +472,9 @@ except ImportError as e:
 except Exception as e:
     print(f'⚠️ Could not download from GCS: {e}')
     sys.exit(0)
-" || echo "⚠️ GCS download failed, will use fallback"
+PYSCRIPT
+              python3 /tmp/download_coverage.py || echo "⚠️ GCS download failed, will use fallback"
+            fi
             else
               echo "⚠️ Failed to install google-cloud-storage, will skip GCS download"
             fi
