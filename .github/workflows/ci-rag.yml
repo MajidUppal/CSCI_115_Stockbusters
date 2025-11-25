@@ -63,7 +63,7 @@ jobs:
           cache-to: type=gha,mode=max
         env:
           DOCKER_BUILDKIT: 1
-        timeout-minutes: 4
+        timeout-minutes: 10  # Increased for full rebuilds without cache
       
       - name: Verify image exists
         run: |
