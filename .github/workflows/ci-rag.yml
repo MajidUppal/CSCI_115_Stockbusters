@@ -305,15 +305,28 @@ jobs:
           echo ""
           echo "📋 Files in coverage/ directory:"
           find coverage -type f | head -20 || echo "No files found"
+          echo ""
+          echo "📋 Git status of coverage/ directory:"
+          git status --porcelain coverage/ || echo "No changes detected"
           
-          # Check if there are changes to commit
-          if [ -n "$(git status --porcelain coverage/)" ]; then
-            git add coverage/
-            git commit -m "Update coverage reports [skip ci]" || exit 0
-            git push || echo "⚠️ Failed to push coverage files (may not have write access)"
-            echo "✅ Coverage reports committed to coverage/ folder"
+          # Force add coverage files (even if identical, we want to ensure they're tracked)
+          if [ -f "coverage/coverage.xml" ] || [ -d "coverage/htmlcov" ]; then
+            git add -f coverage/ || echo "⚠️ Failed to add coverage files"
+            echo "📋 Files staged for commit:"
+            git status --short coverage/ || true
+            
+            # Check if there are actual changes to commit
+            if [ -n "$(git diff --cached --name-only coverage/)" ]; then
+              git commit -m "Update coverage reports [skip ci]" || exit 0
+              git push || echo "⚠️ Failed to push coverage files (may not have write access)"
+              echo "✅ Coverage reports committed to coverage/ folder"
+            else
+              echo "ℹ️ No changes detected in coverage files (they may be identical to previous commit)"
+              echo "📋 Current coverage files:"
+              ls -la coverage/ || echo "No files in coverage/"
+            fi
           else
-            echo "ℹ️ No coverage files to commit"
+            echo "⚠️ No coverage files found to commit"
           fi
         continue-on-error: true
 
