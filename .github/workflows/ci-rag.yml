@@ -294,8 +294,6 @@ jobs:
           GITHUB_OUTPUT: ${{ github.output }}
         continue-on-error: true
         id: gcs-upload
-        outputs:
-          coverage_url: ${{ steps.gcs-upload.outputs.coverage_url }}
 
   # Job 4: Run integration tests
   integration-tests:
