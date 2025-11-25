@@ -254,6 +254,12 @@ jobs:
           # Create coverage directory at repo root
           mkdir -p coverage
           
+          # Fix ownership of htmlcov directory (created by Docker as root)
+          if [ -d "src/rag/coverage/htmlcov" ]; then
+            sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+            echo "✅ Fixed ownership of htmlcov directory"
+          fi
+          
           # Copy coverage XML file
           if [ -f "src/rag/coverage/coverage.xml" ]; then
             cp src/rag/coverage/coverage.xml coverage/
@@ -278,6 +284,8 @@ jobs:
             # Try to find htmlcov anywhere in src/rag
             HTMLCOV_PATH=$(find src/rag -type d -name "htmlcov" 2>/dev/null | head -1)
             if [ -n "$HTMLCOV_PATH" ]; then
+              # Fix ownership before copying
+              sudo chown -R runner:runner "$HTMLCOV_PATH" || true
               cp -r "$HTMLCOV_PATH" coverage/htmlcov
               echo "✅ Copied HTML coverage report from $HTMLCOV_PATH"
               HTML_COV_FOUND=true
