@@ -148,10 +148,19 @@ Modern Next.js 15 web application providing an AI-powered conversational interfa
 
 - **Stock Reports**: Sortable tables with Technical/Fundamental/Hybrid AI scores
 
+  <img width="1876" height="843" alt="image" src="https://github.com/user-attachments/assets/77636237-37cd-4faf-953c-2bef3edd9fac" />
   
 - **Stock Analysis**: Interactive candlestick charts, volume analysis, and 8 time ranges (1W-MAX)
+
+  <img width="1286" height="1238" alt="image" src="https://github.com/user-attachments/assets/eea7490e-4997-46b0-ae05-4ca85484963c" />
+
 - **User Settings**: Investment profile management (risk tolerance, goals, sectors, time horizon) - In progress
+
+  <img width="1218" height="1307" alt="image" src="https://github.com/user-attachments/assets/cc196c34-3f12-4c69-98e1-92d2e54f93aa" />
+
 - **Theme Support**: Light/Dark mode toggle
+  <img width="1254" height="534" alt="image" src="https://github.com/user-attachments/assets/5317509e-af3a-4570-9d09-01c995de4192" />
+
 
 ## Quick Start
 
