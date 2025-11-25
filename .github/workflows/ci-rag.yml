@@ -4,6 +4,7 @@
 # All tests run inside Docker container for consistency
 
 name: RAG CI Pipeline
+# Updated to handle artifact storage quota and trigger on workflow file changes
 
 # Prevent multiple workflows from running simultaneously for the same branch
 concurrency:
