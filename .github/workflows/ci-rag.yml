@@ -311,22 +311,36 @@ jobs:
           
           # Force add coverage files (even if identical, we want to ensure they're tracked)
           if [ -f "coverage/coverage.xml" ] || [ -d "coverage/htmlcov" ]; then
+            # Check git status before adding
+            echo "📋 Git status before adding:"
+            git status --porcelain coverage/ 2>&1 || echo "No coverage/ in git yet"
+            
+            # Add coverage files
+            echo "📋 Adding coverage files to git..."
             git add -f coverage/ || echo "⚠️ Failed to add coverage files"
+            
             echo "📋 Files staged for commit:"
             git status --short coverage/ || true
             
-            # Check if there are actual changes to commit
-            if [ -n "$(git diff --cached --name-only coverage/)" ]; then
-              git commit -m "Update coverage reports [skip ci]" || exit 0
-              git push || echo "⚠️ Failed to push coverage files (may not have write access)"
-              echo "✅ Coverage reports committed to coverage/ folder"
+            # Always try to commit if files exist (even if identical)
+            # Git will only commit if there are actual changes
+            echo "📋 Attempting to commit coverage files..."
+            if git commit -m "Update coverage reports [skip ci]"; then
+              echo "✅ Commit successful, pushing..."
+              if git push; then
+                echo "✅ Coverage reports committed and pushed to coverage/ folder"
+              else
+                echo "⚠️ Failed to push coverage files (may not have write access or no changes)"
+              fi
             else
-              echo "ℹ️ No changes detected in coverage files (they may be identical to previous commit)"
+              echo "ℹ️ No changes to commit (files may be identical to previous commit)"
               echo "📋 Current coverage files:"
               ls -la coverage/ || echo "No files in coverage/"
             fi
           else
             echo "⚠️ No coverage files found to commit"
+            echo "📋 Checking what's in src/rag/coverage/:"
+            ls -la src/rag/coverage/ 2>&1 || echo "src/rag/coverage/ doesn't exist"
           fi
         continue-on-error: true
 
