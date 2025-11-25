@@ -70,10 +70,22 @@ AC215_StockBusters/
 │   │   ├── pipeline.yaml
 │   │   └── components/
 │   │
-│   ├── frontend-react/               ← React UI
-│   │   ├── src/
-│   │   ├── public/
-│   │   └── package.json
+│   ├── frontend/
+        ├── app/
+│   │   │   ├── chat/              # Chat interface
+│   │   │   ├── report/            # Stock reports
+│   │   │   ├── stock-detail/      # Stock detail pages
+│   │   │   ├── settings/          # User settings
+│   │   │   ├── page               # Home page
+│   │   │   └── layout             # Header, Footer, Theme
+│   
+│   │   ├── components             # components for corresponding app pages plus share ui component
+│   │   ├── lib/
+│   │   │   ├── DataService.js     # API integration
+│   │   │   ├── Common.js
+│   │   │   └── utils.js
+│   │   └── .env.development
+
 │   │
 │   └── notebooks/                    ← Your raw development notebooks
 │       ├── Quantamental_MS4.ipynb
@@ -151,26 +163,6 @@ NEXTAUTH_SECRET="gHDgDM7d7hcKJWMwqvYzH/6gEZ8gM4Yv5V76Qc/9d/s="
 NEXTAUTH_URL=http://localhost:3000
 PORT=3000
 ```
-
-## Project Structure
-
-```
-frontend/
-├── app/
-│   ├── chat/              # Chat interface
-│   ├── report/            # Stock reports
-│   ├── stock/             # Stock detail pages
-│   ├── settings/          # User settings
-│   ├── layout/            # Header, Footer, Theme
-│   
-├── components             # components for corresponding app pages plus share ui component
-├── lib/
-│   ├── DataService.js     # API integration
-│   └── Common.js
-│   └── utils.js
-└── .env.development
-```
-
 
 ## Development Notes
 
