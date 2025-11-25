@@ -81,6 +81,7 @@ jobs:
           path: /tmp/rag-service.tar
           retention-days: 1
           compression-level: 6
+        continue-on-error: true  # Don't fail if artifact storage quota is hit
 
   # Job 2: Run linting and formatting checks
   lint-and-format:
@@ -94,9 +95,15 @@ jobs:
         with:
           name: docker-image
           path: /tmp
+        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
       - name: Load image and run linting
         run: |
+          if [ ! -f /tmp/rag-service.tar ]; then
+            echo "❌ Docker image artifact not found. Cannot run linting."
+            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
+            exit 1
+          fi
           docker load -i /tmp/rag-service.tar
           # Run Black and Flake8 in single container to save startup time
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
@@ -123,9 +130,15 @@ jobs:
         with:
           name: docker-image
           path: /tmp
+        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
       - name: Load image and run tests
         run: |
+          if [ ! -f /tmp/rag-service.tar ]; then
+            echo "❌ Docker image artifact not found. Cannot run tests."
+            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
+            exit 1
+          fi
           docker load -i /tmp/rag-service.tar
           mkdir -p src/rag/coverage
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
@@ -165,9 +178,15 @@ jobs:
         with:
           name: docker-image
           path: /tmp
+        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
       - name: Load image and run tests
         run: |
+          if [ ! -f /tmp/rag-service.tar ]; then
+            echo "❌ Docker image artifact not found. Cannot run tests."
+            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
+            exit 1
+          fi
           docker load -i /tmp/rag-service.tar
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} pytest tests/integration/ --tb=line -m integration --maxfail=1 -x -q
@@ -196,9 +215,15 @@ jobs:
         with:
           name: docker-image
           path: /tmp
+        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
       - name: Load image and start server
         run: |
+          if [ ! -f /tmp/rag-service.tar ]; then
+            echo "❌ Docker image artifact not found. Cannot run system tests."
+            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
+            exit 1
+          fi
           docker load -i /tmp/rag-service.tar
           docker run -d --name rag-server -p 9000:9000 -p 8000:8000 \
             -e DEV=1 \
