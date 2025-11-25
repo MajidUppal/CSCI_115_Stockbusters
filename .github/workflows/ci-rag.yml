@@ -184,7 +184,7 @@ jobs:
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
             -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} \
-            pytest tests/unit/ --cov=rag --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-report=html:coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
+            pytest tests/unit/ --cov=rag --cov-branch --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-report=html:coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
           exit ${exit_code:-0}
         env:
           CHROMADB_HOST: localhost
