@@ -4,8 +4,9 @@
 # All tests run inside Docker container for consistency
 
 name: RAG CI Pipeline
-# Updated to handle artifact storage quota and trigger on workflow file changes
-# Testing CI after clearing caches and artifacts
+# Updated to use GitHub Container Registry (GHCR) instead of artifacts
+# GHCR has separate 500GB storage quota and is designed for Docker images
+# Coverage reports are uploaded as artifacts with continue-on-error to handle quota limits
 
 # Prevent multiple workflows from running simultaneously for the same branch
 concurrency:
@@ -29,13 +30,24 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  packages: write  # Required for pushing to GHCR
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/rag-service
 
 jobs:
-  # Job 1: Build Docker image (shared across all jobs)
+  # Job 1: Build Docker image and push to GHCR
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
     timeout-minutes: 6
+    permissions:
+      contents: read
+      packages: write  # Required for pushing to GHCR
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,49 +55,48 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Create dummy secrets and build
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create dummy secrets
         run: |
           mkdir -p secrets
           if [ ! -f secrets/gcs-key.json ]; then
             echo '{}' > secrets/gcs-key.json
           fi
 
-      - name: Build Docker image with cache
+      - name: Build and push Docker image to GHCR
         uses: docker/build-push-action@v5
         id: build
         with:
           context: .
           file: ./src/rag/Dockerfile
-          push: false
-          load: true
-          tags: rag-service:${{ github.sha }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
         env:
           DOCKER_BUILDKIT: 1
         timeout-minutes: 10  # Increased for full rebuilds without cache
-      
-      - name: Verify image exists
-        run: |
-          echo "Checking for image: rag-service:${{ github.sha }}"
-          docker images | grep rag-service || echo "Image not found in docker images"
-          docker inspect rag-service:${{ github.sha }} && echo "✓ Image exists and is inspectable" || echo "✗ Image inspect failed"
-        timeout-minutes: 1
-      
-      - name: Save and upload Docker image
-        run: |
-          docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
-          ls -lh /tmp/rag-service.tar
-        timeout-minutes: 1
 
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: /tmp/rag-service.tar
-          retention-days: 1
-          compression-level: 6
-        continue-on-error: true  # Don't fail if artifact storage quota is hit
+      - name: Verify image was pushed
+        run: |
+          echo "✅ Image pushed to GHCR: ${{ steps.meta.outputs.tags }}"
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
 
   # Job 2: Run linting and formatting checks
   lint-and-format:
@@ -97,39 +108,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Download and load Docker image
-        uses: actions/download-artifact@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          name: docker-image
-          path: /tmp
-        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rebuild Docker image if artifact missing
+      - name: Pull Docker image from GHCR
         run: |
-          if [ ! -f /tmp/rag-service.tar ]; then
-            echo "⚠️ Docker image artifact not found. Rebuilding image..."
-            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            mkdir -p secrets
-            if [ ! -f secrets/gcs-key.json ]; then
-              echo '{}' > secrets/gcs-key.json
-            fi
-            docker buildx build \
-              --load \
-              --tag rag-service:${{ github.sha }} \
-              --file ./src/rag/Dockerfile \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
-            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
-            echo "✅ Docker image rebuilt and saved"
-          fi
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} rag-service:${{ github.sha }}
 
-      - name: Load image and run linting
+      - name: Run linting
         run: |
-          docker load -i /tmp/rag-service.tar
           # Run Black and Flake8 in single container to save startup time
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} sh -c "black --check --line-length 120 rag.py && flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 rag.py" || exit_code=$?
@@ -150,39 +142,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Download and load Docker image
-        uses: actions/download-artifact@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          name: docker-image
-          path: /tmp
-        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rebuild Docker image if artifact missing
+      - name: Pull Docker image from GHCR
         run: |
-          if [ ! -f /tmp/rag-service.tar ]; then
-            echo "⚠️ Docker image artifact not found. Rebuilding image..."
-            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            mkdir -p secrets
-            if [ ! -f secrets/gcs-key.json ]; then
-              echo '{}' > secrets/gcs-key.json
-            fi
-            docker buildx build \
-              --load \
-              --tag rag-service:${{ github.sha }} \
-              --file ./src/rag/Dockerfile \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
-            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
-            echo "✅ Docker image rebuilt and saved"
-          fi
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} rag-service:${{ github.sha }}
 
-      - name: Load image and run tests
+      - name: Run tests
         run: |
-          docker load -i /tmp/rag-service.tar
           mkdir -p src/rag/coverage
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
             -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
@@ -207,6 +180,7 @@ jobs:
           name: coverage-report
           path: src/rag/coverage/
           retention-days: 7
+        continue-on-error: true  # Don't fail if artifact storage quota is hit
         if: always()
 
   # Job 4: Run integration tests
@@ -219,39 +193,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Download and load Docker image
-        uses: actions/download-artifact@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          name: docker-image
-          path: /tmp
-        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rebuild Docker image if artifact missing
+      - name: Pull Docker image from GHCR
         run: |
-          if [ ! -f /tmp/rag-service.tar ]; then
-            echo "⚠️ Docker image artifact not found. Rebuilding image..."
-            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            mkdir -p secrets
-            if [ ! -f secrets/gcs-key.json ]; then
-              echo '{}' > secrets/gcs-key.json
-            fi
-            docker buildx build \
-              --load \
-              --tag rag-service:${{ github.sha }} \
-              --file ./src/rag/Dockerfile \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
-            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
-            echo "✅ Docker image rebuilt and saved"
-          fi
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} rag-service:${{ github.sha }}
 
-      - name: Load image and run tests
+      - name: Run tests
         run: |
-          docker load -i /tmp/rag-service.tar
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} pytest tests/integration/ --tb=line -m integration --maxfail=1 -x -q
         env:
@@ -277,39 +232,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Download and load Docker image
-        uses: actions/download-artifact@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          name: docker-image
-          path: /tmp
-        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rebuild Docker image if artifact missing
+      - name: Pull Docker image from GHCR
         run: |
-          if [ ! -f /tmp/rag-service.tar ]; then
-            echo "⚠️ Docker image artifact not found. Rebuilding image..."
-            echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            mkdir -p secrets
-            if [ ! -f secrets/gcs-key.json ]; then
-              echo '{}' > secrets/gcs-key.json
-            fi
-            docker buildx build \
-              --load \
-              --tag rag-service:${{ github.sha }} \
-              --file ./src/rag/Dockerfile \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
-            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
-            echo "✅ Docker image rebuilt and saved"
-          fi
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} rag-service:${{ github.sha }}
 
-      - name: Load image and start server
+      - name: Start server
         run: |
-          docker load -i /tmp/rag-service.tar
           docker run -d --name rag-server -p 9000:9000 -p 8000:8000 \
             -e DEV=1 \
             -e AUTO_START_CHROMADB=0 \
@@ -368,6 +304,7 @@ jobs:
         with:
           name: coverage-report
           path: coverage-report
+        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
         if: always()
 
       - name: Extract coverage percentage
@@ -415,10 +352,20 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Coverage: ${{ steps.coverage.outputs.coverage }}** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Coverage reports are available as artifacts:" >> $GITHUB_STEP_SUMMARY
-          echo "- Terminal output in Unit Tests job logs" >> $GITHUB_STEP_SUMMARY
-          echo "- XML report: `coverage-report/coverage.xml`" >> $GITHUB_STEP_SUMMARY
-          echo "- HTML report: `coverage-report/htmlcov/index.html`" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Image pushed to: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Coverage Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage information:" >> $GITHUB_STEP_SUMMARY
+          echo "- Terminal output available in Unit Tests job logs" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage-report/coverage.xml ]; then
+            echo "- XML report: \`coverage-report/coverage.xml\` (available as artifact)" >> $GITHUB_STEP_SUMMARY
+            echo "- HTML report: \`coverage-report/htmlcov/index.html\` (available as artifact)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- Coverage report artifacts not available (artifact storage quota may be exceeded)" >> $GITHUB_STEP_SUMMARY
+          fi
       
       - name: Check if Slack webhook is configured
         id: slack-check
