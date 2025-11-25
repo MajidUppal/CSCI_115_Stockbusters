@@ -71,21 +71,21 @@ AC215_StockBusters/
 │   │   └── components/
 │   │
 │   ├── frontend/
-        ├── app/
+│   │   ├── app/
 │   │   │   ├── chat/              # Chat interface
 │   │   │   ├── report/            # Stock reports
 │   │   │   ├── stock-detail/      # Stock detail pages
 │   │   │   ├── settings/          # User settings
 │   │   │   ├── page               # Home page
 │   │   │   └── layout             # Header, Footer, Theme
-│   
+│   │   │
 │   │   ├── components             # components for corresponding app pages plus share ui component
 │   │   ├── lib/
 │   │   │   ├── DataService.js     # API integration
 │   │   │   ├── Common.js
 │   │   │   └── utils.js
 │   │   └── .env.development
-
+│   │
 │   │
 │   └── notebooks/                    ← Your raw development notebooks
 │       ├── Quantamental_MS4.ipynb
@@ -137,6 +137,8 @@ Modern Next.js 15 web application providing an AI-powered conversational interfa
 
 
 ## Features
+- **Home Page**: Provides Easy naviagtion to the website
+  <img width="1272" height="527" alt="image" src="https://github.com/user-attachments/assets/bec01d2b-b21a-47fe-8d87-4dcf6259ebff" />
 
 - **AI Chat Interface**: Conversational AI for investment queries and recommendations
 - **Stock Reports**: Sortable tables with Technical/Fundamental/Hybrid AI scores
