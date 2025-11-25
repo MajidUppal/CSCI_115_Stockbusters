@@ -14,10 +14,12 @@ on:
   push:
     paths:
       - 'src/rag/**'
+      - '.github/workflows/ci-rag.yml'  # Trigger when workflow file changes
     branches: [main, develop, Milestone4]
   pull_request:
     paths:
       - 'src/rag/**'
+      - '.github/workflows/ci-rag.yml'  # Trigger when workflow file changes
     branches: [main, develop, Milestone4]
   workflow_dispatch:  # Allow manual triggering
 
