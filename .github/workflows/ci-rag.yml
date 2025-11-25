@@ -6,7 +6,7 @@
 name: RAG CI Pipeline
 # Updated to use GitHub Container Registry (GHCR) instead of artifacts
 # GHCR has separate 500GB storage quota and is designed for Docker images
-# Coverage reports are uploaded as artifacts with continue-on-error to handle quota limits
+# Coverage reports are uploaded to GCS and displayed in Enhanced GitHub Actions Summary
 
 # Prevent multiple workflows from running simultaneously for the same branch
 concurrency:
@@ -29,7 +29,7 @@ on:
 # Set default permissions
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write  # Required for posting PR comments
   packages: write  # Required for pushing to GHCR
 
 env:
@@ -152,6 +152,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 5
+    outputs:
+      coverage_url: ${{ steps.gcs-upload.outputs.coverage_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -194,24 +196,106 @@ jobs:
         continue-on-error: false
         timeout-minutes: 4
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: src/rag/coverage/coverage.xml
-          flags: rag-unit-tests
-          name: rag-coverage
-          fail_ci_if_error: false
-        continue-on-error: true  # Don't fail if Codecov is unavailable
+      - name: Upload coverage to GCS
         if: always()
-
-      - name: Upload coverage report (artifact fallback)
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: src/rag/coverage/
-          retention-days: 7
-        continue-on-error: true  # Don't fail if artifact storage quota is hit
-        if: always()
+        run: |
+          pip install google-cloud-storage
+          python3 << 'EOF'
+          from google.cloud import storage
+          import os
+          import json
+          
+          # Get configuration
+          commit_sha = os.environ['GITHUB_SHA']
+          repo_name = os.environ['GITHUB_REPOSITORY'].replace('/', '-')
+          bucket_name = "stock-busters-chroma-bucket"
+          
+          # Initialize GCS client
+          try:
+              # Try to use credentials from secret if available
+              creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+              if creds_path and os.path.exists(creds_path):
+                  client = storage.Client.from_service_account_json(creds_path)
+              else:
+                  # Try default credentials (works in GCP environments)
+                  client = storage.Client()
+          except Exception as e:
+              print(f"⚠️ Could not initialize GCS client: {e}")
+              print("Skipping GCS upload - coverage will be available in summary only")
+              exit(0)
+          
+          bucket = client.bucket(bucket_name)
+          base_path = f"coverage-reports/{repo_name}/{commit_sha}"
+          
+          uploaded_files = []
+          
+          # Upload HTML coverage report
+          htmlcov_dir = "src/rag/coverage/htmlcov"
+          if os.path.exists(htmlcov_dir):
+              for root, dirs, files in os.walk(htmlcov_dir):
+                  for file in files:
+                      local_path = os.path.join(root, file)
+                      rel_path = os.path.relpath(local_path, htmlcov_dir)
+                      gcs_path = f"{base_path}/htmlcov/{rel_path}"
+                      blob = bucket.blob(gcs_path)
+                      blob.upload_from_filename(local_path)
+                      blob.make_public()
+                      uploaded_files.append(gcs_path)
+                      print(f"✅ Uploaded: {gcs_path}")
+          
+          # Upload XML report
+          xml_file = "src/rag/coverage/coverage.xml"
+          if os.path.exists(xml_file):
+              blob = bucket.blob(f"{base_path}/coverage.xml")
+              blob.upload_from_filename(xml_file)
+              blob.make_public()
+              uploaded_files.append(f"{base_path}/coverage.xml")
+              print(f"✅ Uploaded: {base_path}/coverage.xml")
+          
+          # Create index page
+          index_html = f'''<!DOCTYPE html>
+          <html>
+          <head>
+              <title>Coverage Report - {commit_sha[:7]}</title>
+              <meta http-equiv="refresh" content="0; url=htmlcov/index.html">
+              <style>
+                  body {{ font-family: Arial, sans-serif; margin: 40px; text-align: center; }}
+                  a {{ color: #0366d6; text-decoration: none; }}
+                  a:hover {{ text-decoration: underline; }}
+              </style>
+          </head>
+          <body>
+              <h1>RAG Coverage Report</h1>
+              <p>Commit: <code>{commit_sha}</code></p>
+              <p><a href="htmlcov/index.html">View HTML Coverage Report</a></p>
+              <p><a href="coverage.xml">Download XML Report</a></p>
+          </body>
+          </html>'''
+          blob = bucket.blob(f"{base_path}/index.html")
+          blob.upload_from_string(index_html, content_type='text/html')
+          blob.make_public()
+          
+          # Generate public URL
+          coverage_url = f"https://storage.googleapis.com/{bucket_name}/{base_path}/htmlcov/index.html"
+          print(f"\n✅ Coverage report uploaded successfully!")
+          print(f"📊 View at: {coverage_url}")
+          print(f"📁 Total files uploaded: {len(uploaded_files) + 1}")
+          
+          # Save URL to output for use in summary
+          output_file = os.environ.get('GITHUB_OUTPUT')
+          if output_file:
+              with open(output_file, 'a') as f:
+                  f.write(f"coverage_url={coverage_url}\n")
+          EOF
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCS_KEY_JSON_PATH }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_OUTPUT: ${{ github.output }}
+        continue-on-error: true
+        id: gcs-upload
+        outputs:
+          coverage_url: ${{ steps.gcs-upload.outputs.coverage_url }}
 
   # Job 4: Run integration tests
   integration-tests:
@@ -341,33 +425,69 @@ jobs:
     needs: [build, lint-and-format, unit-tests, integration-tests, system-tests]
     if: always()
     steps:
-      - name: Download coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage-report
-        continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
-        if: always()
-
       - name: Extract coverage percentage
         id: coverage
         run: |
-          # Ensure coverage-report directory exists
-          mkdir -p coverage-report
+          # Try to download coverage XML from GCS or use local file
+          COVERAGE_XML=""
           
-          # Try to extract from artifact XML file
-          if [ -f coverage-report/coverage.xml ]; then
-            COVERAGE=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage-report/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
-            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "✅ Coverage extracted from artifact: $COVERAGE"
-          else
-            # Artifact not available - coverage data is in Codecov or terminal output
-            echo "coverage=See Codecov" >> $GITHUB_OUTPUT
-            echo "⚠️ Coverage report artifact not available (artifact storage quota may be exceeded)"
-            echo "📊 Coverage data is available via Codecov: https://codecov.io/gh/${{ github.repository }}"
-            echo "📋 Coverage percentage is also shown in the Unit Tests job terminal output"
+          # Check if we can download from GCS
+          if [ -n "${{ secrets.GCS_KEY_JSON_PATH }}" ]; then
+            pip install google-cloud-storage
+            python3 << 'PYEOF'
+            from google.cloud import storage
+            import os
+            import sys
+            
+            try:
+                creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+                if creds_path and os.path.exists(creds_path):
+                    client = storage.Client.from_service_account_json(creds_path)
+                else:
+                    client = storage.Client()
+                
+                bucket = client.bucket("stock-busters-chroma-bucket")
+                commit_sha = os.environ['GITHUB_SHA']
+                repo_name = os.environ['GITHUB_REPOSITORY'].replace('/', '-')
+                gcs_path = f"coverage-reports/{repo_name}/{commit_sha}/coverage.xml"
+                
+                blob = bucket.blob(gcs_path)
+                if blob.exists():
+                    blob.download_to_filename("coverage.xml")
+                    print(f"✅ Downloaded coverage.xml from GCS")
+                    sys.exit(0)
+            except Exception as e:
+                print(f"⚠️ Could not download from GCS: {e}")
+                sys.exit(1)
+            PYEOF
+            
+            if [ -f coverage.xml ]; then
+              COVERAGE_XML="coverage.xml"
+            fi
           fi
-        continue-on-error: true  # Don't fail if extraction fails
+          
+          # Extract coverage from XML if available
+          if [ -n "$COVERAGE_XML" ] && [ -f "$COVERAGE_XML" ]; then
+            COVERAGE=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
+            BRANCH_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
+            LINES_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(root.get('lines-valid', 'N/A'))" 2>/dev/null || echo "N/A")
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "branch_coverage=$BRANCH_COV" >> $GITHUB_OUTPUT
+            echo "lines_covered=$LINES_COV" >> $GITHUB_OUTPUT
+            echo "coverage_source=GCS" >> $GITHUB_OUTPUT
+            echo "✅ Coverage extracted from GCS: $COVERAGE"
+          else
+            # Coverage not available - will be shown in terminal output
+            echo "coverage=See Terminal" >> $GITHUB_OUTPUT
+            echo "coverage_source=Terminal" >> $GITHUB_OUTPUT
+            echo "⚠️ Coverage XML not available from GCS"
+            echo "📋 Coverage percentage is shown in the Unit Tests job terminal output"
+          fi
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCS_KEY_JSON_PATH }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        continue-on-error: true
         if: always()
 
       - name: Check test results
@@ -386,44 +506,96 @@ jobs:
             echo "status=success" >> $GITHUB_OUTPUT
           fi
 
-      - name: Print summary
+      - name: Post coverage report to PR
+        if: github.event_name == 'pull_request' && steps.coverage.outputs.coverage_source == 'GCS'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverageUrl = `${{ needs.unit-tests.outputs.coverage_url }}` || 
+              `https://storage.googleapis.com/stock-busters-chroma-bucket/coverage-reports/${context.repo.owner}-${context.repo.repo}/${context.sha}/htmlcov/index.html`;
+            const coverage = `${{ steps.coverage.outputs.coverage }}`;
+            const branchCov = `${{ steps.coverage.outputs.branch_coverage }}`;
+            
+            const body = `## 📊 Coverage Report
+            
+            ### Coverage Metrics
+            - **Line Coverage**: ${coverage}
+            ${branchCov && branchCov !== 'N/A' ? `- **Branch Coverage**: ${branchCov}%` : ''}
+            - **Minimum Required**: 50%
+            
+            ### 📈 View Detailed Report
+            [**View Interactive HTML Coverage Report**](${coverageUrl})
+            
+            The report includes:
+            - Line-by-line coverage visualization
+            - File-by-file coverage breakdown
+            - Missing lines highlighted
+            - Coverage trends
+            
+            ---
+            *Report generated for commit: \`${context.sha.substring(0, 7)}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+        continue-on-error: true
+
+      - name: Print summary with GCS link
         run: |
-          echo "## RAG CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          # Get GCS URL
+          GCS_URL="${{ needs.unit-tests.outputs.coverage_url }}"
+          if [ -z "$GCS_URL" ]; then
+            REPO_NAME=$(echo "${{ github.repository }}" | tr '/' '-')
+            GCS_URL="https://storage.googleapis.com/stock-busters-chroma-bucket/coverage-reports/${REPO_NAME}/${{ github.sha }}/htmlcov/index.html"
+          fi
+          
+          echo "## 📊 RAG CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Prominent Coverage Section with GCS Link
+          echo "### 📈 Code Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.coverage.outputs.coverage }}" != "See Terminal" ] && [ "${{ steps.coverage.outputs.coverage }}" != "N/A" ]; then
+            echo "**Coverage: ${{ steps.coverage.outputs.coverage }}** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Coverage**: See terminal output in Unit Tests job" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[**📊 View Interactive HTML Coverage Report on GCS**]($GCS_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The report includes line-by-line coverage visualization, file breakdown, and missing lines highlighted." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Test Results
+          echo "### ✅ Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint & Format | ${{ needs.lint-and-format.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| System Tests | ${{ needs.system-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔨 Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧹 Lint & Format | ${{ needs.lint-and-format.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔗 Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖥️ System Tests | ${{ needs.system-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Code Coverage" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.coverage.outputs.coverage }}" = "See Codecov" ] || [ "${{ steps.coverage.outputs.coverage }}" = "N/A" ]; then
-            echo "**Coverage: Available via Codecov** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
-            echo "View coverage at: [codecov.io](https://codecov.io/gh/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Coverage: ${{ steps.coverage.outputs.coverage }}** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
+          
+          # Docker Image
+          echo "### 🐳 Docker Image" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           IMAGE_NAME_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
-          echo "Image pushed to: \`${{ env.REGISTRY }}/$IMAGE_NAME_LOWER:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: \`${{ env.REGISTRY }}/$IMAGE_NAME_LOWER:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Coverage Reports" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Coverage information:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Codecov**: View detailed coverage reports and trends at [codecov.io](https://codecov.io/gh/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
-          echo "- Terminal output available in Unit Tests job logs" >> $GITHUB_STEP_SUMMARY
-          if [ -f coverage-report/coverage.xml ]; then
-            echo "- XML report: \`coverage-report/coverage.xml\` (available as artifact)" >> $GITHUB_STEP_SUMMARY
-            echo "- HTML report: \`coverage-report/htmlcov/index.html\` (available as artifact)" >> $GITHUB_STEP_SUMMARY
+          
+          # Summary
+          if [ "${{ steps.test-results.outputs.status }}" = "success" ]; then
+            echo "🎉 **All tests passed!**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- Coverage report artifacts not available (artifact storage quota may be exceeded)" >> $GITHUB_STEP_SUMMARY
-            echo "- Coverage data is still available via Codecov (doesn't count against artifact quota)" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Some tests failed.**" >> $GITHUB_STEP_SUMMARY
           fi
+        continue-on-error: true
+        if: always()
       
       - name: Check if Slack webhook is configured
         id: slack-check
