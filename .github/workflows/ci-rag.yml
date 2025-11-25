@@ -217,6 +217,26 @@ jobs:
             echo "⚠️ Coverage XML not found"
           fi
 
+      - name: Verify coverage files generated
+        if: always()
+        # Check what coverage files were actually generated
+        run: |
+          echo "📋 Checking coverage files in src/rag/coverage/:"
+          ls -la src/rag/coverage/ || echo "⚠️ Source directory not found"
+          echo ""
+          echo "📋 Looking for HTML files:"
+          find src/rag/coverage -type f -name "*.html" 2>/dev/null | head -10 || echo "No HTML files found"
+          echo ""
+          echo "📋 Looking for htmlcov directory:"
+          if [ -d "src/rag/coverage/htmlcov" ]; then
+            echo "✅ htmlcov directory exists"
+            ls -la src/rag/coverage/htmlcov/ | head -10
+          else
+            echo "⚠️ htmlcov directory not found"
+            # Check if it's in a different location
+            find src/rag -type d -name "htmlcov" 2>/dev/null || echo "htmlcov not found anywhere"
+          fi
+
       - name: Commit coverage reports to repo
         if: always() && github.event_name == 'push'
         # Commit coverage files to coverage/ folder at repo root
@@ -229,10 +249,6 @@ jobs:
           # Create coverage directory at repo root
           mkdir -p coverage
           
-          # Debug: List what's in the source coverage directory
-          echo "📋 Contents of src/rag/coverage/:"
-          ls -la src/rag/coverage/ || echo "⚠️ Source directory not found"
-          
           # Copy coverage XML file
           if [ -f "src/rag/coverage/coverage.xml" ]; then
             cp src/rag/coverage/coverage.xml coverage/
@@ -242,18 +258,38 @@ jobs:
           fi
           
           # Copy HTML coverage report directory
+          # Try multiple possible locations
+          HTML_COV_FOUND=false
+          
           if [ -d "src/rag/coverage/htmlcov" ]; then
             cp -r src/rag/coverage/htmlcov coverage/
-            echo "✅ Copied HTML coverage report directory"
+            echo "✅ Copied HTML coverage report from src/rag/coverage/htmlcov"
+            HTML_COV_FOUND=true
+          elif [ -d "src/rag/htmlcov" ]; then
+            cp -r src/rag/htmlcov coverage/
+            echo "✅ Copied HTML coverage report from src/rag/htmlcov"
+            HTML_COV_FOUND=true
+          else
+            # Try to find htmlcov anywhere in src/rag
+            HTMLCOV_PATH=$(find src/rag -type d -name "htmlcov" 2>/dev/null | head -1)
+            if [ -n "$HTMLCOV_PATH" ]; then
+              cp -r "$HTMLCOV_PATH" coverage/htmlcov
+              echo "✅ Copied HTML coverage report from $HTMLCOV_PATH"
+              HTML_COV_FOUND=true
+            fi
+          fi
+          
+          if [ "$HTML_COV_FOUND" = "false" ]; then
+            echo "⚠️ HTML coverage report not found - only XML will be committed"
+            echo "📋 This might be because pytest-cov didn't generate HTML report"
+            echo "📋 Check the 'Run tests' step output for any warnings"
+          else
             echo "📋 HTML report contents:"
             ls -la coverage/htmlcov/ | head -10 || true
-          else
-            echo "⚠️ htmlcov directory not found in src/rag/coverage/"
-            echo "📋 Checking if HTML files exist elsewhere:"
-            find src/rag/coverage -name "*.html" -type f 2>/dev/null | head -5 || echo "No HTML files found"
           fi
           
           # Debug: Show what will be committed
+          echo ""
           echo "📋 Files in coverage/ directory:"
           find coverage -type f | head -20 || echo "No files found"
           
