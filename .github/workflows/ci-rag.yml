@@ -438,14 +438,9 @@ jobs:
           # Check if we can download from GCS
           if [ -n "${{ secrets.GCS_KEY_JSON_PATH }}" ]; then
             # Install google-cloud-storage using python3 -m pip to ensure correct Python
-            python3 -m pip install --quiet google-cloud-storage 2>&1 || {
-              echo "⚠️ Failed to install google-cloud-storage, will skip GCS download"
-              COVERAGE_XML=""
-            }
-            
-            # Try to download from GCS only if pip install succeeded
-            if command -v python3 >/dev/null 2>&1; then
-              python3 << 'PYEOF'
+            if python3 -m pip install --quiet google-cloud-storage 2>&1; then
+              # Try to download from GCS
+              python3 -c "
 import sys
 import os
 
@@ -458,26 +453,28 @@ try:
     else:
         client = storage.Client()
     
-    bucket = client.bucket("stock-busters-chroma-bucket")
+    bucket = client.bucket('stock-busters-chroma-bucket')
     commit_sha = os.environ['GITHUB_SHA']
     repo_name = os.environ['GITHUB_REPOSITORY'].replace('/', '-')
-    gcs_path = f"coverage-reports/{repo_name}/{commit_sha}/coverage.xml"
+    gcs_path = f'coverage-reports/{repo_name}/{commit_sha}/coverage.xml'
     
     blob = bucket.blob(gcs_path)
     if blob.exists():
-        blob.download_to_filename("coverage.xml")
-        print(f"✅ Downloaded coverage.xml from GCS")
+        blob.download_to_filename('coverage.xml')
+        print('✅ Downloaded coverage.xml from GCS')
         sys.exit(0)
     else:
-        print(f"⚠️ Coverage XML not found in GCS at {gcs_path}")
+        print(f'⚠️ Coverage XML not found in GCS at {gcs_path}')
         sys.exit(0)
 except ImportError as e:
-    print(f"⚠️ google-cloud-storage not available: {e}")
+    print(f'⚠️ google-cloud-storage not available: {e}')
     sys.exit(0)
 except Exception as e:
-    print(f"⚠️ Could not download from GCS: {e}")
+    print(f'⚠️ Could not download from GCS: {e}')
     sys.exit(0)
-PYEOF
+" || echo "⚠️ GCS download failed, will use fallback"
+            else
+              echo "⚠️ Failed to install google-cloud-storage, will skip GCS download"
             fi
             
             if [ -f coverage.xml ]; then
