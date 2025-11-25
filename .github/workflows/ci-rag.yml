@@ -174,7 +174,17 @@ jobs:
         continue-on-error: false
         timeout-minutes: 4
 
-      - name: Upload coverage report
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: src/rag/coverage/coverage.xml
+          flags: rag-unit-tests
+          name: rag-coverage
+          fail_ci_if_error: false
+        continue-on-error: true  # Don't fail if Codecov is unavailable
+        if: always()
+
+      - name: Upload coverage report (artifact fallback)
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -359,12 +369,14 @@ jobs:
           echo "### Coverage Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Coverage information:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Codecov**: View detailed coverage reports and trends at [codecov.io](https://codecov.io/gh/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
           echo "- Terminal output available in Unit Tests job logs" >> $GITHUB_STEP_SUMMARY
           if [ -f coverage-report/coverage.xml ]; then
             echo "- XML report: \`coverage-report/coverage.xml\` (available as artifact)" >> $GITHUB_STEP_SUMMARY
             echo "- HTML report: \`coverage-report/htmlcov/index.html\` (available as artifact)" >> $GITHUB_STEP_SUMMARY
           else
             echo "- Coverage report artifacts not available (artifact storage quota may be exceeded)" >> $GITHUB_STEP_SUMMARY
+            echo "- Coverage data is still available via Codecov (doesn't count against artifact quota)" >> $GITHUB_STEP_SUMMARY
           fi
       
       - name: Check if Slack webhook is configured
