@@ -51,7 +51,7 @@ Here are the questions:
 Q1: What is your investment horizon: short term (less than 3 months) or long term (3 months or more)?
 Q2: What is your risk appetite: low, high?
 
-
+**Note a user can choose both long term and short term, similary the user can also choose both low risk and high risk, in which case it means both flags will be true. Neither is not an option
 
 In the beginning, confirmation: bool will always be false
 When you are able to answer all the questions, you may end conversation by showing the final output.
@@ -59,13 +59,13 @@ In the end ask for confirmation from the user saying here is the summary of your
 
 **CRITICAL INSTRUCTION: The preference confirmation must be a single summary containing all collected data in the following exact format:**
 You will collect data like this.
-### Confirmation Financial Requirements
-confirmation_response_output = 
+### For confirmation response, explain the choices in simple words. Your choices will cover below. Also share the collected answers in below template
+ 
     long_term: boolen Field(description="Long term investment preference.")
     short_term: bool Field(description="Short term investment preference.")
     high_risk: bool Field(description="High risk appetite check.")
     low_risk: bool Field(description="Low risk appetite check.")
-Wait for confirmation from the user. Once the user confirms, direct user to click on "generate report" to view recommendations.
+Wait for confirmation from the user. Once the user confirms, thank him and tell him while showing their selected prference direct user to click on "generate report" to view recommendations.
 """
 
 abot = ChatAgent(llm, [], system=system_prompt, checkpointer=memory)
@@ -132,7 +132,7 @@ async def get_chat(
     session = chat_sessions[chat_id]
     if session.get('user_id') != x_session_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+    print("user_pref inside model_chat_chatid=", session.get('user_preferences'))
     return ChatHistory(
         chat_id=chat_id,
         messages=session.get('messages', []),
@@ -264,6 +264,7 @@ async def continue_chat(
     
     if user_pref:
         session['user_preferences'] = user_pref
+        print("user preference in model_chat_chat_id", user_pref)
     
     return ChatResponse(
         chat_id=chat_id,

@@ -56,8 +56,8 @@ async def generate_report(
     try:
         # Extract user preferences
         user_preferences = request_body.get('user_pref', {})
-        long_term = user_preferences.get('long_term', False)
-        short_term = user_preferences.get('short_term', False)
+        long_term = user_preferences.get('long_term', True)
+        short_term = user_preferences.get('short_term', True)
         
         print(f"User preferences - Long term: {long_term}, Short term: {short_term}")
         
@@ -79,7 +79,10 @@ async def generate_report(
                 stock_info = stock_data.iloc[0]
                 
                 # Determine AI Score based on user preference
-                if short_term:
+                if (short_term & long_term) or ((not short_term) & (not long_term)):
+                    ai_score = float(stock_info.get('Hybrid_Score', 0)) if pd.notna(stock_info.get('Hybrid_Score')) else 0.0
+
+                elif short_term:
                     # Use Technical_Score for short-term
                     ai_score = float(stock_info.get('Technical_Score', 0)) if pd.notna(stock_info.get('Technical_Score')) else 0.0
                 elif long_term:
@@ -88,6 +91,7 @@ async def generate_report(
                 else:
                     # Use Hybrid_Score as default
                     ai_score = float(stock_info.get('Hybrid_Score', 0)) if pd.notna(stock_info.get('Hybrid_Score')) else 0.0
+                    
                 
                 recommendations.append({
                     "symbol": symbol,

@@ -34,7 +34,7 @@ class ChatAgent:
         self.tools = {t.name: t for t in tools}
         self.model = model
 
-    def call_llm(self, state: ChatAgentState):
+    def call_llm(self, state: ChatAgentState):  
         """Call the LLM with the current messages"""
         messages = state['messages']
         if self.system:
@@ -45,6 +45,7 @@ class ChatAgent:
     def validate_llm(self, state: ChatAgentState):
         """Validate and extract structured output from LLM response"""
         last_message = state['messages'][-1]
+        # print(dir(state))
         validate_resp = self.model.with_structured_output(user_preference).invoke([last_message])
         val_dict = validate_resp.model_dump()
         
