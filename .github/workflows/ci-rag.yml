@@ -28,7 +28,7 @@ on:
 
 # Set default permissions
 permissions:
-  contents: read
+  contents: write  # Required for committing coverage reports
   pull-requests: write  # Required for posting PR comments
   packages: write  # Required for pushing to GHCR
 
@@ -215,6 +215,40 @@ jobs:
             echo "branch_coverage=N/A" >> $GITHUB_OUTPUT
             echo "⚠️ Coverage XML not found"
           fi
+
+      - name: Commit coverage reports to repo
+        if: always() && github.event_name == 'push'
+        # Commit coverage files to coverage/ folder at repo root
+        # This path won't trigger the workflow (outside src/rag/)
+        run: |
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Create coverage directory at repo root
+          mkdir -p coverage
+          
+          # Copy coverage files to root coverage folder
+          if [ -f "src/rag/coverage/coverage.xml" ]; then
+            cp src/rag/coverage/coverage.xml coverage/
+            echo "✅ Copied coverage.xml"
+          fi
+          
+          if [ -d "src/rag/coverage/htmlcov" ]; then
+            cp -r src/rag/coverage/htmlcov coverage/
+            echo "✅ Copied HTML coverage report"
+          fi
+          
+          # Check if there are changes to commit
+          if [ -n "$(git status --porcelain coverage/)" ]; then
+            git add coverage/
+            git commit -m "Update coverage reports [skip ci]" || exit 0
+            git push || echo "⚠️ Failed to push coverage files (may not have write access)"
+            echo "✅ Coverage reports committed to coverage/ folder"
+          else
+            echo "ℹ️ No coverage files to commit"
+          fi
+        continue-on-error: true
 
   # Job 4: Run integration tests
   integration-tests:
