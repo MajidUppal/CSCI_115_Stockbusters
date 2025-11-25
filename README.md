@@ -138,13 +138,29 @@ Modern Next.js 15 web application providing an AI-powered conversational interfa
 
 ## Features
 - **Home Page**: Provides Easy naviagtion to the website
+  
   <img width="1272" height="527" alt="image" src="https://github.com/user-attachments/assets/bec01d2b-b21a-47fe-8d87-4dcf6259ebff" />
 
 - **AI Chat Interface**: Conversational AI for investment queries and recommendations
+  
+  <img width="1261" height="546" alt="image" src="https://github.com/user-attachments/assets/d1cab26c-a071-46d4-b332-7d7a80cb5584" />
+  <img width="1945" height="1297" alt="image" src="https://github.com/user-attachments/assets/f255323f-26a2-4569-82bb-d1f5e70e52e7" />
+
 - **Stock Reports**: Sortable tables with Technical/Fundamental/Hybrid AI scores
+
+  <img width="1876" height="843" alt="image" src="https://github.com/user-attachments/assets/77636237-37cd-4faf-953c-2bef3edd9fac" />
+  
 - **Stock Analysis**: Interactive candlestick charts, volume analysis, and 8 time ranges (1W-MAX)
+
+  <img width="1286" height="1238" alt="image" src="https://github.com/user-attachments/assets/eea7490e-4997-46b0-ae05-4ca85484963c" />
+
 - **User Settings**: Investment profile management (risk tolerance, goals, sectors, time horizon) - In progress
+
+  <img width="1218" height="1307" alt="image" src="https://github.com/user-attachments/assets/cc196c34-3f12-4c69-98e1-92d2e54f93aa" />
+
 - **Theme Support**: Light/Dark mode toggle
+  <img width="1254" height="534" alt="image" src="https://github.com/user-attachments/assets/5317509e-af3a-4570-9d09-01c995de4192" />
+
 
 ## Quick Start
 
