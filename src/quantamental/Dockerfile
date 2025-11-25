@@ -57,6 +57,7 @@ COPY model_predict.py .
 COPY backtest.py .
 COPY main.py .
 COPY verify_setup.py .
+COPY generate_stock_reasoning.py .
 
 # Copy tests directory
 COPY tests/ ./tests/

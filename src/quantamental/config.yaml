@@ -98,3 +98,9 @@ backtest:
   top_n_stocks: 10
   output_format: "csv"  # Options: csv, parquet, both
   include_metrics: true
+
+# RAG Reasoning Configuration
+rag:
+  enabled: true        # Enable/disable reasoning generation
+  max_workers: 20      # Parallel workers for reasoning generation (default: 20)
+  sample_size: null    # Optional: test with N stocks only (null = all stocks)
