@@ -5,6 +5,7 @@
 
 name: RAG CI Pipeline
 # Updated to handle artifact storage quota and trigger on workflow file changes
+# Testing CI after clearing caches and artifacts
 
 # Prevent multiple workflows from running simultaneously for the same branch
 concurrency:
@@ -93,6 +94,12 @@ jobs:
     needs: build
     timeout-minutes: 3
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Download and load Docker image
         uses: actions/download-artifact@v4
         with:
@@ -100,13 +107,28 @@ jobs:
           path: /tmp
         continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
-      - name: Load image and run linting
+      - name: Rebuild Docker image if artifact missing
         run: |
           if [ ! -f /tmp/rag-service.tar ]; then
-            echo "❌ Docker image artifact not found. Cannot run linting."
+            echo "⚠️ Docker image artifact not found. Rebuilding image..."
             echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            exit 1
+            mkdir -p secrets
+            if [ ! -f secrets/gcs-key.json ]; then
+              echo '{}' > secrets/gcs-key.json
+            fi
+            docker buildx build \
+              --load \
+              --tag rag-service:${{ github.sha }} \
+              --file ./src/rag/Dockerfile \
+              --cache-from type=gha \
+              --cache-to type=gha,mode=max \
+              .
+            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
+            echo "✅ Docker image rebuilt and saved"
           fi
+
+      - name: Load image and run linting
+        run: |
           docker load -i /tmp/rag-service.tar
           # Run Black and Flake8 in single container to save startup time
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
@@ -128,6 +150,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Download and load Docker image
         uses: actions/download-artifact@v4
         with:
@@ -135,13 +160,28 @@ jobs:
           path: /tmp
         continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
-      - name: Load image and run tests
+      - name: Rebuild Docker image if artifact missing
         run: |
           if [ ! -f /tmp/rag-service.tar ]; then
-            echo "❌ Docker image artifact not found. Cannot run tests."
+            echo "⚠️ Docker image artifact not found. Rebuilding image..."
             echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            exit 1
+            mkdir -p secrets
+            if [ ! -f secrets/gcs-key.json ]; then
+              echo '{}' > secrets/gcs-key.json
+            fi
+            docker buildx build \
+              --load \
+              --tag rag-service:${{ github.sha }} \
+              --file ./src/rag/Dockerfile \
+              --cache-from type=gha \
+              --cache-to type=gha,mode=max \
+              .
+            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
+            echo "✅ Docker image rebuilt and saved"
           fi
+
+      - name: Load image and run tests
+        run: |
           docker load -i /tmp/rag-service.tar
           mkdir -p src/rag/coverage
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
@@ -176,6 +216,12 @@ jobs:
     needs: build
     timeout-minutes: 4
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Download and load Docker image
         uses: actions/download-artifact@v4
         with:
@@ -183,13 +229,28 @@ jobs:
           path: /tmp
         continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
-      - name: Load image and run tests
+      - name: Rebuild Docker image if artifact missing
         run: |
           if [ ! -f /tmp/rag-service.tar ]; then
-            echo "❌ Docker image artifact not found. Cannot run tests."
+            echo "⚠️ Docker image artifact not found. Rebuilding image..."
             echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            exit 1
+            mkdir -p secrets
+            if [ ! -f secrets/gcs-key.json ]; then
+              echo '{}' > secrets/gcs-key.json
+            fi
+            docker buildx build \
+              --load \
+              --tag rag-service:${{ github.sha }} \
+              --file ./src/rag/Dockerfile \
+              --cache-from type=gha \
+              --cache-to type=gha,mode=max \
+              .
+            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
+            echo "✅ Docker image rebuilt and saved"
           fi
+
+      - name: Load image and run tests
+        run: |
           docker load -i /tmp/rag-service.tar
           docker run --rm -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} pytest tests/integration/ --tb=line -m integration --maxfail=1 -x -q
@@ -213,6 +274,12 @@ jobs:
     # Skip system tests on feature branches for speed - only run on main branches
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Milestone4' || github.event_name == 'workflow_dispatch'
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Download and load Docker image
         uses: actions/download-artifact@v4
         with:
@@ -220,13 +287,28 @@ jobs:
           path: /tmp
         continue-on-error: true  # Don't fail if artifact doesn't exist (e.g., storage quota hit)
 
-      - name: Load image and start server
+      - name: Rebuild Docker image if artifact missing
         run: |
           if [ ! -f /tmp/rag-service.tar ]; then
-            echo "❌ Docker image artifact not found. Cannot run system tests."
+            echo "⚠️ Docker image artifact not found. Rebuilding image..."
             echo "This may be due to GitHub Actions artifact storage quota being exceeded."
-            exit 1
+            mkdir -p secrets
+            if [ ! -f secrets/gcs-key.json ]; then
+              echo '{}' > secrets/gcs-key.json
+            fi
+            docker buildx build \
+              --load \
+              --tag rag-service:${{ github.sha }} \
+              --file ./src/rag/Dockerfile \
+              --cache-from type=gha \
+              --cache-to type=gha,mode=max \
+              .
+            docker save rag-service:${{ github.sha }} -o /tmp/rag-service.tar
+            echo "✅ Docker image rebuilt and saved"
           fi
+
+      - name: Load image and start server
+        run: |
           docker load -i /tmp/rag-service.tar
           docker run -d --name rag-server -p 9000:9000 -p 8000:8000 \
             -e DEV=1 \
