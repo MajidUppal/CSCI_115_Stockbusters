@@ -111,14 +111,79 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 ### APIs and Frontend Implementation ###  (Mahmood/Majid)
 
-<from MS4 requirement please add 
-Source code for both the backend APIs and the frontend interface, showing full end-to-end functionality.
-Should include:
-README: Setup instructions, environment configuration, and usage guidelines (how to run locally).
-Repository Structure:
-Organized and documented code following a consistent style guide (e.g., PEP 8 for Python, Airbnb for JS).
-Clear separation of logic by domain (e.g., api/, models/, services/, ui/, tests/).
-Comments or docstrings that clarify functionality and module purpose.  >
+# Frontend - Stock Busters
+
+Modern Next.js 15 web application providing an AI-powered conversational interface for personalized stock recommendations and investment analysis.
+
+## Tech Stack
+
+- **Framework**: Next.js 15.5.6 (App Router)
+- **Language**: JavaScript/React
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Charts**: Recharts
+- **Authentication**: NextAuth.js
+
+
+## Features
+
+- **AI Chat Interface**: Conversational AI for investment queries and recommendations
+- **Stock Reports**: Sortable tables with Technical/Fundamental/Hybrid AI scores
+- **Stock Analysis**: Interactive candlestick charts, volume analysis, and 8 time ranges (1W-MAX)
+- **User Settings**: Investment profile management (risk tolerance, goals, sectors, time horizon) - In progress
+- **Theme Support**: Light/Dark mode toggle
+
+## Quick Start
+
+1) Run the container by using sh docker-shell.sh command
+2) npm install
+3) npm install recharts
+4) npm run dev
+```
+
+Access at: http://localhost:3000
+
+## Configuration
+
+`.env.development`:
+```env
+NEXT_PUBLIC_BASE_API_URL=http://localhost:9000
+NEXTAUTH_SECRET="gHDgDM7d7hcKJWMwqvYzH/6gEZ8gM4Yv5V76Qc/9d/s="
+NEXTAUTH_URL=http://localhost:3000
+PORT=3000
+```
+
+## Project Structure
+
+```
+frontend/
+├── app/
+│   ├── chat/              # Chat interface
+│   ├── report/            # Stock reports
+│   ├── stock/             # Stock detail pages
+│   ├── settings/          # User settings
+│   ├── layout/            # Header, Footer, Theme
+│   
+├── components             # components for corresponding app pages plus share ui component
+├── lib/
+│   ├── DataService.js     # API integration
+│   └── Common.js
+│   └── utils.js
+└── .env.development
+```
+
+
+## Development Notes
+
+- Hot reload enabled for instant updates
+- Uses App Router for file-based routing
+- Session management via X-Session-ID headers
+- All API calls through DataService abstraction layer
+- Responsive design with Tailwind CSS
+- Accessible UI components from shadcn/ui
+
+---
+
+**Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](.frontend/README.md) for more details
 
 
 ### Continuous Integration and Testing  ###   (Siri/Seraphim/Majid/Mahmood - please add example of CI of your own section) 
