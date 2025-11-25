@@ -198,6 +198,9 @@ jobs:
 
       - name: Upload coverage to GCS
         if: always()
+        # This step uploads both HTML and XML coverage reports to GCS
+        # The XML file is used later to extract coverage percentage in the test-summary job
+        # The HTML report provides an interactive view of coverage
         run: |
           pip install google-cloud-storage
           python3 << 'EOF'
@@ -425,8 +428,11 @@ jobs:
     steps:
       - name: Extract coverage percentage
         id: coverage
+        # This step extracts the coverage percentage from the XML file uploaded to GCS
+        # It downloads the coverage.xml from GCS (uploaded by unit-tests job)
+        # and parses it to extract line coverage, branch coverage, and other metrics
         run: |
-          # Try to download coverage XML from GCS or use local file
+          # Try to download coverage XML from GCS (uploaded by unit-tests job)
           COVERAGE_XML=""
           
           # Check if we can download from GCS
