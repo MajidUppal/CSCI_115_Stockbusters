@@ -352,14 +352,22 @@ jobs:
       - name: Extract coverage percentage
         id: coverage
         run: |
+          # Ensure coverage-report directory exists
+          mkdir -p coverage-report
+          
+          # Try to extract from artifact XML file
           if [ -f coverage-report/coverage.xml ]; then
             COVERAGE=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage-report/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
             echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "Coverage: $COVERAGE"
+            echo "✅ Coverage extracted from artifact: $COVERAGE"
           else
-            echo "coverage=N/A" >> $GITHUB_OUTPUT
-            echo "Coverage report not found"
+            # Artifact not available - coverage data is in Codecov or terminal output
+            echo "coverage=See Codecov" >> $GITHUB_OUTPUT
+            echo "⚠️ Coverage report artifact not available (artifact storage quota may be exceeded)"
+            echo "📊 Coverage data is available via Codecov: https://codecov.io/gh/${{ github.repository }}"
+            echo "📋 Coverage percentage is also shown in the Unit Tests job terminal output"
           fi
+        continue-on-error: true  # Don't fail if extraction fails
         if: always()
 
       - name: Check test results
@@ -392,7 +400,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Code Coverage" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Coverage: ${{ steps.coverage.outputs.coverage }}** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.coverage.outputs.coverage }}" = "See Codecov" ] || [ "${{ steps.coverage.outputs.coverage }}" = "N/A" ]; then
+            echo "**Coverage: Available via Codecov** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
+            echo "View coverage at: [codecov.io](https://codecov.io/gh/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Coverage: ${{ steps.coverage.outputs.coverage }}** (Minimum required: 50%)" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
