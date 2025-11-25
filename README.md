@@ -145,7 +145,7 @@ Comments or docstrings that clarify functionality and module purpose.  >
     All tests passing
     Code coverage report (minimum 50%)
 
-## Front End CI Pipeline & Evidence ## (Mahmood)
+## Front End CI Pipeline & Evidence ## (Mahmood)--- Not needed for Front end, please remove this section.
     < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
     The pipeline must:
     Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
