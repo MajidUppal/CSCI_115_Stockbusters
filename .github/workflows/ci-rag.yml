@@ -181,10 +181,15 @@ jobs:
       - name: Run tests
         run: |
           mkdir -p src/rag/coverage
+          # Ensure htmlcov directory exists in the mounted volume before running tests
+          docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
+            rag-service:${{ github.sha }} \
+            mkdir -p /workspace/coverage/htmlcov
+          # Run tests with coverage reports
           docker run --rm -v ${{ github.workspace }}/src/rag/coverage:/workspace/coverage \
             -e PYTHONPATH="/.venv/lib/python3.12/site-packages:$PYTHONPATH" \
             rag-service:${{ github.sha }} \
-            pytest tests/unit/ --cov=rag --cov-branch --cov-report=term --cov-report=xml:coverage/coverage.xml --cov-report=html:coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
+            pytest tests/unit/ --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q || exit_code=$?
           exit ${exit_code:-0}
         env:
           CHROMADB_HOST: localhost
