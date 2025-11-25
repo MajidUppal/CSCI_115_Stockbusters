@@ -437,13 +437,16 @@ jobs:
           
           # Check if we can download from GCS
           if [ -n "${{ secrets.GCS_KEY_JSON_PATH }}" ]; then
-            pip install google-cloud-storage
-            python3 << 'PYEOF'
-            from google.cloud import storage
-            import os
-            import sys
+            # Install google-cloud-storage, but don't fail if it doesn't work
+            pip install google-cloud-storage 2>&1 || echo "⚠️ Failed to install google-cloud-storage, will skip GCS download"
             
+            # Try to download from GCS, but don't fail if it doesn't work
+            python3 << 'PYEOF' || true
             try:
+                from google.cloud import storage
+                import os
+                import sys
+                
                 creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
                 if creds_path and os.path.exists(creds_path):
                     client = storage.Client.from_service_account_json(creds_path)
@@ -459,10 +462,10 @@ jobs:
                 if blob.exists():
                     blob.download_to_filename("coverage.xml")
                     print(f"✅ Downloaded coverage.xml from GCS")
-                    sys.exit(0)
+            except ImportError as e:
+                print(f"⚠️ google-cloud-storage not available: {e}")
             except Exception as e:
                 print(f"⚠️ Could not download from GCS: {e}")
-                sys.exit(0)  # Exit with 0 to allow fallback logic to continue
             PYEOF
             
             if [ -f coverage.xml ]; then
