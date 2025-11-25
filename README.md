@@ -183,7 +183,7 @@ frontend/
 
 ---
 
-**Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](.frontend/README.md) for more details
+**Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](frontend/README.md) for more details
 
 
 ### Continuous Integration and Testing  ###   (Siri/Seraphim/Majid/Mahmood - please add example of CI of your own section) 
