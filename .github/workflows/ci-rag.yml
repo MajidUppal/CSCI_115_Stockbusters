@@ -456,7 +456,7 @@ jobs:
                     sys.exit(0)
             except Exception as e:
                 print(f"⚠️ Could not download from GCS: {e}")
-                sys.exit(1)
+                sys.exit(0)  # Exit with 0 to allow fallback logic to continue
             PYEOF
             
             if [ -f coverage.xml ]; then
