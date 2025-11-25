@@ -5,7 +5,8 @@ Orchestrates the complete Quantamental Model workflow:
 2. Data Processing
 3. Model Training (with W&B)
 4. Prediction
-5. Backtest & Upload to GCS
+5. Backtest &Upload to GCS 
+6. Data versioning 
 """
 
 import asyncio
@@ -133,26 +134,68 @@ def run_backtest(config: dict, df: pd.DataFrame = None):
     
     return results
 
+def run_data_versioning(config: dict, version_tag: str = "ms4_submission"):
+    """
+    Step 0: Version input data (MS4 requirement)
+    
+    Creates versioned snapshots of input data using:
+    - W&B Artifacts (primary)
+    - GCS object versioning (secondary)
+    - Local metadata snapshots (tertiary)
+    
+    Args:
+        config: Configuration dictionary
+        version_tag: Version identifier for this snapshot
+        
+    Returns:
+        Dictionary with version information
+    """
+    logger.info("="*60)
+    logger.info("STEP 0: DATA VERSIONING (MS4)")
+    logger.info("="*60)
+    
+    from data_versioning import DataVersionManager
+    
+    versioner = DataVersionManager(config)
+    version_info = versioner.create_version_snapshot(version_tag=version_tag)
+    
+    logger.info("✅ Data versioning complete")
+    logger.info(f"   Methods: {', '.join(version_info.get('methods', []))}")
+    
+    return version_info
 
-def run_full_pipeline(force_refresh: bool = False, skip_training: bool = False):
-    """Run complete end-to-end pipeline"""
-    logger.info("🚀 STARTING FULL QUANTAMENTAL PIPELINE")
+def run_full_pipeline(force_refresh: bool = False, 
+                     skip_training: bool = False,
+                     version_data: bool = True):  
+    """
+    Run complete end-to-end pipeline
+    
+    Args:
+        force_refresh: Force refresh data from API (ignore cache)
+        skip_training: Skip model training (use existing model from W&B)
+        version_data: Create data version snapshot (MS4 requirement) 
+    """
+    logger.info(" STARTING FULL QUANTAMENTAL PIPELINE")
     logger.info("="*60)
     
     # Load config
     config = load_config()
     
-    # Step 1: Data Collection
+    # Step 0: Data Versioning (MS4) - ADD THESE LINES
+    if version_data:
+        version_info = run_data_versioning(config, version_tag="ms4_submission")
+    
+    # Step 1: Data Collection (EXISTING - no changes below this line)
     data = run_data_collection(config, force_refresh=force_refresh)
     
     # Step 2: Data Processing
     df_processed = run_data_processing(config, data)
     
-    # Step 3: Model Training (optional - skip if model already trained)
+    # Step 3: Model Training
     if not skip_training:
         model, scaler, metrics = run_model_training(config, df_processed)
     else:
-        logger.info("⏭️  Skipping model training (using existing model from W&B)")
+        logger.info("  Skipping model training (using existing model from W&B)")
     
     # Step 4: Prediction
     df_predict, top_stocks = run_prediction(config, df_processed)
@@ -161,17 +204,19 @@ def run_full_pipeline(force_refresh: bool = False, skip_training: bool = False):
     results = run_backtest(config, df_processed)
     
     logger.info("="*60)
-    logger.info("✅ FULL PIPELINE COMPLETE!")
+    logger.info(" FULL PIPELINE COMPLETE!")
     logger.info("="*60)
     
     return results
+
+
 
 
 def main():
     parser = argparse.ArgumentParser(description='Quantamental Model Pipeline')
     parser.add_argument(
         '--step',
-        choices=['all', 'collect', 'process', 'train', 'predict', 'backtest'],
+        choices=['all', 'collect', 'process', 'train', 'predict', 'backtest','version'],
         default='all',
         help='Which pipeline step to run (default: all)'
     )
@@ -186,6 +231,12 @@ def main():
         help='Skip model training (use existing model from W&B)'
     )
     
+    parser.add_argument(
+        '--version-data',
+        action='store_true',
+        default=True,
+        help='Create data version snapshot for MS4 (default: True)'
+    )
     args = parser.parse_args()
     
     config = load_config()
@@ -194,9 +245,13 @@ def main():
         if args.step == 'all':
             results = run_full_pipeline(
                 force_refresh=args.force_refresh,
-                skip_training=args.skip_training
+                skip_training=args.skip_training,
+                version_data=args.version_data 
             )
-            
+
+        elif args.step == 'version':
+            run_data_versioning(config, version_tag="ms4_submission")
+
         elif args.step == 'collect':
             run_data_collection(config, force_refresh=args.force_refresh)
             
@@ -212,10 +267,10 @@ def main():
         elif args.step == 'backtest':
             run_backtest(config)
         
-        logger.info("\n✅ Pipeline execution successful!")
+        logger.info("\n Pipeline execution successful!")
         
     except Exception as e:
-        logger.error(f"\n❌ Pipeline failed: {e}", exc_info=True)
+        logger.error(f"\n Pipeline failed: {e}", exc_info=True)
         raise
 
 

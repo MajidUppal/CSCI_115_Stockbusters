@@ -19,7 +19,7 @@ data:
 gcs:
   bucket_name: "fin-data-bucket-115"
   output_folder: "model_output"
-  # Service account key path (optional, will use default credentials if not set)
+  # Service account key path 
   credentials_path: "../../secrets/stock-busters-service-account.json"
 
 # W&B Configuration
