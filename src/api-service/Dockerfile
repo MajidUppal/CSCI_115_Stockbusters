@@ -40,8 +40,8 @@ COPY --chown=app:app pyproject.toml uv.lock* ./
 
 # Install dependencies in a separate layer for better caching
 # Install both main and dev dependencies (needed for CI tests: pytest, black, flake8)
-# Regenerate lock file if needed, then sync with dev dependencies
-RUN uv lock --extra dev && uv sync --frozen --extra dev
+# Sync with dev dependencies (will update lock file if needed, then install)
+RUN uv sync --extra dev
 
 # Copy the rest of the source code
 COPY --chown=app:app . ./
