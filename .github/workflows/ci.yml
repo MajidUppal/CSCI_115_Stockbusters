@@ -317,12 +317,6 @@ jobs:
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit'
         run: |
           mkdir -p ${{ matrix.coverage-path }}
-          # For api-service, ensure the directory is writable by the app user (UID 1000)
-          # Set permissions on the host directory so the app user in the container can write
-          if [ "${{ matrix.component }}" = "api-service" ]; then
-            # Make the directory world-writable so the app user (UID 1000) can write to it
-            chmod 777 ${{ matrix.coverage-path }}
-          fi
           
           # Run linting
           if [ "${{ matrix.component }}" = "rag" ]; then
@@ -335,8 +329,9 @@ jobs:
               pytest ${{ matrix.test-path }} --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
           else
             # Run linting - override entrypoint for api-service to prevent server from starting
+            # Run as root (like RAG) to avoid permission issues with mounted volumes
             if [ "${{ matrix.component }}" = "api-service" ]; then
-              docker run --rm --entrypoint="" --user app -w /app ${{ matrix.image-name }}:${{ github.sha }} \
+              docker run --rm --entrypoint="" --user root -w /app ${{ matrix.image-name }}:${{ github.sha }} \
                 /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m black --check . && python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && python -m flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
             else
               docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
@@ -345,8 +340,9 @@ jobs:
             # Run unit tests with coverage
             # For api-service, use --cov=api (source is in /app/api/), for others use --cov=.
             # For api-service, override entrypoint to prevent server from starting
+            # Run as root (like RAG) to avoid permission issues with mounted volumes
             if [ "${{ matrix.component }}" = "api-service" ]; then
-              docker run --rm --entrypoint="" --user app -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+              docker run --rm --entrypoint="" --user root -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
                 ${{ matrix.image-name }}:${{ github.sha }} \
                 /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
@@ -432,7 +428,8 @@ jobs:
               pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q
           elif [ "${{ matrix.component }}" = "api-service" ]; then
             # Override entrypoint to prevent server from starting
-            docker run --rm --entrypoint="" --user app -w /app \
+            # Run as root (like RAG) to avoid permission issues
+            docker run --rm --entrypoint="" --user root -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
               /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
           else
@@ -496,7 +493,8 @@ jobs:
               sleep 2
             done
             # Run tests
-            docker run --rm --network host --entrypoint="" --user app -w /app \
+            # Run as root (like RAG) to avoid permission issues
+            docker run --rm --network host --entrypoint="" --user root -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
               /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
             # Cleanup
