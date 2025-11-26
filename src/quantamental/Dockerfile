@@ -49,9 +49,12 @@ ENV PATH=/root/.local/bin:$PATH
 COPY __init__.py .
 COPY config.yaml .
 COPY pytest.ini .
+COPY coverage.ini .
 COPY utils.py .
 COPY data_collect.py .
 COPY data_process.py .
+COPY data_versioning.py .
+COPY hybrid_scoring.py .
 COPY model_train.py .
 COPY model_predict.py .
 COPY backtest.py .
