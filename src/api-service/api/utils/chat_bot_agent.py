@@ -13,12 +13,8 @@ class user_preference(BaseModel):
     high_risk: bool = Field(description="High risk appetite check.")
     low_risk: bool = Field(description="Low risk appetite check.")
     # sectors: list = Field(description="Preferred investment sectors.")
-    completed: bool = Field(
-        description="Indicates if all information has been collected."
-    )
-    confirmation: bool = Field(
-        description="Indicates if the user has confirmed the populated user preferences"
-    )
+    completed: bool = Field(description="Indicates if all information has been collected.")
+    confirmation: bool = Field(description="Indicates if the user has confirmed the populated user preferences")
 
 
 class ChatAgentState(TypedDict):
@@ -51,9 +47,7 @@ class ChatAgent:
         """Validate and extract structured output from LLM response"""
         last_message = state["messages"][-1]
         # print(dir(state))
-        validate_resp = self.model.with_structured_output(user_preference).invoke(
-            [last_message]
-        )
+        validate_resp = self.model.with_structured_output(user_preference).invoke([last_message])
         val_dict = validate_resp.model_dump()
 
         if val_dict.get("completed"):

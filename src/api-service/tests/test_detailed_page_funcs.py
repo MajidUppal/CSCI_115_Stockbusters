@@ -128,24 +128,16 @@ class TestGetStocksData:
 class TestUserPrefStockSelection:
     """Tests for user_pref_stock_selection function."""
 
-    def test_long_term_low_risk_selection(
-        self, sample_quant_data, user_preferences_long_term
-    ):
+    def test_long_term_low_risk_selection(self, sample_quant_data, user_preferences_long_term):
         """Test stock selection for long-term, low-risk preferences."""
-        result = user_pref_stock_selection(
-            sample_quant_data, user_preferences_long_term
-        )
+        result = user_pref_stock_selection(sample_quant_data, user_preferences_long_term)
         assert "symbol" in result
         symbols = result["symbol"]
         assert isinstance(symbols, list)
 
-    def test_short_term_high_risk_selection(
-        self, sample_quant_data, user_preferences_short_term
-    ):
+    def test_short_term_high_risk_selection(self, sample_quant_data, user_preferences_short_term):
         """Test stock selection for short-term, high-risk preferences."""
-        result = user_pref_stock_selection(
-            sample_quant_data, user_preferences_short_term
-        )
+        result = user_pref_stock_selection(sample_quant_data, user_preferences_short_term)
         assert "symbol" in result
 
     def test_balanced_selection(self, sample_quant_data, user_preferences_balanced):
@@ -188,20 +180,14 @@ class TestUserPrefStockSelection:
         if result["symbol"]:
             assert "TSLA" not in result["symbol"]
 
-    def test_returns_required_columns(
-        self, sample_quant_data, user_preferences_long_term
-    ):
+    def test_returns_required_columns(self, sample_quant_data, user_preferences_long_term):
         """Test that all required columns are returned."""
-        result = user_pref_stock_selection(
-            sample_quant_data, user_preferences_long_term
-        )
+        result = user_pref_stock_selection(sample_quant_data, user_preferences_long_term)
         required_columns = ["symbol", "Hybrid_Score", "volatility_21d"]
         for col in required_columns:
             assert col in result
 
-    def test_results_sorted_by_score(
-        self, sample_quant_data, user_preferences_balanced
-    ):
+    def test_results_sorted_by_score(self, sample_quant_data, user_preferences_balanced):
         """Test that results are sorted by score descending."""
         result = user_pref_stock_selection(sample_quant_data, user_preferences_balanced)
         if len(result["Hybrid_Score"]) > 1:

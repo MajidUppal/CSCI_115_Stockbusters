@@ -83,9 +83,7 @@ class TestSystemChatWorkflow:
 
     def test_start_new_chat(self):
         """Test starting a new chat conversation."""
-        response = self.client.post(
-            "/gemini/chats", json={"message": "My name is Test User"}
-        )
+        response = self.client.post("/gemini/chats", json={"message": "My name is Test User"})
 
         assert response.status_code == 200
         data = response.json()
@@ -96,9 +94,7 @@ class TestSystemChatWorkflow:
     def test_complete_chat_workflow(self):
         """Test complete chat workflow from start to preferences."""
         # Start chat
-        start_response = self.client.post(
-            "/gemini/chats", json={"message": "My name is Integration Test"}
-        )
+        start_response = self.client.post("/gemini/chats", json={"message": "My name is Integration Test"})
         assert start_response.status_code == 200
         chat_id = start_response.json()["chat_id"]
 
@@ -110,17 +106,13 @@ class TestSystemChatWorkflow:
         assert response.status_code == 200
 
         # Continue with risk appetite
-        response = self.client.post(
-            f"/gemini/chats/{chat_id}", json={"message": "I have low risk appetite"}
-        )
+        response = self.client.post(f"/gemini/chats/{chat_id}", json={"message": "I have low risk appetite"})
         assert response.status_code == 200
 
     def test_get_chat_history(self):
         """Test retrieving chat history."""
         # Start a chat first
-        start_response = self.client.post(
-            "/gemini/chats", json={"message": "Hello, testing history"}
-        )
+        start_response = self.client.post("/gemini/chats", json={"message": "Hello, testing history"})
         chat_id = start_response.json()["chat_id"]
 
         # Get chat history

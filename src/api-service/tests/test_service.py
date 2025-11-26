@@ -14,17 +14,14 @@ class TestServiceEndpoints:
     @pytest.fixture(autouse=True)
     def setup_client(self):
         """Set up test client with mocked dependencies."""
-        with patch("api.utils.get_gcs_bucket.storage") as mock_storage, patch(
-            "api.utils.get_gcs_bucket.get_gcs_data"
-        ) as mock_gcs, patch(
-            "api.routers.chatbot_final.service_account"
-        ) as mock_sa, patch(
-            "api.routers.chatbot_final.ChatVertexAI"
-        ) as mock_llm, patch(
-            "api.routers.chatbot_final.ChatAgent"
-        ) as mock_agent, patch(
-            "api.routers.stock_details.get_gcs_data"
-        ) as mock_gcs_details:
+        with (
+            patch("api.utils.get_gcs_bucket.storage") as mock_storage,
+            patch("api.utils.get_gcs_bucket.get_gcs_data") as mock_gcs,
+            patch("api.routers.chatbot_final.service_account") as mock_sa,
+            patch("api.routers.chatbot_final.ChatVertexAI") as mock_llm,
+            patch("api.routers.chatbot_final.ChatAgent") as mock_agent,
+            patch("api.routers.stock_details.get_gcs_data") as mock_gcs_details,
+        ):
 
             mock_gcs.return_value = MagicMock()
             mock_gcs_details.return_value = MagicMock()

@@ -43,9 +43,7 @@ class TestGetGcsData:
         with patch("api.utils.get_gcs_bucket.storage_client", mock_client):
             from api.utils.get_gcs_bucket import get_gcs_data
 
-            result = get_gcs_data(
-                "test.parquet", file_type="parquet", storage_client=mock_client
-            )
+            result = get_gcs_data("test.parquet", file_type="parquet", storage_client=mock_client)
 
             assert result is not None
             assert len(result) == 2
@@ -78,9 +76,7 @@ class TestGetGcsData:
         with patch("api.utils.get_gcs_bucket.storage_client", mock_client):
             from api.utils.get_gcs_bucket import get_gcs_data
 
-            get_gcs_data(
-                "test.csv", storage_client=mock_client, bucket_name="test-bucket"
-            )
+            get_gcs_data("test.csv", storage_client=mock_client, bucket_name="test-bucket")
 
             mock_client.bucket.assert_called_with("test-bucket")
 

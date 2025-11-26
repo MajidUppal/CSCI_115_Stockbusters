@@ -147,9 +147,7 @@ class TestChatAgent:
         """Test ChatAgent with empty system prompt."""
         from api.utils.chat_bot_agent import ChatAgent
 
-        agent = ChatAgent(
-            model=mock_model, tools=[], checkpointer=mock_checkpointer, system=""
-        )
+        agent = ChatAgent(model=mock_model, tools=[], checkpointer=mock_checkpointer, system="")
 
         assert agent.system == ""
 
@@ -208,9 +206,7 @@ class TestChatAgent:
         """Test validate_llm returns empty user_pref when not completed."""
         from api.utils.chat_bot_agent import ChatAgent
 
-        agent = ChatAgent(
-            model=mock_model, tools=[], checkpointer=mock_checkpointer, system="Test"
-        )
+        agent = ChatAgent(model=mock_model, tools=[], checkpointer=mock_checkpointer, system="Test")
 
         state = {"messages": [MagicMock(content="Test message")], "user_pref": {}}
         result = agent.validate_llm(state)
@@ -232,9 +228,7 @@ class TestChatAgent:
             }
         )
 
-        agent = ChatAgent(
-            model=mock_model, tools=[], checkpointer=mock_checkpointer, system="Test"
-        )
+        agent = ChatAgent(model=mock_model, tools=[], checkpointer=mock_checkpointer, system="Test")
 
         state = {"messages": [MagicMock(content="Test message")], "user_pref": {}}
         result = agent.validate_llm(state)

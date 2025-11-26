@@ -53,9 +53,7 @@ memory = MemorySaver()
 # memory = SqliteSaver(conn_string=":memory:")
 
 load_dotenv(override=True)
-credentials = service_account.Credentials.from_service_account_file(
-    "../secrets/stock-busters-service-account.json"
-)
+credentials = service_account.Credentials.from_service_account_file("../secrets/stock-busters-service-account.json")
 llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
 
 
@@ -91,9 +89,7 @@ abot = ChatAgent(llm, [], system=system_prompt, checkpointer=memory)
 
 
 @router.get("/chats")
-async def get_chats(
-    x_session_id: str = Header(None, alias="X-Session-ID"), limit: Optional[int] = None
-):
+async def get_chats(x_session_id: str = Header(None, alias="X-Session-ID"), limit: Optional[int] = None):
     config = {"configurable": {"thread_id": x_session_id}}
     history = []
     welcome_message = "Welcome to Stock busters. I'm your AI assistant, and I'm here to help you gather your financial requirements. To start, may I please know your name?"
@@ -104,9 +100,7 @@ async def get_chats(
     while user_input.lower() != "quit":
         user_input = input("\n")
         # response = chat(user_input, history)
-        response = abot.graph.invoke(
-            {"messages": [{"role": "user", "content": user_input}]}, config=config
-        )
+        response = abot.graph.invoke({"messages": [{"role": "user", "content": user_input}]}, config=config)
         print(response["messages"][-1].content)
         print("\n")
         # print(f"{response}")

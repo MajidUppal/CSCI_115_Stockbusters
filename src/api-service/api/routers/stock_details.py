@@ -33,6 +33,7 @@ df_stocks = get_gcs_data(file_stocks, file_type="parquet")
 # If dataframes are None (credentials missing), create empty dataframes to prevent errors
 # These will be replaced by mocks in tests
 import pandas as pd
+
 if df_quant_model is None:
     df_quant_model = pd.DataFrame()
 if df_company_profile is None:
@@ -79,9 +80,7 @@ async def generate_report(
         print(f"User preferences - Long term: {long_term}, Short term: {short_term}")
 
         # Get stock recommendations
-        raw_recommendations = user_pref_stock_selection(
-            df_quant_model, user_preferences
-        )
+        raw_recommendations = user_pref_stock_selection(df_quant_model, user_preferences)
         print("user_preferences = ", user_preferences)
         stock_symbols = raw_recommendations.get("symbol", [])
         print(raw_recommendations["symbol"])
@@ -99,40 +98,26 @@ async def generate_report(
 
                 # Determine AI Score based on user preference
                 if (short_term & long_term) or ((not short_term) & (not long_term)):
-                    ai_score = (
-                        float(stock_info.get("Hybrid_Score", 0))
-                        if pd.notna(stock_info.get("Hybrid_Score"))
-                        else 0.0
-                    )
+                    ai_score = float(stock_info.get("Hybrid_Score", 0)) if pd.notna(stock_info.get("Hybrid_Score")) else 0.0
 
                 elif short_term:
                     # Use Technical_Score for short-term
                     ai_score = (
-                        float(stock_info.get("Technical_Score", 0))
-                        if pd.notna(stock_info.get("Technical_Score"))
-                        else 0.0
+                        float(stock_info.get("Technical_Score", 0)) if pd.notna(stock_info.get("Technical_Score")) else 0.0
                     )
                 elif long_term:
                     # Use Fundamental_Score for long-term
                     ai_score = (
-                        float(stock_info.get("Fundamental_Score", 0))
-                        if pd.notna(stock_info.get("Fundamental_Score"))
-                        else 0.0
+                        float(stock_info.get("Fundamental_Score", 0)) if pd.notna(stock_info.get("Fundamental_Score")) else 0.0
                     )
                 else:
                     # Use Hybrid_Score as default
-                    ai_score = (
-                        float(stock_info.get("Hybrid_Score", 0))
-                        if pd.notna(stock_info.get("Hybrid_Score"))
-                        else 0.0
-                    )
+                    ai_score = float(stock_info.get("Hybrid_Score", 0)) if pd.notna(stock_info.get("Hybrid_Score")) else 0.0
 
                 recommendations.append(
                     {
                         "symbol": symbol,
-                        "sector": stock_info.get(
-                            "sector", stock_info.get("Sector", "N/A")
-                        ),
+                        "sector": stock_info.get("sector", stock_info.get("Sector", "N/A")),
                         # "signal": stock_info.get('signal', stock_info.get('Signal', 'NEUTRAL')),
                         "signal": stock_info.get("H_Score Recommendation"),
                         "ai_score": ai_score,  # Changed from ai_rank to ai_score
@@ -153,22 +138,12 @@ async def generate_report(
                         ),
                         "cagr": (
                             float(stock_info.get("cagr", stock_info.get("CAGR", 0)))
-                            if pd.notna(
-                                stock_info.get("cagr", stock_info.get("CAGR", 0))
-                            )
+                            if pd.notna(stock_info.get("cagr", stock_info.get("CAGR", 0)))
                             else 0.0
                         ),
                         "max_drawdown": (
-                            float(
-                                stock_info.get(
-                                    "max_drawdown", stock_info.get("Max_Drawdown", 0)
-                                )
-                            )
-                            if pd.notna(
-                                stock_info.get(
-                                    "max_drawdown", stock_info.get("Max_Drawdown", 0)
-                                )
-                            )
+                            float(stock_info.get("max_drawdown", stock_info.get("Max_Drawdown", 0)))
+                            if pd.notna(stock_info.get("max_drawdown", stock_info.get("Max_Drawdown", 0)))
                             else 0.0
                         ),
                     }
@@ -177,9 +152,7 @@ async def generate_report(
         # Sort by ai_score in descending order (highest scores first)
         recommendations.sort(key=lambda x: x["ai_score"], reverse=True)
 
-        print(
-            f"Sample recommendation (sorted): {recommendations[0] if recommendations else 'None'}"
-        )
+        print(f"Sample recommendation (sorted): {recommendations[0] if recommendations else 'None'}")
 
         # Create report
         report_data = {
@@ -191,14 +164,8 @@ async def generate_report(
             "recommendations": recommendations,
             "summary": {
                 "total_recommendations": len(recommendations),
-                "investment_horizon": (
-                    "Long-term"
-                    if long_term
-                    else "Short-term" if short_term else "Balanced"
-                ),
-                "risk_profile": (
-                    "High Risk" if user_preferences.get("high_risk") else "Low Risk"
-                ),
+                "investment_horizon": ("Long-term" if long_term else "Short-term" if short_term else "Balanced"),
+                "risk_profile": ("High Risk" if user_preferences.get("high_risk") else "Low Risk"),
                 "sectors": user_preferences.get("sectors", []),
             },
         }
@@ -218,13 +185,9 @@ async def generate_report(
 
 
 @router.get("/{model}/reports")
-async def get_reports(
-    model: str, limit: int = 20, x_session_id: str = Header(None, alias="X-Session-ID")
-):
+async def get_reports(model: str, limit: int = 20, x_session_id: str = Header(None, alias="X-Session-ID")):
     session_reports = reports_storage.get(x_session_id, [])
-    sorted_reports = sorted(
-        session_reports, key=lambda x: x.get("generated_at", ""), reverse=True
-    )[:limit]
+    sorted_reports = sorted(session_reports, key=lambda x: x.get("generated_at", ""), reverse=True)[:limit]
     return sorted_reports
 
 
