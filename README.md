@@ -202,10 +202,10 @@ PORT=3000
 - Responsive design with Tailwind CSS
 - Accessible UI components from shadcn/ui
 
----
 
 **Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](frontend/README.md) for more details
 
+---
 
 ### Continuous Integration and Testing
 
