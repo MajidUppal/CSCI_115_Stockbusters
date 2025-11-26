@@ -300,6 +300,36 @@ jobs:
               ${{ matrix.image-name }}:${{ github.sha }} \
               pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
           fi
+          
+          # Verify coverage files were generated
+          echo "🔍 Verifying coverage files were generated..."
+          if [ ! -f "${{ matrix.coverage-path }}/coverage.xml" ]; then
+            echo "❌ ERROR: Coverage XML file not found at ${{ matrix.coverage-path }}/coverage.xml"
+            echo "Directory contents:"
+            ls -la "${{ matrix.coverage-path }}" || echo "Directory does not exist"
+            exit 1
+          fi
+          
+          # Verify XML file is valid and not empty
+          if [ ! -s "${{ matrix.coverage-path }}/coverage.xml" ]; then
+            echo "❌ ERROR: Coverage XML file is empty at ${{ matrix.coverage-path }}/coverage.xml"
+            exit 1
+          fi
+          
+          # Verify XML file is well-formed
+          if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('${{ matrix.coverage-path }}/coverage.xml')" 2>/dev/null; then
+            echo "❌ ERROR: Coverage XML file is malformed at ${{ matrix.coverage-path }}/coverage.xml"
+            exit 1
+          fi
+          
+          echo "✅ Coverage XML file verified: ${{ matrix.coverage-path }}/coverage.xml"
+          
+          # Verify HTML coverage directory exists (optional, but log if missing)
+          if [ ! -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+            echo "⚠️  WARNING: HTML coverage directory not found at ${{ matrix.coverage-path }}/htmlcov"
+          else
+            echo "✅ HTML coverage directory verified: ${{ matrix.coverage-path }}/htmlcov"
+          fi
         env:
           CHROMADB_HOST: localhost
           CHROMADB_PORT: "8000"
@@ -470,30 +500,61 @@ jobs:
       - name: Commit coverage files (for test-summary job)
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit' && always() && (github.event_name == 'push' || github.event_name == 'pull_request')
         run: |
-          # Only commit if coverage file exists
-          if [ -f "${{ matrix.coverage-path }}/coverage.xml" ]; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            
-            # Checkout with write permissions
-            git config --local --add safe.directory ${{ github.workspace }}
-            
-            # Add coverage files
-            git add ${{ matrix.coverage-path }}/coverage.xml || true
-            if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
-              git add ${{ matrix.coverage-path }}/htmlcov || true
+          # Verify coverage file exists before attempting to commit
+          if [ ! -f "${{ matrix.coverage-path }}/coverage.xml" ]; then
+            echo "❌ ERROR: Coverage file not found at ${{ matrix.coverage-path }}/coverage.xml"
+            echo "Cannot commit coverage files. This will cause test-summary job to fail."
+            exit 1
+          fi
+          
+          # Verify file is not empty
+          if [ ! -s "${{ matrix.coverage-path }}/coverage.xml" ]; then
+            echo "❌ ERROR: Coverage file is empty at ${{ matrix.coverage-path }}/coverage.xml"
+            exit 1
+          fi
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Checkout with write permissions
+          git config --local --add safe.directory ${{ github.workspace }}
+          
+          # Add coverage files and verify they were added
+          if ! git add "${{ matrix.coverage-path }}/coverage.xml"; then
+            echo "❌ ERROR: Failed to add coverage.xml to git"
+            exit 1
+          fi
+          
+          if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+            if ! git add "${{ matrix.coverage-path }}/htmlcov"; then
+              echo "❌ ERROR: Failed to add htmlcov directory to git"
+              exit 1
             fi
-            
-            # Commit if there are changes
-            if [ -n "$(git status --porcelain ${{ matrix.coverage-path }}/)" ]; then
-              git commit -m "Update ${{ matrix.component }} coverage report [skip ci]" || exit 0
-              git push || echo "⚠️ Failed to push coverage files"
-              echo "✅ Coverage files committed for ${{ matrix.component }}"
-            else
-              echo "ℹ️ No coverage changes to commit for ${{ matrix.component }}"
-            fi
+          fi
+          
+          # Verify files are staged
+          if [ -z "$(git status --porcelain ${{ matrix.coverage-path }}/)" ]; then
+            echo "ℹ️ No coverage changes to commit for ${{ matrix.component }} (files may already be committed)"
           else
-            echo "⚠️ Coverage file not found at ${{ matrix.coverage-path }}/coverage.xml"
+            # Commit and verify success
+            if ! git commit -m "Update ${{ matrix.component }} coverage report [skip ci]"; then
+              echo "❌ ERROR: Failed to commit coverage files for ${{ matrix.component }}"
+              exit 1
+            fi
+            
+            # Push and verify success
+            if ! git push; then
+              echo "❌ ERROR: Failed to push coverage files for ${{ matrix.component }}"
+              echo "This will cause test-summary job to fail to find coverage files."
+              exit 1
+            fi
+            
+            echo "✅ Coverage files committed and pushed successfully for ${{ matrix.component }}"
+            
+            # Verify the commit was successful by checking git log
+            if ! git log -1 --oneline | grep -q "Update ${{ matrix.component }} coverage report"; then
+              echo "⚠️  WARNING: Commit message not found in git log, but commit appeared to succeed"
+            fi
           fi
 
   # Test Summary and Coverage Commit
@@ -557,45 +618,112 @@ jobs:
               # Both components have coverage - combine them
               echo "Combining RAG and Quantamental coverage..."
               
+              # Verify both files are readable before combining
+              if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('src/rag/coverage/coverage.xml')" 2>/dev/null; then
+                echo "❌ ERROR: RAG coverage.xml is malformed or unreadable"
+                exit 1
+              fi
+              
+              if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('src/quantamental/coverage/coverage.xml')" 2>/dev/null; then
+                echo "❌ ERROR: Quantamental coverage.xml is malformed or unreadable"
+                exit 1
+              fi
+              
               # Install coverage tool if not available
               pip install coverage --quiet || true
               
               # Combine coverage using Python (simplified approach - calculate percentages only)
-              python3 -c 'import xml.etree.ElementTree as ET; import time; rag=ET.parse("src/rag/coverage/coverage.xml").getroot(); quant=ET.parse("src/quantamental/coverage/coverage.xml").getroot(); rlc=int(rag.get("lines-covered",0)); rlv=int(rag.get("lines-valid",0)); rbc=int(rag.get("branches-covered",0)); rbv=int(rag.get("branches-valid",0)); qlc=int(quant.get("lines-covered",0)); qlv=int(quant.get("lines-valid",0)); qbc=int(quant.get("branches-covered",0)); qbv=int(quant.get("branches-valid",0)); tlc=rlc+qlc; tlv=rlv+qlv; tbc=rbc+qbc; tbv=rbv+qbv; clr=tlc/tlv if tlv>0 else 0.0; cbr=tbc/tbv if tbv>0 else 0.0; root=ET.Element("coverage"); root.set("version",rag.get("version","1.0")); root.set("line-rate",str(clr)); root.set("branch-rate",str(cbr)); root.set("lines-covered",str(tlc)); root.set("lines-valid",str(tlv)); root.set("branches-covered",str(tbc)); root.set("branches-valid",str(tbv)); root.set("timestamp",str(int(time.time()*1000))); src=ET.SubElement(root,"sources"); ET.SubElement(src,"source").text="src/rag"; ET.SubElement(src,"source").text="src/quantamental"; pkg=ET.SubElement(root,"packages"); rp=rag.find("packages"); [pkg.append(ET.Element("package",{"name":"rag/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (rp.findall("package") if rp is not None else [])]; qp=quant.find("packages"); [pkg.append(ET.Element("package",{"name":"quantamental/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (qp.findall("package") if qp is not None else [])]; ET.ElementTree(root).write("coverage/coverage.xml",encoding="utf-8",xml_declaration=True); print("✅ Combined coverage: {:.1f}% (lines), {:.1f}% (branches)".format(clr*100,cbr*100))'
+              if ! python3 -c 'import xml.etree.ElementTree as ET; import time; rag=ET.parse("src/rag/coverage/coverage.xml").getroot(); quant=ET.parse("src/quantamental/coverage/coverage.xml").getroot(); rlc=int(rag.get("lines-covered",0)); rlv=int(rag.get("lines-valid",0)); rbc=int(rag.get("branches-covered",0)); rbv=int(rag.get("branches-valid",0)); qlc=int(quant.get("lines-covered",0)); qlv=int(quant.get("lines-valid",0)); qbc=int(quant.get("branches-covered",0)); qbv=int(quant.get("branches-valid",0)); tlc=rlc+qlc; tlv=rlv+qlv; tbc=rbc+qbc; tbv=rbv+qbv; clr=tlc/tlv if tlv>0 else 0.0; cbr=tbc/tbv if tbv>0 else 0.0; root=ET.Element("coverage"); root.set("version",rag.get("version","1.0")); root.set("line-rate",str(clr)); root.set("branch-rate",str(cbr)); root.set("lines-covered",str(tlc)); root.set("lines-valid",str(tlv)); root.set("branches-covered",str(tbc)); root.set("branches-valid",str(tbv)); root.set("timestamp",str(int(time.time()*1000))); src=ET.SubElement(root,"sources"); ET.SubElement(src,"source").text="src/rag"; ET.SubElement(src,"source").text="src/quantamental"; pkg=ET.SubElement(root,"packages"); rp=rag.find("packages"); [pkg.append(ET.Element("package",{"name":"rag/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (rp.findall("package") if rp is not None else [])]; qp=quant.find("packages"); [pkg.append(ET.Element("package",{"name":"quantamental/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (qp.findall("package") if qp is not None else [])]; ET.ElementTree(root).write("coverage/coverage.xml",encoding="utf-8",xml_declaration=True); print("✅ Combined coverage: {:.1f}% (lines), {:.1f}% (branches)".format(clr*100,cbr*100))'; then
+                echo "❌ ERROR: Failed to combine coverage reports"
+                exit 1
+              fi
               
             elif [ "$HAS_RAG" = true ]; then
               # Only RAG coverage
-              cp src/rag/coverage/coverage.xml coverage/coverage.xml
+              if ! cp src/rag/coverage/coverage.xml coverage/coverage.xml; then
+                echo "❌ ERROR: Failed to copy RAG coverage.xml"
+                exit 1
+              fi
               echo "✅ Using RAG coverage only"
             elif [ "$HAS_QUANT" = true ]; then
               # Only Quantamental coverage
-              cp src/quantamental/coverage/coverage.xml coverage/coverage.xml
+              if ! cp src/quantamental/coverage/coverage.xml coverage/coverage.xml; then
+                echo "❌ ERROR: Failed to copy Quantamental coverage.xml"
+                exit 1
+              fi
               echo "✅ Using Quantamental coverage only"
             fi
+            
+            # Verify unified coverage file was created
+            if [ ! -f "coverage/coverage.xml" ]; then
+              echo "❌ ERROR: Unified coverage.xml was not created"
+              exit 1
+            fi
+            
+            if [ ! -s "coverage/coverage.xml" ]; then
+              echo "❌ ERROR: Unified coverage.xml is empty"
+              exit 1
+            fi
+            
+            # Verify unified XML is well-formed
+            if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('coverage/coverage.xml')" 2>/dev/null; then
+              echo "❌ ERROR: Unified coverage.xml is malformed"
+              exit 1
+            fi
+            
+            echo "✅ Unified coverage.xml verified"
             
             # Copy HTML coverage reports (combine if both exist)
             if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
               # Copy both HTML reports to separate subdirectories
               if [ -d "src/rag/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag
+                if ! cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag; then
+                  echo "❌ ERROR: Failed to copy RAG HTML coverage"
+                  exit 1
+                fi
+                if [ ! -d "coverage/htmlcov_rag" ]; then
+                  echo "❌ ERROR: RAG HTML coverage directory was not created"
+                  exit 1
+                fi
                 echo "✅ Copied RAG HTML coverage"
               fi
               if [ -d "src/quantamental/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental
+                if ! cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental; then
+                  echo "❌ ERROR: Failed to copy Quantamental HTML coverage"
+                  exit 1
+                fi
+                if [ ! -d "coverage/htmlcov_quantamental" ]; then
+                  echo "❌ ERROR: Quantamental HTML coverage directory was not created"
+                  exit 1
+                fi
                 echo "✅ Copied Quantamental HTML coverage"
               fi
             elif [ "$HAS_RAG" = true ]; then
               if [ -d "src/rag/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-                cp -r src/rag/coverage/htmlcov coverage/htmlcov
+                if ! cp -r src/rag/coverage/htmlcov coverage/htmlcov; then
+                  echo "❌ ERROR: Failed to copy RAG HTML coverage"
+                  exit 1
+                fi
+                if [ ! -d "coverage/htmlcov" ]; then
+                  echo "❌ ERROR: HTML coverage directory was not created"
+                  exit 1
+                fi
                 echo "✅ Copied RAG HTML coverage"
               fi
             elif [ "$HAS_QUANT" = true ]; then
               if [ -d "src/quantamental/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov
+                if ! cp -r src/quantamental/coverage/htmlcov coverage/htmlcov; then
+                  echo "❌ ERROR: Failed to copy Quantamental HTML coverage"
+                  exit 1
+                fi
+                if [ ! -d "coverage/htmlcov" ]; then
+                  echo "❌ ERROR: HTML coverage directory was not created"
+                  exit 1
+                fi
                 echo "✅ Copied Quantamental HTML coverage"
               fi
             fi
@@ -605,20 +733,58 @@ jobs:
             echo "ℹ️ No coverage files found to combine"
           fi
           
+          # Verify unified coverage file exists before committing
+          if [ ! -f "coverage/coverage.xml" ]; then
+            echo "❌ ERROR: Unified coverage.xml does not exist. Cannot commit."
+            exit 1
+          fi
+          
           # Commit if there are changes
           if [ -n "$(git status --porcelain coverage/)" ]; then
-            git add coverage/
-            git commit -m "Update unified coverage report [skip ci]" || exit 0
-            git push || echo "⚠️ Failed to push coverage files"
-            echo "✅ Unified coverage report committed"
+            if ! git add coverage/; then
+              echo "❌ ERROR: Failed to add coverage files to git"
+              exit 1
+            fi
+            
+            if ! git commit -m "Update unified coverage report [skip ci]"; then
+              echo "❌ ERROR: Failed to commit unified coverage report"
+              exit 1
+            fi
+            
+            if ! git push; then
+              echo "❌ ERROR: Failed to push unified coverage report"
+              exit 1
+            fi
+            
+            echo "✅ Unified coverage report committed and pushed successfully"
+            
+            # Verify the commit was successful
+            if ! git log -1 --oneline | grep -q "Update unified coverage report"; then
+              echo "⚠️  WARNING: Commit message not found in git log, but commit appeared to succeed"
+            fi
           else
-            echo "ℹ️ No coverage changes to commit"
+            echo "ℹ️ No coverage changes to commit (files may already be up to date)"
+          fi
+          
+          # Final verification: ensure unified file still exists after commit
+          if [ ! -f "coverage/coverage.xml" ]; then
+            echo "❌ ERROR: Unified coverage.xml disappeared after commit"
+            exit 1
           fi
 
       - name: Extract coverage from files
         id: extract-coverage
         if: always()
         run: |
+          # Verify at least one coverage file exists
+          if [ ! -f "src/rag/coverage/coverage.xml" ] && [ ! -f "src/quantamental/coverage/coverage.xml" ] && [ ! -f "coverage/coverage.xml" ]; then
+            echo "❌ ERROR: No coverage files found to extract from"
+            echo "  Checked: src/rag/coverage/coverage.xml"
+            echo "  Checked: src/quantamental/coverage/coverage.xml"
+            echo "  Checked: coverage/coverage.xml"
+            exit 1
+          fi
+          
           # Write Python script to file to avoid YAML parsing issues
           cat > /tmp/extract_coverage.py << 'SCRIPT_END'
           import xml.etree.ElementTree as ET
@@ -701,9 +867,21 @@ jobs:
           SCRIPT_END
           
           # Execute Python script and read outputs
-          python3 /tmp/extract_coverage.py | while IFS='=' read -r key value; do
+          if ! python3 /tmp/extract_coverage.py | while IFS='=' read -r key value; do
             echo "${key}=${value}" >> $GITHUB_OUTPUT
-          done
+          done; then
+            echo "❌ ERROR: Failed to execute coverage extraction script"
+            exit 1
+          fi
+          
+          # Verify outputs were set
+          if [ -z "$(grep '^rag_coverage=' $GITHUB_OUTPUT 2>/dev/null)" ] && [ -z "$(grep '^quant_coverage=' $GITHUB_OUTPUT 2>/dev/null)" ]; then
+            echo "❌ ERROR: No coverage data was extracted (both RAG and Quantamental are N/A)"
+            echo "This indicates a problem with coverage file generation or reading."
+            exit 1
+          fi
+          
+          echo "✅ Coverage extraction completed successfully"
 
       - name: Calculate combined coverage from job outputs
         id: combined-coverage
@@ -721,6 +899,10 @@ jobs:
           
           # Try to read from individual coverage files (they may exist from previous runs or be committed)
           if [ -f "src/rag/coverage/coverage.xml" ]; then
+            if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('src/rag/coverage/coverage.xml')" 2>/dev/null; then
+              echo "❌ ERROR: RAG coverage.xml is malformed or unreadable"
+              exit 1
+            fi
             cat > /tmp/extract_rag_coverage.py << SCRIPT_END
           import xml.etree.ElementTree as ET
           tree = ET.parse('src/rag/coverage/coverage.xml')
@@ -728,10 +910,17 @@ jobs:
           print(f"RAG_LINES_COV={int(root.get('lines-covered', 0))}")
           print(f"RAG_LINES_TOT={int(root.get('lines-valid', 0))}")
           SCRIPT_END
-            eval $(python3 /tmp/extract_rag_coverage.py)
+            if ! eval $(python3 /tmp/extract_rag_coverage.py); then
+              echo "❌ ERROR: Failed to extract RAG coverage data"
+              exit 1
+            fi
           fi
           
           if [ -f "src/quantamental/coverage/coverage.xml" ]; then
+            if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('src/quantamental/coverage/coverage.xml')" 2>/dev/null; then
+              echo "❌ ERROR: Quantamental coverage.xml is malformed or unreadable"
+              exit 1
+            fi
             cat > /tmp/extract_quant_coverage.py << SCRIPT_END
           import xml.etree.ElementTree as ET
           tree = ET.parse('src/quantamental/coverage/coverage.xml')
@@ -739,7 +928,10 @@ jobs:
           print(f"QUANT_LINES_COV={int(root.get('lines-covered', 0))}")
           print(f"QUANT_LINES_TOT={int(root.get('lines-valid', 0))}")
           SCRIPT_END
-            eval $(python3 /tmp/extract_quant_coverage.py)
+            if ! eval $(python3 /tmp/extract_quant_coverage.py); then
+              echo "❌ ERROR: Failed to extract Quantamental coverage data"
+              exit 1
+            fi
           fi
           
           # If we have data from both, calculate combined
@@ -776,10 +968,23 @@ jobs:
             echo "unified_branch=0" >> $GITHUB_OUTPUT
           fi
           
+          # Verify outputs were set
+          if [ -z "${COMBINED_COV}" ] || [ -z "${COMBINED_COV_PCT}" ]; then
+            echo "❌ ERROR: Failed to calculate combined coverage"
+            exit 1
+          fi
+          
+          # Verify coverage percentage is a valid number
+          if ! echo "${COMBINED_COV_PCT}" | grep -qE '^[0-9]+\.?[0-9]*$'; then
+            echo "❌ ERROR: Invalid combined coverage percentage: ${COMBINED_COV_PCT}"
+            exit 1
+          fi
+          
           echo "📊 Combined Coverage Calculation:"
           echo "  RAG: ${RAG_LINES_COV}/${RAG_LINES_TOT} lines"
           echo "  Quantamental: ${QUANT_LINES_COV}/${QUANT_LINES_TOT} lines"
           echo "  Combined: ${TOTAL_LINES_COV}/${TOTAL_LINES_TOT} = ${COMBINED_COV}%"
+          echo "✅ Combined coverage calculation completed successfully"
 
       - name: Check combined coverage threshold
         if: always() && steps.unified-coverage.outputs.unified_coverage_pct != '0.0'
