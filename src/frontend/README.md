@@ -34,8 +34,8 @@ frontend/
 │   │   └── ToggleSwitch.jsx        # Toggle switch component
 │   ├── stock-detail/
 │   │   ├── page.jsx                # Stock detail page
-│   │   ├── StockPriceChart.jsx     # Candlestick price chart component
-│   │   └── StockVolumeChart.jsx    # Volume bar chart component
+│   │   ├── StockPriceChart.jsx     # Candlestick price chart component under'stock' folder in component
+│   │   └── StockVolumeChart.jsx    # Volume bar chart component  under 'stock' folder in component
 │   ├── ui/
 │   │   └── MarketNewsCard.jsx      # Market news card component
 │   ├── globals.css                 # Global styles
