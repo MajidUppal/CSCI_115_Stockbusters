@@ -281,7 +281,6 @@ jobs:
           CHROMADB_HOST: localhost
           CHROMADB_PORT: "8000"
           VECTOR_COLLECTION: test_collection
-          GCS_BUCKET_NAME: ""
           EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
           ENABLE_CACHE: "0"
           AUTO_START_CHROMADB: "0"
