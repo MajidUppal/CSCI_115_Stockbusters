@@ -181,6 +181,25 @@ The technical architecture for Stockbusters is shown below. For details refer to
 
 ### APIs and Frontend Implementation ###  
 
+# API Web Server
+
+The application is built using Python/FastAPI and is configured for containerization via Docker.
+
+It utilizes Google Cloud Storage (GCS) to retrieve three critical data files: Quant model scores, company profiles, and historical stock prices.
+
+Development uses uv for dependency management.
+
+Webserver is deplyed using Uvicorn.
+
+The project maintains code quality and stability via a GitHub Actions CI pipeline that runs linting, unit/integration testing, and coverage checks on every push.
+
+## Tech Stack
+ - **FAST API**: API End-points & router functions
+ - **Langgraph**: Agents deployment
+ - **Langchain**: LLM + RAG retreival
+ - **Gemini**: LLM
+ - **Uvicorn**: API Web Server
+   
 # Frontend - Stock Busters
 
 Modern Next.js 15 web application providing an AI-powered conversational interface for personalized stock recommendations and investment analysis.
