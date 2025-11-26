@@ -90,6 +90,7 @@ def sample_data_files(temp_data_dir):
 class TestDataVersionManager:
     """Test DataVersionManager initialization and basic methods"""
     
+    @pytest.mark.unit
     def test_init_with_config(self, sample_config):
         """Test initialization with config"""
         with patch('data_versioning.HAS_GCS', False):
@@ -97,6 +98,52 @@ class TestDataVersionManager:
             
             assert manager.data_dir == sample_config['data']['data_dir']
             assert manager.wandb_project == sample_config['wandb']['project']
+    
+    @pytest.mark.unit
+    def test_init_with_gcs_available(self, sample_config):
+        """Test initialization when GCS is available"""
+        with patch('data_versioning.HAS_GCS', True):
+            with patch('data_versioning.storage.Client') as mock_client:
+                mock_bucket = MagicMock()
+                mock_client.return_value.bucket.return_value = mock_bucket
+                
+                manager = DataVersionManager(sample_config)
+                
+                assert manager.gcs_client is not None
+                assert manager.gcs_bucket is not None
+    
+    @pytest.mark.unit
+    def test_init_with_gcs_error(self, sample_config):
+        """Test initialization when GCS fails"""
+        with patch('data_versioning.HAS_GCS', True):
+            with patch('data_versioning.storage.Client', side_effect=Exception("GCS error")):
+                manager = DataVersionManager(sample_config)
+                
+                assert manager.gcs_client is None
+                assert manager.gcs_bucket is None
+    
+    @pytest.mark.unit
+    def test_save_input_data_snapshot_basic(self, sample_config, sample_data_files):
+        """Test saving input data snapshot"""
+        with patch('data_versioning.HAS_GCS', False):
+            with patch('wandb.init') as mock_wandb_init:
+                with patch('wandb.Artifact') as mock_artifact:
+                    mock_run = MagicMock()
+                    mock_wandb_init.return_value = mock_run
+                    mock_artifact_instance = MagicMock()
+                    mock_artifact.return_value = mock_artifact_instance
+                    
+                    manager = DataVersionManager(sample_config)
+                    
+                    result = manager.save_input_data_snapshot(
+                        f"{sample_data_files}/ohlcv_raw.parquet",
+                        f"{sample_data_files}/sp500_index.parquet",
+                        version_tag='test_v1'
+                    )
+                    
+                    assert result['version_tag'] == 'test_v1'
+                    assert 'timestamp' in result
+                    assert 'files' in result
             
     def test_init_without_gcs(self, sample_config):
         """Test initialization without GCS"""

@@ -7,6 +7,7 @@ import yaml
 import tempfile
 import os
 import sys
+import pandas as pd
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
@@ -324,6 +325,93 @@ class TestGCSHandler:
                 mock_blob.upload_from_filename.assert_called_once_with(temp_path)
             finally:
                 os.unlink(temp_path)
+    
+    @pytest.mark.unit
+    def test_upload_dataframe_csv(self):
+        """Test uploading DataFrame as CSV."""
+        with patch('utils.storage.Client') as mock_client:
+            # Setup mocks
+            mock_bucket = MagicMock()
+            mock_blob = MagicMock()
+            mock_bucket.blob.return_value = mock_blob
+            mock_client.return_value.bucket.return_value = mock_bucket
+            
+            handler = GCSHandler('test-bucket')
+            
+            # Create test DataFrame
+            df = pd.DataFrame({'col1': [1, 2, 3], 'col2': ['a', 'b', 'c']})
+            
+            with patch('os.remove') as mock_remove:
+                result = handler.upload_dataframe(df, 'test.csv', format='csv')
+                
+                assert 'gs://test-bucket/test.csv' in result
+                mock_blob.upload_from_filename.assert_called_once()
+                mock_remove.assert_called_once()
+    
+    @pytest.mark.unit
+    def test_upload_dataframe_parquet(self):
+        """Test uploading DataFrame as Parquet."""
+        with patch('utils.storage.Client') as mock_client:
+            # Setup mocks
+            mock_bucket = MagicMock()
+            mock_blob = MagicMock()
+            mock_bucket.blob.return_value = mock_blob
+            mock_client.return_value.bucket.return_value = mock_bucket
+            
+            handler = GCSHandler('test-bucket')
+            
+            # Create test DataFrame
+            df = pd.DataFrame({'col1': [1, 2, 3], 'col2': ['a', 'b', 'c']})
+            
+            with patch('os.remove') as mock_remove:
+                result = handler.upload_dataframe(df, 'test.parquet', format='parquet')
+                
+                assert 'gs://test-bucket/test.parquet' in result
+                mock_blob.upload_from_filename.assert_called_once()
+                mock_remove.assert_called_once()
+    
+    @pytest.mark.unit
+    def test_upload_dataframe_invalid_format(self):
+        """Test uploading DataFrame with invalid format raises error."""
+        handler = GCSHandler('test-bucket')
+        df = pd.DataFrame({'col1': [1, 2, 3]})
+        
+        with pytest.raises(ValueError, match="Unsupported format"):
+            handler.upload_dataframe(df, 'test.txt', format='txt')
+    
+    @pytest.mark.unit
+    def test_download_file_success(self):
+        """Test successful file download."""
+        with patch('utils.storage.Client') as mock_client:
+            # Setup mocks
+            mock_bucket = MagicMock()
+            mock_blob = MagicMock()
+            mock_bucket.blob.return_value = mock_blob
+            mock_client.return_value.bucket.return_value = mock_bucket
+            
+            handler = GCSHandler('test-bucket')
+            
+            result = handler.download_file('test.txt', '/tmp/test.txt')
+            
+            assert result == '/tmp/test.txt'
+            mock_blob.download_to_filename.assert_called_once_with('/tmp/test.txt')
+    
+    @pytest.mark.unit
+    def test_download_file_success(self):
+        """Test successful file download."""
+        with patch('utils.storage.Client') as mock_client:
+            # Setup mocks
+            mock_bucket = MagicMock()
+            mock_blob = MagicMock()
+            mock_bucket.blob.return_value = mock_blob
+            mock_client.return_value.bucket.return_value = mock_bucket
+            
+            handler = GCSHandler('test-bucket')
+            
+            result = handler.download_file('test.txt', '/tmp/test.txt')
+            
+            assert result == '/tmp/test.txt'
+            mock_blob.download_to_filename.assert_called_once_with('/tmp/test.txt')
     
     @pytest.mark.unit
     def test_list_files(self):

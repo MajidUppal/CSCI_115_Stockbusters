@@ -1,6 +1,6 @@
 # Unified CI/CD Pipeline for RAG and Quantamental Components
 # Optimized with unified matrix strategy, path-based conditionals, and reusable actions
-# Coverage reports committed to coverage/rag/ and coverage/quantamental/
+# Unified coverage report committed to coverage/ (combines both components)
 
 name: Unified CI Pipeline
 
@@ -179,20 +179,20 @@ jobs:
             image-name: quantamental-service
             dockerfile: src/quantamental/Dockerfile
             context: src/quantamental
-            test-path: tests/unit/
+            test-path: tests/
             coverage-path: src/quantamental/coverage
             python-version: 3.11
             venv-path: /root/.local/lib/python3.11/site-packages
           - component: quantamental
             test-type: integration
             image-name: quantamental-service
-            test-path: tests/integration/
+            test-path: tests/
             python-version: 3.11
             venv-path: /root/.local/lib/python3.11/site-packages
           - component: quantamental
             test-type: system
             image-name: quantamental-service
-            test-path: tests/system/
+            test-path: tests/
             python-version: 3.11
             venv-path: /root/.local/lib/python3.11/site-packages
     # Skip if component didn't change (unless manual trigger)
@@ -394,44 +394,228 @@ jobs:
             echo "quant_branch=$QUANT_BRANCH" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit coverage reports
+      - name: Combine and commit unified coverage report
         if: always() && github.event_name == 'push'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          mkdir -p coverage/rag coverage/quantamental
+          mkdir -p coverage
           
-          # Copy RAG coverage
+          # Check if we have coverage files to combine
+          HAS_RAG=false
+          HAS_QUANT=false
+          
           if [ -f "src/rag/coverage/coverage.xml" ]; then
-            cp src/rag/coverage/coverage.xml coverage/rag/
-            echo "✅ Copied RAG coverage.xml"
-          fi
-          if [ -d "src/rag/coverage/htmlcov" ]; then
-            sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-            cp -r src/rag/coverage/htmlcov coverage/rag/
-            echo "✅ Copied RAG HTML coverage"
+            HAS_RAG=true
+            echo "✅ Found RAG coverage.xml"
           fi
           
-          # Copy Quantamental coverage
           if [ -f "src/quantamental/coverage/coverage.xml" ]; then
-            cp src/quantamental/coverage/coverage.xml coverage/quantamental/
-            echo "✅ Copied Quantamental coverage.xml"
+            HAS_QUANT=true
+            echo "✅ Found Quantamental coverage.xml"
           fi
-          if [ -d "src/quantamental/coverage/htmlcov" ]; then
-            sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-            cp -r src/quantamental/coverage/htmlcov coverage/quantamental/
-            echo "✅ Copied Quantamental HTML coverage"
+          
+          # Combine coverage reports using coverage combine
+          if [ "$HAS_RAG" = true ] || [ "$HAS_QUANT" = true ]; then
+            echo "📊 Combining coverage reports..."
+            
+            # Create temporary directory for coverage data files
+            mkdir -p coverage_temp
+            
+            # Copy coverage data files (coverage.py creates .coverage files)
+            # We'll use the XML files and convert them, or combine the data directly
+            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
+              # Both components have coverage - combine them
+              echo "Combining RAG and Quantamental coverage..."
+              
+              # Install coverage tool if not available
+              pip install coverage --quiet || true
+              
+              # Create a Python script to combine XML coverage reports
+              cat > /tmp/combine_coverage.py << 'PYEOF'
+import xml.etree.ElementTree as ET
+import sys
+import time
+
+def combine_coverage_xml(rag_path, quant_path, output_path):
+    """Combine two coverage.xml files into one unified report."""
+    try:
+        # Parse RAG coverage
+        rag_tree = ET.parse(rag_path)
+        rag_root = rag_tree.getroot()
+        
+        # Parse Quantamental coverage
+        quant_tree = ET.parse(quant_path)
+        quant_root = quant_tree.getroot()
+        
+        # Create new combined root
+        combined_root = ET.Element('coverage')
+        combined_root.set('version', rag_root.get('version', '1.0'))
+        
+        # Calculate combined totals
+        rag_lines_covered = int(rag_root.get('lines-covered', 0))
+        rag_lines_valid = int(rag_root.get('lines-valid', 0))
+        rag_branches_covered = int(rag_root.get('branches-covered', 0))
+        rag_branches_valid = int(rag_root.get('branches-valid', 0))
+        
+        quant_lines_covered = int(quant_root.get('lines-covered', 0))
+        quant_lines_valid = int(quant_root.get('lines-valid', 0))
+        quant_branches_covered = int(quant_root.get('branches-covered', 0))
+        quant_branches_valid = int(quant_root.get('branches-valid', 0))
+        
+        # Combine totals
+        total_lines_covered = rag_lines_covered + quant_lines_covered
+        total_lines_valid = rag_lines_valid + quant_lines_valid
+        total_branches_covered = rag_branches_covered + quant_branches_covered
+        total_branches_valid = rag_branches_valid + quant_branches_valid
+        
+        # Calculate combined rates
+        if total_lines_valid > 0:
+            combined_line_rate = total_lines_covered / total_lines_valid
+        else:
+            combined_line_rate = 0.0
+        
+        if total_branches_valid > 0:
+            combined_branch_rate = total_branches_covered / total_branches_valid
+        else:
+            combined_branch_rate = 0.0
+        
+        # Set combined attributes
+        combined_root.set('line-rate', str(combined_line_rate))
+        combined_root.set('branch-rate', str(combined_branch_rate))
+        combined_root.set('lines-covered', str(total_lines_covered))
+        combined_root.set('lines-valid', str(total_lines_valid))
+        combined_root.set('branches-covered', str(total_branches_covered))
+        combined_root.set('branches-valid', str(total_branches_valid))
+        combined_root.set('timestamp', str(int(time.time() * 1000)))
+        
+        # Combine sources
+        sources = ET.SubElement(combined_root, 'sources')
+        source_rag = ET.SubElement(sources, 'source')
+        source_rag.text = 'src/rag'
+        source_quant = ET.SubElement(sources, 'source')
+        source_quant.text = 'src/quantamental'
+        
+        # Combine packages from both reports
+        packages = ET.SubElement(combined_root, 'packages')
+        
+        # Add RAG packages (prefix with rag/)
+        rag_packages = rag_root.find('packages')
+        if rag_packages is not None:
+            for pkg in rag_packages.findall('package'):
+                pkg_copy = ET.Element('package')
+                pkg_copy.set('name', f"rag/{pkg.get('name', '')}")
+                pkg_copy.set('line-rate', pkg.get('line-rate', '0'))
+                pkg_copy.set('branch-rate', pkg.get('branch-rate', '0'))
+                pkg_copy.set('complexity', pkg.get('complexity', '0'))
+                # Copy classes
+                for cls in pkg.findall('class'):
+                    pkg_copy.append(cls)
+                packages.append(pkg_copy)
+        
+        # Add Quantamental packages (prefix with quantamental/)
+        quant_packages = quant_root.find('packages')
+        if quant_packages is not None:
+            for pkg in quant_packages.findall('package'):
+                pkg_copy = ET.Element('package')
+                pkg_copy.set('name', f"quantamental/{pkg.get('name', '')}")
+                pkg_copy.set('line-rate', pkg.get('line-rate', '0'))
+                pkg_copy.set('branch-rate', pkg.get('branch-rate', '0'))
+                pkg_copy.set('complexity', pkg.get('complexity', '0'))
+                # Copy classes
+                for cls in pkg.findall('class'):
+                    pkg_copy.append(cls)
+                packages.append(pkg_copy)
+        
+        # Write combined XML
+        tree = ET.ElementTree(combined_root)
+        ET.indent(tree, space='  ')
+        tree.write(output_path, encoding='utf-8', xml_declaration=True)
+        
+        print(f"✅ Combined coverage: {combined_line_rate*100:.1f}% (lines), {combined_branch_rate*100:.1f}% (branches)")
+        
+    except Exception as e:
+        print(f"❌ Error combining coverage: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == '__main__':
+    rag_path = sys.argv[1]
+    quant_path = sys.argv[2]
+    output_path = sys.argv[3]
+    combine_coverage_xml(rag_path, quant_path, output_path)
+PYEOF
+              
+              # Run the combination script
+              python3 /tmp/combine_coverage.py "$(pwd)/src/rag/coverage/coverage.xml" "$(pwd)/src/quantamental/coverage/coverage.xml" "$(pwd)/coverage/coverage.xml"
+              
+            elif [ "$HAS_RAG" = true ]; then
+              # Only RAG coverage
+              cp src/rag/coverage/coverage.xml coverage/coverage.xml
+              echo "✅ Using RAG coverage only"
+            elif [ "$HAS_QUANT" = true ]; then
+              # Only Quantamental coverage
+              cp src/quantamental/coverage/coverage.xml coverage/coverage.xml
+              echo "✅ Using Quantamental coverage only"
+            fi
+            
+            # Copy HTML coverage reports (combine if both exist)
+            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
+              # Copy both HTML reports to separate subdirectories
+              if [ -d "src/rag/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag
+                echo "✅ Copied RAG HTML coverage"
+              fi
+              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental
+                echo "✅ Copied Quantamental HTML coverage"
+              fi
+            elif [ "$HAS_RAG" = true ]; then
+              if [ -d "src/rag/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                cp -r src/rag/coverage/htmlcov coverage/htmlcov
+                echo "✅ Copied RAG HTML coverage"
+              fi
+            elif [ "$HAS_QUANT" = true ]; then
+              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov
+                echo "✅ Copied Quantamental HTML coverage"
+              fi
+            fi
+            
+            echo "✅ Unified coverage report created"
+          else
+            echo "ℹ️ No coverage files found to combine"
           fi
           
           # Commit if there are changes
           if [ -n "$(git status --porcelain coverage/)" ]; then
             git add coverage/
-            git commit -m "Update coverage reports [skip ci]" || exit 0
+            git commit -m "Update unified coverage report [skip ci]" || exit 0
             git push || echo "⚠️ Failed to push coverage files"
-            echo "✅ Coverage reports committed"
+            echo "✅ Unified coverage report committed"
           else
             echo "ℹ️ No coverage changes to commit"
+          fi
+
+      - name: Extract unified coverage
+        id: unified-coverage
+        if: always()
+        run: |
+          # Extract from unified coverage.xml
+          if [ -f "coverage/coverage.xml" ]; then
+            UNIFIED_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
+            UNIFIED_BRANCH=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
+            echo "unified_coverage=$UNIFIED_COV" >> $GITHUB_OUTPUT
+            echo "unified_branch=$UNIFIED_BRANCH" >> $GITHUB_OUTPUT
+          else
+            echo "unified_coverage=N/A" >> $GITHUB_OUTPUT
+            echo "unified_branch=N/A" >> $GITHUB_OUTPUT
           fi
 
       - name: Print summary
@@ -440,33 +624,59 @@ jobs:
           echo "## 📊 Unified CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # RAG Section
-          echo "### 🔍 RAG Component" >> $GITHUB_STEP_SUMMARY
+          # Unified Coverage Section
+          echo "### 📈 Combined Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.extract-coverage.outputs.rag_coverage }}" != "N/A" ] && [ -n "${{ steps.extract-coverage.outputs.rag_coverage }}" ]; then
-            echo "**Coverage: ${{ steps.extract-coverage.outputs.rag_coverage }}**" >> $GITHUB_STEP_SUMMARY
-            if [ "${{ steps.extract-coverage.outputs.rag_branch }}" != "N/A" ]; then
-              echo "**Branch Coverage: ${{ steps.extract-coverage.outputs.rag_branch }}%**" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.unified-coverage.outputs.unified_coverage }}" != "N/A" ] && [ -n "${{ steps.unified-coverage.outputs.unified_coverage }}" ]; then
+            echo "**Overall Coverage: ${{ steps.unified-coverage.outputs.unified_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.unified-coverage.outputs.unified_branch }}" != "N/A" ]; then
+              echo "**Branch Coverage: ${{ steps.unified-coverage.outputs.unified_branch }}%**" >> $GITHUB_STEP_SUMMARY
             fi
           fi
-          echo "**Status**: ${{ needs.tests.result == 'success' && '✅ All tests passed' || needs.tests.result == 'skipped' && '⏭️ Skipped (no changes)' || '❌ Some tests failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Component Breakdown
+          echo "### Component Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # RAG Section
+          echo "#### 🔍 RAG Component" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.extract-coverage.outputs.rag_coverage }}" != "N/A" ] && [ -n "${{ steps.extract-coverage.outputs.rag_coverage }}" ]; then
+            echo "- **Coverage: ${{ steps.extract-coverage.outputs.rag_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.extract-coverage.outputs.rag_branch }}" != "N/A" ]; then
+              echo "- **Branch Coverage: ${{ steps.extract-coverage.outputs.rag_branch }}%**" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- Coverage: N/A (no changes or tests skipped)" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Quantamental Section
-          echo "### 📈 Quantamental Component" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📊 Quantamental Component" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.extract-coverage.outputs.quant_coverage }}" != "N/A" ] && [ -n "${{ steps.extract-coverage.outputs.quant_coverage }}" ]; then
-            echo "**Coverage: ${{ steps.extract-coverage.outputs.quant_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            echo "- **Coverage: ${{ steps.extract-coverage.outputs.quant_coverage }}**" >> $GITHUB_STEP_SUMMARY
             if [ "${{ steps.extract-coverage.outputs.quant_branch }}" != "N/A" ]; then
-              echo "**Branch Coverage: ${{ steps.extract-coverage.outputs.quant_branch }}%**" >> $GITHUB_STEP_SUMMARY
+              echo "- **Branch Coverage: ${{ steps.extract-coverage.outputs.quant_branch }}%**" >> $GITHUB_STEP_SUMMARY
             fi
+          else
+            echo "- Coverage: N/A (no changes or tests skipped)" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "**Status**: ${{ needs.tests.result == 'success' && '✅ All tests passed' || needs.tests.result == 'skipped' && '⏭️ Skipped (no changes)' || '❌ Some tests failed' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Overall Status
+          echo "### Test Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ needs.tests.result }}" = "success" ]; then
             echo "🎉 **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.tests.result }}" = "skipped" ]; then
+            echo "⏭️ **Tests skipped (no changes detected)**" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Some tests failed.** Check individual test jobs for details." >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Coverage Report Location
+          echo "### 📁 Coverage Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Unified coverage report available at: \`coverage/coverage.xml\`" >> $GITHUB_STEP_SUMMARY
+          echo "HTML reports available in: \`coverage/htmlcov/\` (or component-specific subdirectories)" >> $GITHUB_STEP_SUMMARY
