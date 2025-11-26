@@ -377,11 +377,19 @@ jobs:
           
           echo "✅ Coverage XML file verified: ${{ matrix.coverage-path }}/coverage.xml"
           
-          # Verify HTML coverage directory exists (optional, but log if missing)
+          # Verify HTML coverage directory exists and has files
           if [ ! -d "${{ matrix.coverage-path }}/htmlcov" ]; then
             echo "⚠️  WARNING: HTML coverage directory not found at ${{ matrix.coverage-path }}/htmlcov"
+            echo "Checking if directory exists at all:"
+            ls -la "${{ matrix.coverage-path }}/" || echo "Coverage path does not exist"
           else
-            echo "✅ HTML coverage directory verified: ${{ matrix.coverage-path }}/htmlcov"
+            HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
+            echo "✅ HTML coverage directory verified: ${{ matrix.coverage-path }}/htmlcov ($HTML_FILE_COUNT files)"
+            if [ "$HTML_FILE_COUNT" -eq 0 ]; then
+              echo "⚠️  WARNING: HTML coverage directory exists but is empty"
+              echo "Directory contents:"
+              ls -la "${{ matrix.coverage-path }}/htmlcov/" || true
+            fi
           fi
         env:
           CHROMADB_HOST: localhost
@@ -607,14 +615,23 @@ jobs:
           fi
           
           if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
-            # Try to add htmlcov, but don't fail if it's ignored by .gitignore
-            # HTML coverage reports are often in .gitignore, which is fine
-            GIT_ADD_OUTPUT=$(git add "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
-            if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
-              echo "ℹ️  htmlcov directory is ignored by .gitignore (this is expected and OK)"
+            HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
+            echo "📁 Found $HTML_FILE_COUNT HTML coverage files in ${{ matrix.coverage-path }}/htmlcov"
+            if [ "$HTML_FILE_COUNT" -gt 0 ]; then
+              # Force add htmlcov to override any ignore rules
+              GIT_ADD_OUTPUT=$(git add -f "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
+              if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
+                echo "⚠️  WARNING: htmlcov directory is still ignored despite -f flag"
+                echo "Trying to add individual files..."
+                find "${{ matrix.coverage-path }}/htmlcov" -type f -exec git add -f {} \; 2>/dev/null || true
+              else
+                echo "✅ Added htmlcov directory to git ($HTML_FILE_COUNT files)"
+              fi
             else
-              echo "✅ Added htmlcov directory to git"
+              echo "⚠️  WARNING: htmlcov directory exists but is empty"
             fi
+          else
+            echo "⚠️  WARNING: htmlcov directory not found at ${{ matrix.coverage-path }}/htmlcov"
           fi
           
           # Verify files are staged
@@ -627,9 +644,15 @@ jobs:
             # Re-stage files in case pull changed anything
             git add "${{ matrix.coverage-path }}/coverage.xml" || true
             if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
-              GIT_ADD_OUTPUT=$(git add "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
-              if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
-                echo "ℹ️  htmlcov directory is ignored by .gitignore (this is expected and OK)"
+              HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
+              if [ "$HTML_FILE_COUNT" -gt 0 ]; then
+                GIT_ADD_OUTPUT=$(git add -f "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
+                if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
+                  echo "⚠️  WARNING: htmlcov still ignored, trying individual files..."
+                  find "${{ matrix.coverage-path }}/htmlcov" -type f -exec git add -f {} \; 2>/dev/null || true
+                else
+                  echo "✅ Re-added htmlcov directory ($HTML_FILE_COUNT files)"
+                fi
               fi
             fi
             
@@ -696,6 +719,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # Pull latest changes to get HTML coverage files committed by test jobs
+          echo "📥 Pulling latest changes to get HTML coverage files..."
+          git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  Could not pull latest changes (may be first commit)"
           
           mkdir -p coverage
           
@@ -894,6 +921,27 @@ jobs:
             
             echo "✅ Unified coverage.xml verified"
             
+            # Debug: Check what HTML coverage directories exist before copying
+            echo "🔍 Checking for component HTML coverage directories:"
+            if [ -d "src/rag/coverage/htmlcov" ]; then
+              RAG_HTML_COUNT=$(find src/rag/coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+              echo "  ✅ src/rag/coverage/htmlcov/ exists ($RAG_HTML_COUNT files)"
+            else
+              echo "  ❌ src/rag/coverage/htmlcov/ does not exist"
+            fi
+            if [ -d "src/quantamental/coverage/htmlcov" ]; then
+              QUANT_HTML_COUNT=$(find src/quantamental/coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+              echo "  ✅ src/quantamental/coverage/htmlcov/ exists ($QUANT_HTML_COUNT files)"
+            else
+              echo "  ❌ src/quantamental/coverage/htmlcov/ does not exist"
+            fi
+            if [ -d "src/api-service/coverage/htmlcov" ]; then
+              API_HTML_COUNT=$(find src/api-service/coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+              echo "  ✅ src/api-service/coverage/htmlcov/ exists ($API_HTML_COUNT files)"
+            else
+              echo "  ❌ src/api-service/coverage/htmlcov/ does not exist"
+            fi
+            
             # Copy HTML coverage reports (combine if both exist)
             if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
               # Copy both HTML reports to separate subdirectories
@@ -991,19 +1039,49 @@ jobs:
           
           # List HTML coverage directories that exist
           echo "📁 Checking for HTML coverage directories:"
+          HTML_FOUND=false
           if [ -d "coverage/htmlcov" ]; then
-            echo "  ✅ coverage/htmlcov/ exists ($(find coverage/htmlcov -type f | wc -l) files)"
+            HTML_COUNT=$(find coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov/ exists ($HTML_COUNT files)"
+            if [ "$HTML_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
           else
             echo "  ⚠️  coverage/htmlcov/ does not exist"
           fi
           if [ -d "coverage/htmlcov_rag" ]; then
-            echo "  ✅ coverage/htmlcov_rag/ exists ($(find coverage/htmlcov_rag -type f | wc -l) files)"
+            RAG_COUNT=$(find coverage/htmlcov_rag -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov_rag/ exists ($RAG_COUNT files)"
+            if [ "$RAG_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
           fi
           if [ -d "coverage/htmlcov_quantamental" ]; then
-            echo "  ✅ coverage/htmlcov_quantamental/ exists ($(find coverage/htmlcov_quantamental -type f | wc -l) files)"
+            QUANT_COUNT=$(find coverage/htmlcov_quantamental -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov_quantamental/ exists ($QUANT_COUNT files)"
+            if [ "$QUANT_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
           fi
           if [ -d "coverage/htmlcov_api" ]; then
-            echo "  ✅ coverage/htmlcov_api/ exists ($(find coverage/htmlcov_api -type f | wc -l) files)"
+            API_COUNT=$(find coverage/htmlcov_api -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov_api/ exists ($API_COUNT files)"
+            if [ "$API_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
+          fi
+          
+          # If no HTML files found, generate from unified XML as fallback
+          if [ "$HTML_FOUND" = false ]; then
+            echo "⚠️  No HTML coverage files found. Generating from unified XML..."
+            if command -v coverage &> /dev/null || pip install coverage --quiet; then
+              if coverage html -d coverage/htmlcov --data-file coverage/coverage.xml 2>/dev/null; then
+                echo "✅ Generated HTML coverage from unified XML"
+                HTML_FOUND=true
+              else
+                echo "⚠️  Could not generate HTML coverage (coverage tool may not support this)"
+              fi
+            fi
           fi
           
           # Commit if there are changes
