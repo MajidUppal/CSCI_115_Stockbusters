@@ -14,12 +14,12 @@ from .model_predict import QuantamentalPredictor
 from .backtest import QuantamentalBacktester
 
 __all__ = [
-    'load_config',
-    'GCSHandler',
-    'get_feature_list',
-    'FMPDataCollector',
-    'DataProcessor',
-    'QuantamentalTrainer',
-    'QuantamentalPredictor',
-    'QuantamentalBacktester',
+    "load_config",
+    "GCSHandler",
+    "get_feature_list",
+    "FMPDataCollector",
+    "DataProcessor",
+    "QuantamentalTrainer",
+    "QuantamentalPredictor",
+    "QuantamentalBacktester",
 ]

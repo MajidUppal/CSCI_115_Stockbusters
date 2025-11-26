@@ -70,10 +70,22 @@ AC215_StockBusters/
 │   │   ├── pipeline.yaml
 │   │   └── components/
 │   │
-│   ├── frontend-react/               ← React UI
-│   │   ├── src/
-│   │   ├── public/
-│   │   └── package.json
+│   ├── frontend/
+│   │   ├── app/
+│   │   │   ├── chat/              # Chat interface
+│   │   │   ├── report/            # Stock reports
+│   │   │   ├── stock-detail/      # Stock detail pages
+│   │   │   ├── settings/          # User settings
+│   │   │   ├── page               # Home page
+│   │   │   └── layout             # Header, Footer, Theme
+│   │   │
+│   │   ├── components             # components for corresponding app pages plus share ui component
+│   │   ├── lib/
+│   │   │   ├── DataService.js     # API integration
+│   │   │   ├── Common.js
+│   │   │   └── utils.js
+│   │   └── .env.development
+│   │
 │   │
 │   └── notebooks/                    ← Your raw development notebooks
 │       ├── Quantamental_MS4.ipynb
@@ -111,14 +123,77 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 ### APIs and Frontend Implementation ###  (Mahmood/Majid)
 
-<from MS4 requirement please add 
-Source code for both the backend APIs and the frontend interface, showing full end-to-end functionality.
-Should include:
-README: Setup instructions, environment configuration, and usage guidelines (how to run locally).
-Repository Structure:
-Organized and documented code following a consistent style guide (e.g., PEP 8 for Python, Airbnb for JS).
-Clear separation of logic by domain (e.g., api/, models/, services/, ui/, tests/).
-Comments or docstrings that clarify functionality and module purpose.  >
+# Frontend - Stock Busters
+
+Modern Next.js 15 web application providing an AI-powered conversational interface for personalized stock recommendations and investment analysis.
+
+## Tech Stack
+
+- **Framework**: Next.js 15.5.6 (App Router)
+- **Language**: JavaScript/React
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Charts**: Recharts
+- **Authentication**: NextAuth.js
+
+
+## Features
+- **Home Page**: Provides Easy naviagtion to the website
+  
+  <img width="1272" height="527" alt="image" src="https://github.com/user-attachments/assets/bec01d2b-b21a-47fe-8d87-4dcf6259ebff" />
+
+- **AI Chat Interface**: Conversational AI for investment queries and recommendations
+  
+  <img width="1261" height="546" alt="image" src="https://github.com/user-attachments/assets/d1cab26c-a071-46d4-b332-7d7a80cb5584" />
+  <img width="1945" height="1297" alt="image" src="https://github.com/user-attachments/assets/f255323f-26a2-4569-82bb-d1f5e70e52e7" />
+
+- **Stock Reports**: Sortable tables with Technical/Fundamental/Hybrid AI scores
+
+  <img width="1876" height="843" alt="image" src="https://github.com/user-attachments/assets/77636237-37cd-4faf-953c-2bef3edd9fac" />
+  
+- **Stock Analysis**: Interactive candlestick charts, volume analysis, and 8 time ranges (1W-MAX)
+
+  <img width="1286" height="1238" alt="image" src="https://github.com/user-attachments/assets/eea7490e-4997-46b0-ae05-4ca85484963c" />
+
+- **User Settings**: Investment profile management (risk tolerance, goals, sectors, time horizon) - In progress
+
+  <img width="1218" height="1307" alt="image" src="https://github.com/user-attachments/assets/cc196c34-3f12-4c69-98e1-92d2e54f93aa" />
+
+- **Theme Support**: Light/Dark mode toggle
+  <img width="1254" height="534" alt="image" src="https://github.com/user-attachments/assets/5317509e-af3a-4570-9d09-01c995de4192" />
+
+
+## Quick Start
+
+1) Run the container by using sh docker-shell.sh command
+2) npm install
+3) npm install recharts
+4) npm run dev
+```
+
+Access at: http://localhost:3000
+
+## Configuration
+
+`.env.development`:
+```env
+NEXT_PUBLIC_BASE_API_URL=http://localhost:9000
+NEXTAUTH_SECRET="gHDgDM7d7hcKJWMwqvYzH/6gEZ8gM4Yv5V76Qc/9d/s="
+NEXTAUTH_URL=http://localhost:3000
+PORT=3000
+```
+
+## Development Notes
+
+- Hot reload enabled for instant updates
+- Uses App Router for file-based routing
+- Session management via X-Session-ID headers
+- All API calls through DataService abstraction layer
+- Responsive design with Tailwind CSS
+- Accessible UI components from shadcn/ui
+
+---
+
+**Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](frontend/README.md) for more details
 
 
 ### Continuous Integration and Testing  ###   (Siri/Seraphim/Majid/Mahmood - please add example of CI of your own section) 
@@ -145,7 +220,7 @@ Comments or docstrings that clarify functionality and module purpose.  >
     All tests passing
     Code coverage report (minimum 50%)
 
-## Front End CI Pipeline & Evidence ## (Mahmood)
+## Front End CI Pipeline & Evidence ## (Mahmood)--- Not needed for Front end, please remove this section.
     < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
     The pipeline must:
     Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).

@@ -1,14 +1,15 @@
 """
 Unit tests for data_collect module (FMPDataCollector class)
 """
-import pytest
-import pandas as pd
-import asyncio
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import pytest
+import pandas as pd
+from unittest.mock import patch, MagicMock, AsyncMock
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from data_collect import FMPDataCollector
 from utils import load_config
@@ -16,85 +17,87 @@ from utils import load_config
 
 class TestFMPDataCollectorInit:
     """Test FMPDataCollector initialization."""
-    
+
     @pytest.mark.unit
     def test_collector_initialization(self):
         """Test that collector initializes with config."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
+
         assert collector.config == config
-        assert collector.api_key == config['api']['fmp_api_key']
-        assert collector.base_url == config['api']['base_url']
-        assert collector.start_date == config['data']['start_date']
-        assert collector.end_date == config['data']['end_date']
-    
+        assert collector.api_key == config["api"]["fmp_api_key"]
+        assert collector.base_url == config["api"]["base_url"]
+        assert collector.start_date == config["data"]["start_date"]
+        assert collector.end_date == config["data"]["end_date"]
+
     @pytest.mark.unit
     def test_collector_has_data_dir(self):
         """Test that collector creates data directory."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
+
         assert collector.data_dir is not None
         assert os.path.exists(collector.data_dir)
-    
+
     @pytest.mark.unit
     def test_collector_concurrency_setting(self):
         """Test concurrency setting from config."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
-        assert hasattr(collector, 'concurrency')
-        assert collector.concurrency == config['api']['concurrency']
-    
+
+        assert hasattr(collector, "concurrency")
+        assert collector.concurrency == config["api"]["concurrency"]
+
     @pytest.mark.unit
     def test_collector_has_headers(self):
         """Test that collector sets up headers."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
-        assert hasattr(collector, 'headers')
+
+        assert hasattr(collector, "headers")
         assert isinstance(collector.headers, dict)
-        assert 'User-Agent' in collector.headers
+        assert "User-Agent" in collector.headers
 
 
 class TestFMPDataCollectorMethods:
     """Test FMPDataCollector methods with mocking."""
-    
+
     @pytest.mark.unit
     @pytest.mark.asyncio
     async def test_fetch_sp500_with_cache(self):
         """Test fetching S&P 500 tickers from cache."""
         config = load_config()
-        config['data']['cache_enabled'] = True
+        config["data"]["cache_enabled"] = True
         collector = FMPDataCollector(config)
-        
+
         # Create cache file
         cache_path = f"{collector.data_dir}/sp500_tickers.csv"
-        pd.DataFrame({'symbol': ['AAPL', 'MSFT', 'GOOGL']}).to_csv(cache_path, index=False)
-        
+        pd.DataFrame({"symbol": ["AAPL", "MSFT", "GOOGL"]}).to_csv(
+            cache_path, index=False
+        )
+
         try:
             tickers = await collector.fetch_sp500()
-            
+
             assert isinstance(tickers, list)
             assert len(tickers) == 3
-            assert 'AAPL' in tickers
-            assert 'MSFT' in tickers
-            assert 'GOOGL' in tickers
+            assert "AAPL" in tickers
+            assert "MSFT" in tickers
+            assert "GOOGL" in tickers
         finally:
             # Cleanup
             if os.path.exists(cache_path):
                 os.remove(cache_path)
-    
+
     @pytest.mark.unit
     def test_collector_cache_path_construction(self):
         """Test cache path construction."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
+
         expected_sp500_cache = f"{collector.data_dir}/sp500_tickers.csv"
         expected_ohlcv_cache = f"{collector.data_dir}/ohlcv_raw.parquet"
-        
+
         # These paths should be constructable
         assert collector.data_dir in expected_sp500_cache
         assert collector.data_dir in expected_ohlcv_cache
@@ -102,131 +105,148 @@ class TestFMPDataCollectorMethods:
 
 class TestOHLCVDataProcessing:
     """Test OHLCV data processing logic."""
-    
+
     @pytest.mark.unit
     def test_ohlcv_dataframe_structure(self):
         """Test that OHLCV data has correct structure."""
         # Create mock OHLCV data
-        df = pd.DataFrame({
-            'symbol': ['AAPL', 'AAPL', 'MSFT'],
-            'date': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-01']),
-            'open': [150.0, 151.0, 250.0],
-            'high': [152.0, 153.0, 252.0],
-            'low': [149.0, 150.0, 248.0],
-            'close': [151.0, 152.0, 251.0],
-            'adj_close': [151.0, 152.0, 251.0],
-            'volume': [1000000, 1100000, 2000000]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "symbol": ["AAPL", "AAPL", "MSFT"],
+                "date": pd.to_datetime(["2023-01-01", "2023-01-02", "2023-01-01"]),
+                "open": [150.0, 151.0, 250.0],
+                "high": [152.0, 153.0, 252.0],
+                "low": [149.0, 150.0, 248.0],
+                "close": [151.0, 152.0, 251.0],
+                "adj_close": [151.0, 152.0, 251.0],
+                "volume": [1000000, 1100000, 2000000],
+            }
+        )
+
         # Check columns
-        required_cols = ['symbol', 'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume']
+        required_cols = [
+            "symbol",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "adj_close",
+            "volume",
+        ]
         for col in required_cols:
             assert col in df.columns
-        
+
         # Check data types
-        assert pd.api.types.is_datetime64_any_dtype(df['date'])
-        assert pd.api.types.is_numeric_dtype(df['close'])
-        assert pd.api.types.is_numeric_dtype(df['volume'])
+        assert pd.api.types.is_datetime64_any_dtype(df["date"])
+        assert pd.api.types.is_numeric_dtype(df["close"])
+        assert pd.api.types.is_numeric_dtype(df["volume"])
 
 
 class TestFundamentalsProcessing:
     """Test fundamentals data processing logic."""
-    
+
     @pytest.mark.unit
     def test_fundamentals_dataframe_structure(self):
         """Test fundamentals data structure."""
-        df = pd.DataFrame({
-            'symbol': ['AAPL', 'AAPL'],
-            'date': pd.to_datetime(['2023-03-31', '2023-06-30']),
-            'revenue': [100000000, 105000000],
-            'netIncome': [25000000, 26000000],
-            'period_type': ['quarter', 'quarter']
-        })
-        
-        assert 'symbol' in df.columns
-        assert 'date' in df.columns
-        assert 'period_type' in df.columns
-        assert pd.api.types.is_datetime64_any_dtype(df['date'])
+        df = pd.DataFrame(
+            {
+                "symbol": ["AAPL", "AAPL"],
+                "date": pd.to_datetime(["2023-03-31", "2023-06-30"]),
+                "revenue": [100000000, 105000000],
+                "netIncome": [25000000, 26000000],
+                "period_type": ["quarter", "quarter"],
+            }
+        )
+
+        assert "symbol" in df.columns
+        assert "date" in df.columns
+        assert "period_type" in df.columns
+        assert pd.api.types.is_datetime64_any_dtype(df["date"])
 
 
 class TestAsyncMethods:
     """Test async method behavior."""
-    
+
     @pytest.mark.unit
     @pytest.mark.asyncio
     async def test_fetch_ohlcv_symbol_with_mock(self):
         """Test fetching OHLCV for single symbol with mock."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
+
         # Mock response
         mock_response = {
-            'historical': [
+            "historical": [
                 {
-                    'date': '2023-01-01',
-                    'open': 150.0,
-                    'high': 152.0,
-                    'low': 149.0,
-                    'close': 151.0,
-                    'adjClose': 151.0,
-                    'volume': 1000000
+                    "date": "2023-01-01",
+                    "open": 150.0,
+                    "high": 152.0,
+                    "low": 149.0,
+                    "close": 151.0,
+                    "adjClose": 151.0,
+                    "volume": 1000000,
                 }
             ]
         }
-        
+
         # Create mock session
         mock_session = MagicMock()
         mock_resp = AsyncMock()
         mock_resp.status = 200
         mock_resp.json = AsyncMock(return_value=mock_response)
-        mock_session.get = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_resp)))
-        
-        result = await collector.fetch_ohlcv_symbol(mock_session, 'AAPL')
-        
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_resp))
+        )
+
+        result = await collector.fetch_ohlcv_symbol(mock_session, "AAPL")
+
         if result is not None:
             assert isinstance(result, pd.DataFrame)
-            assert 'symbol' in result.columns
-            assert 'date' in result.columns
+            assert "symbol" in result.columns
+            assert "date" in result.columns
 
 
 class TestDataValidation:
     """Test data validation logic."""
-    
+
     @pytest.mark.unit
     def test_empty_dataframe_handling(self):
         """Test handling of empty DataFrames."""
         df = pd.DataFrame()
-        
+
         assert df.empty
         assert len(df) == 0
-    
+
     @pytest.mark.unit
     def test_dataframe_filtering(self):
         """Test DataFrame filtering logic."""
-        df = pd.DataFrame({
-            'symbol': ['AAPL', 'MSFT', 'GOOGL', 'AMZN'],
-            'close': [150.0, 250.0, 100.0, 120.0]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "symbol": ["AAPL", "MSFT", "GOOGL", "AMZN"],
+                "close": [150.0, 250.0, 100.0, 120.0],
+            }
+        )
+
         # Filter by condition
-        filtered = df[df['close'] > 120.0]
-        
+        filtered = df[df["close"] > 120.0]
+
         assert len(filtered) == 2
-        assert 'AAPL' in filtered['symbol'].values
-        assert 'MSFT' in filtered['symbol'].values
+        assert "AAPL" in filtered["symbol"].values
+        assert "MSFT" in filtered["symbol"].values
 
 
 class TestConcurrency:
     """Test concurrency settings."""
-    
+
     @pytest.mark.unit
     def test_concurrency_limit(self):
         """Test that concurrency limit is respected."""
         config = load_config()
         collector = FMPDataCollector(config)
-        
+
         # Should have concurrency setting
-        assert hasattr(collector, 'concurrency')
+        assert hasattr(collector, "concurrency")
         assert isinstance(collector.concurrency, int)
         assert collector.concurrency > 0
 
