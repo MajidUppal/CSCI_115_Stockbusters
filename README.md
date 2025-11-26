@@ -132,12 +132,6 @@ AC215_StockBusters/
     │   ├── docker-shell.sh 
     │   └── README.md
     │
-    └── 📁 agents/                  # 🤖 Orchestration Agent
-    │    └── orchestrator/
-    │        ├── Dockerfile
-    │        ├── README.md
-    │        └── orchestrator.py
-    │
     ├── dvc.yaml                           ← data versioning
     ├── requirements.txt
     ├── README.md
