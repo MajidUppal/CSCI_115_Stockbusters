@@ -36,4 +36,3 @@ async def square_root(x: float = 1, y: float = 2):
 
 app.include_router(chatbot_final.router)
 app.include_router(stock_details.router)
-

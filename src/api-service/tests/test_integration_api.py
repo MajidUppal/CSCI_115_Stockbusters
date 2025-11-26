@@ -3,46 +3,62 @@ Integration tests for API endpoints.
 
 Tests the FastAPI routers with mocked external dependencies.
 """
+
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.integration
 
 
 class TestChatbotEndpoints:
     """Integration tests for chatbot router endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_client(self, sample_quant_data, sample_company_profile, sample_stocks_data):
+    def setup_client(
+        self, sample_quant_data, sample_company_profile, sample_stocks_data
+    ):
         """Set up test client with mocked dependencies."""
         self.sample_quant = sample_quant_data
         self.sample_company = sample_company_profile
         self.sample_stocks = sample_stocks_data
 
-        with patch('api.utils.get_gcs_bucket.storage'), \
-             patch('api.utils.get_gcs_bucket.get_gcs_data') as mock_gcs, \
-             patch('api.routers.chatbot_final.service_account') as mock_sa, \
-             patch('api.routers.chatbot_final.ChatVertexAI') as mock_llm_class, \
-             patch('api.routers.chatbot_final.ChatAgent') as mock_agent_class, \
-             patch('api.routers.chatbot_final.memory'), \
-             patch('api.routers.stock_details.get_gcs_data') as mock_gcs_details, \
-             patch('api.routers.stock_details.df_quant_model', sample_quant_data), \
-             patch('api.routers.stock_details.df_company_profile', sample_company_profile), \
-             patch('api.routers.stock_details.df_stocks', sample_stocks_data):
+        with patch("api.utils.get_gcs_bucket.storage"), patch(
+            "api.utils.get_gcs_bucket.get_gcs_data"
+        ) as mock_gcs, patch(
+            "api.routers.chatbot_final.service_account"
+        ) as mock_sa, patch(
+            "api.routers.chatbot_final.ChatVertexAI"
+        ) as mock_llm_class, patch(
+            "api.routers.chatbot_final.ChatAgent"
+        ) as mock_agent_class, patch(
+            "api.routers.chatbot_final.memory"
+        ), patch(
+            "api.routers.stock_details.get_gcs_data"
+        ) as mock_gcs_details, patch(
+            "api.routers.stock_details.df_quant_model", sample_quant_data
+        ), patch(
+            "api.routers.stock_details.df_company_profile", sample_company_profile
+        ), patch(
+            "api.routers.stock_details.df_stocks", sample_stocks_data
+        ):
 
             mock_sa.Credentials.from_service_account_file.return_value = MagicMock()
 
             mock_agent = MagicMock()
             mock_agent.graph.invoke.return_value = {
-                'messages': [MagicMock(content="Hello! I'm here to help.")],
-                'user_pref': {}
+                "messages": [MagicMock(content="Hello! I'm here to help.")],
+                "user_pref": {},
             }
             mock_agent_class.return_value = mock_agent
 
             from api.routers import chatbot_final
+
             chatbot_final.chat_sessions.clear()
             chatbot_final.abot = mock_agent
 
             from api.service import app
+
             self.client = TestClient(app)
             self.mock_agent = mock_agent
             yield
@@ -57,8 +73,7 @@ class TestChatbotEndpoints:
     def test_get_chats_empty_for_new_session(self):
         """Test empty chats list for new session."""
         response = self.client.get(
-            "/gemini/chats",
-            headers={"X-Session-ID": "new-session-123"}
+            "/gemini/chats", headers={"X-Session-ID": "new-session-123"}
         )
         assert response.status_code == 200
         assert response.json() == {"chats": []}
@@ -66,26 +81,20 @@ class TestChatbotEndpoints:
     def test_get_chats_with_limit(self):
         """Test chats list respects limit parameter."""
         response = self.client.get(
-            "/gemini/chats?limit=5",
-            headers={"X-Session-ID": "test-session"}
+            "/gemini/chats?limit=5", headers={"X-Session-ID": "test-session"}
         )
         assert response.status_code == 200
 
     # POST /chats (start chat) tests
     def test_start_chat_requires_session_header(self):
         """Test that starting chat requires session header."""
-        response = self.client.post(
-            "/gemini/chats",
-            json={"message": "Hello"}
-        )
+        response = self.client.post("/gemini/chats", json={"message": "Hello"})
         assert response.status_code == 400
 
     def test_start_chat_requires_message(self):
         """Test that starting chat requires message content."""
         response = self.client.post(
-            "/gemini/chats",
-            json={},
-            headers={"X-Session-ID": "test-session"}
+            "/gemini/chats", json={}, headers={"X-Session-ID": "test-session"}
         )
         assert response.status_code == 400
 
@@ -94,7 +103,7 @@ class TestChatbotEndpoints:
         response = self.client.post(
             "/gemini/chats",
             json={"message": "My name is John"},
-            headers={"X-Session-ID": "test-session-456"}
+            headers={"X-Session-ID": "test-session-456"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -107,7 +116,7 @@ class TestChatbotEndpoints:
         response = self.client.post(
             "/gemini/chats",
             json={"message": "Hello"},
-            headers={"X-Session-ID": "test-session"}
+            headers={"X-Session-ID": "test-session"},
         )
         assert response.status_code == 200
         chat_id = response.json()["chat_id"]
@@ -117,8 +126,7 @@ class TestChatbotEndpoints:
     def test_get_specific_chat_not_found(self):
         """Test 404 for non-existent chat."""
         response = self.client.get(
-            "/gemini/chats/non-existent-id",
-            headers={"X-Session-ID": "test-session"}
+            "/gemini/chats/non-existent-id", headers={"X-Session-ID": "test-session"}
         )
         assert response.status_code == 404
 
@@ -133,15 +141,14 @@ class TestChatbotEndpoints:
         response = self.client.post(
             "/gemini/chats/non-existent-id",
             json={"message": "Continue"},
-            headers={"X-Session-ID": "test-session"}
+            headers={"X-Session-ID": "test-session"},
         )
         assert response.status_code == 404
 
     def test_continue_chat_requires_session(self):
         """Test continuing chat requires session header."""
         response = self.client.post(
-            "/gemini/chats/some-id",
-            json={"message": "Continue"}
+            "/gemini/chats/some-id", json={"message": "Continue"}
         )
         assert response.status_code == 400
 
@@ -150,27 +157,36 @@ class TestStockDetailsEndpoints:
     """Integration tests for stock details router endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_client(self, sample_quant_data, sample_company_profile, sample_stocks_data):
+    def setup_client(
+        self, sample_quant_data, sample_company_profile, sample_stocks_data
+    ):
         """Set up test client with mocked dependencies."""
-        with patch('api.utils.get_gcs_bucket.storage'), \
-             patch('api.utils.get_gcs_bucket.get_gcs_data'), \
-             patch('api.routers.chatbot_final.service_account') as mock_sa, \
-             patch('api.routers.chatbot_final.ChatVertexAI'), \
-             patch('api.routers.chatbot_final.ChatAgent') as mock_agent_class, \
-             patch('api.routers.chatbot_final.memory'), \
-             patch('api.routers.stock_details.df_quant_model', sample_quant_data), \
-             patch('api.routers.stock_details.df_company_profile', sample_company_profile), \
-             patch('api.routers.stock_details.df_stocks', sample_stocks_data):
+        with patch("api.utils.get_gcs_bucket.storage"), patch(
+            "api.utils.get_gcs_bucket.get_gcs_data"
+        ), patch("api.routers.chatbot_final.service_account") as mock_sa, patch(
+            "api.routers.chatbot_final.ChatVertexAI"
+        ), patch(
+            "api.routers.chatbot_final.ChatAgent"
+        ) as mock_agent_class, patch(
+            "api.routers.chatbot_final.memory"
+        ), patch(
+            "api.routers.stock_details.df_quant_model", sample_quant_data
+        ), patch(
+            "api.routers.stock_details.df_company_profile", sample_company_profile
+        ), patch(
+            "api.routers.stock_details.df_stocks", sample_stocks_data
+        ):
 
             mock_sa.Credentials.from_service_account_file.return_value = MagicMock()
             mock_agent = MagicMock()
             mock_agent.graph.invoke.return_value = {
-                'messages': [MagicMock(content="Test")],
-                'user_pref': {}
+                "messages": [MagicMock(content="Test")],
+                "user_pref": {},
             }
             mock_agent_class.return_value = mock_agent
 
             from api.service import app
+
             self.client = TestClient(app)
             yield
 
@@ -216,8 +232,7 @@ class TestStockDetailsEndpoints:
     def test_get_reports_empty_for_new_session(self):
         """Test get reports returns empty for new session."""
         response = self.client.get(
-            "/gemini/reports",
-            headers={"X-Session-ID": "new-session"}
+            "/gemini/reports", headers={"X-Session-ID": "new-session"}
         )
         assert response.status_code == 200
         assert response.json() == []
@@ -227,30 +242,39 @@ class TestReportGenerationEndpoints:
     """Integration tests for report generation endpoint."""
 
     @pytest.fixture(autouse=True)
-    def setup_client(self, sample_quant_data, sample_company_profile, sample_stocks_data):
+    def setup_client(
+        self, sample_quant_data, sample_company_profile, sample_stocks_data
+    ):
         """Set up test client with mocked dependencies."""
-        with patch('api.utils.get_gcs_bucket.storage'), \
-             patch('api.utils.get_gcs_bucket.get_gcs_data'), \
-             patch('api.routers.chatbot_final.service_account') as mock_sa, \
-             patch('api.routers.chatbot_final.ChatVertexAI'), \
-             patch('api.routers.chatbot_final.ChatAgent') as mock_agent_class, \
-             patch('api.routers.chatbot_final.memory'), \
-             patch('api.routers.stock_details.df_quant_model', sample_quant_data), \
-             patch('api.routers.stock_details.df_company_profile', sample_company_profile), \
-             patch('api.routers.stock_details.df_stocks', sample_stocks_data):
+        with patch("api.utils.get_gcs_bucket.storage"), patch(
+            "api.utils.get_gcs_bucket.get_gcs_data"
+        ), patch("api.routers.chatbot_final.service_account") as mock_sa, patch(
+            "api.routers.chatbot_final.ChatVertexAI"
+        ), patch(
+            "api.routers.chatbot_final.ChatAgent"
+        ) as mock_agent_class, patch(
+            "api.routers.chatbot_final.memory"
+        ), patch(
+            "api.routers.stock_details.df_quant_model", sample_quant_data
+        ), patch(
+            "api.routers.stock_details.df_company_profile", sample_company_profile
+        ), patch(
+            "api.routers.stock_details.df_stocks", sample_stocks_data
+        ):
 
             mock_sa.Credentials.from_service_account_file.return_value = MagicMock()
             mock_agent = MagicMock()
             mock_agent.graph.invoke.return_value = {
-                'messages': [MagicMock(content="Test")],
-                'user_pref': {}
+                "messages": [MagicMock(content="Test")],
+                "user_pref": {},
             }
             mock_agent_class.return_value = mock_agent
 
             from api.service import app
             from api.routers import stock_details
+
             stock_details.reports_storage.clear()
-            
+
             self.client = TestClient(app)
             yield
 
@@ -263,10 +287,10 @@ class TestReportGenerationEndpoints:
                     "long_term": True,
                     "short_term": False,
                     "high_risk": False,
-                    "low_risk": True
+                    "low_risk": True,
                 }
             },
-            headers={"X-Session-ID": "test-session"}
+            headers={"X-Session-ID": "test-session"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -283,10 +307,10 @@ class TestReportGenerationEndpoints:
                     "long_term": False,
                     "short_term": True,
                     "high_risk": True,
-                    "low_risk": False
+                    "low_risk": False,
                 }
             },
-            headers={"X-Session-ID": "test-session"}
+            headers={"X-Session-ID": "test-session"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -301,10 +325,10 @@ class TestReportGenerationEndpoints:
                     "long_term": True,
                     "short_term": True,
                     "high_risk": True,
-                    "low_risk": True
+                    "low_risk": True,
                 }
             },
-            headers={"X-Session-ID": "test-session"}
+            headers={"X-Session-ID": "test-session"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -314,8 +338,15 @@ class TestReportGenerationEndpoints:
         """Test that generated report contains report_id."""
         response = self.client.post(
             "/gemini/chats/test-chat-id/report",
-            json={"user_pref": {"long_term": True, "short_term": False, "high_risk": False, "low_risk": True}},
-            headers={"X-Session-ID": "test-session"}
+            json={
+                "user_pref": {
+                    "long_term": True,
+                    "short_term": False,
+                    "high_risk": False,
+                    "low_risk": True,
+                }
+            },
+            headers={"X-Session-ID": "test-session"},
         )
         assert response.status_code == 200
         assert "report_id" in response.json()["report"]
@@ -323,16 +354,22 @@ class TestReportGenerationEndpoints:
     def test_generate_report_stored_in_session(self):
         """Test that generated report is stored in session."""
         session_id = "persistent-session"
-        
+
         self.client.post(
             "/gemini/chats/chat-1/report",
-            json={"user_pref": {"long_term": True, "short_term": False, "high_risk": False, "low_risk": True}},
-            headers={"X-Session-ID": session_id}
+            json={
+                "user_pref": {
+                    "long_term": True,
+                    "short_term": False,
+                    "high_risk": False,
+                    "low_risk": True,
+                }
+            },
+            headers={"X-Session-ID": session_id},
         )
-        
+
         response = self.client.get(
-            "/gemini/reports",
-            headers={"X-Session-ID": session_id}
+            "/gemini/reports", headers={"X-Session-ID": session_id}
         )
         assert response.status_code == 200
         reports = response.json()
@@ -341,45 +378,64 @@ class TestReportGenerationEndpoints:
     def test_generate_multiple_reports_same_session(self):
         """Test generating multiple reports in same session."""
         session_id = "multi-report-session"
-        
+
         # Generate first report
         self.client.post(
             "/gemini/chats/chat-1/report",
-            json={"user_pref": {"long_term": True, "short_term": False, "high_risk": False, "low_risk": True}},
-            headers={"X-Session-ID": session_id}
+            json={
+                "user_pref": {
+                    "long_term": True,
+                    "short_term": False,
+                    "high_risk": False,
+                    "low_risk": True,
+                }
+            },
+            headers={"X-Session-ID": session_id},
         )
-        
+
         # Generate second report
         self.client.post(
             "/gemini/chats/chat-2/report",
-            json={"user_pref": {"long_term": False, "short_term": True, "high_risk": True, "low_risk": False}},
-            headers={"X-Session-ID": session_id}
+            json={
+                "user_pref": {
+                    "long_term": False,
+                    "short_term": True,
+                    "high_risk": True,
+                    "low_risk": False,
+                }
+            },
+            headers={"X-Session-ID": session_id},
         )
-        
+
         response = self.client.get(
-            "/gemini/reports",
-            headers={"X-Session-ID": session_id}
+            "/gemini/reports", headers={"X-Session-ID": session_id}
         )
         assert len(response.json()) == 2
 
     def test_reports_sorted_by_date(self):
         """Test that reports are sorted by generated_at descending."""
         session_id = "sorted-reports-session"
-        
+
         # Generate multiple reports
         for i in range(3):
             self.client.post(
                 f"/gemini/chats/chat-{i}/report",
-                json={"user_pref": {"long_term": True, "short_term": False, "high_risk": False, "low_risk": True}},
-                headers={"X-Session-ID": session_id}
+                json={
+                    "user_pref": {
+                        "long_term": True,
+                        "short_term": False,
+                        "high_risk": False,
+                        "low_risk": True,
+                    }
+                },
+                headers={"X-Session-ID": session_id},
             )
-        
+
         response = self.client.get(
-            "/gemini/reports",
-            headers={"X-Session-ID": session_id}
+            "/gemini/reports", headers={"X-Session-ID": session_id}
         )
         reports = response.json()
-        
+
         # Verify sorted by date descending
         for i in range(len(reports) - 1):
             assert reports[i]["generated_at"] >= reports[i + 1]["generated_at"]

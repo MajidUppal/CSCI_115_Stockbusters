@@ -14,12 +14,14 @@ on:
     paths:
       - 'src/rag/**'
       - 'src/quantamental/**'
+      - 'src/api-service/**'
       - '.github/workflows/ci.yml'
     branches: [main, develop, Milestone4]
   pull_request:
     paths:
       - 'src/rag/**'
       - 'src/quantamental/**'
+      - 'src/api-service/**'
       - '.github/workflows/ci.yml'
     branches: [main, develop, Milestone4]
   workflow_dispatch:  # Allow manual triggering
@@ -41,6 +43,7 @@ jobs:
     outputs:
       rag: ${{ steps.filter.outputs.rag }}
       quantamental: ${{ steps.filter.outputs.quantamental }}
+      api-service: ${{ steps.filter.outputs.api-service }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,6 +59,8 @@ jobs:
               - 'src/rag/**'
             quantamental:
               - 'src/quantamental/**'
+            api-service:
+              - 'src/api-service/**'
 
   # Unified build job with matrix strategy
   build:
@@ -65,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [rag, quantamental]
+        component: [rag, quantamental, api-service]
         include:
           - component: rag
             dockerfile: ./src/rag/Dockerfile
@@ -77,6 +82,11 @@ jobs:
             context: src/quantamental
             image-name: quantamental-service
             test-path: src/quantamental
+          - component: api-service
+            dockerfile: src/api-service/Dockerfile
+            context: src/api-service
+            image-name: api-service
+            test-path: src/api-service
     timeout-minutes: 10
     permissions:
       contents: read
@@ -90,8 +100,10 @@ jobs:
         run: |
           if [ "${{ matrix.component }}" = "rag" ]; then
             CHANGED="${{ needs.detect-changes.outputs.rag }}"
-          else
+          elif [ "${{ matrix.component }}" = "quantamental" ]; then
             CHANGED="${{ needs.detect-changes.outputs.quantamental }}"
+          else
+            CHANGED="${{ needs.detect-changes.outputs.api-service }}"
           fi
           if [ "$CHANGED" != "true" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
             echo "⏭️ Component ${{ matrix.component }} did not change, skipping build"
@@ -133,12 +145,15 @@ jobs:
             type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Create dummy secrets (RAG only)
-        if: steps.check-component.outputs.skip != 'true' && matrix.component == 'rag'
+      - name: Create dummy secrets (RAG and API-service only)
+        if: steps.check-component.outputs.skip != 'true' && (matrix.component == 'rag' || matrix.component == 'api-service')
         run: |
           mkdir -p secrets
           if [ ! -f secrets/gcs-key.json ]; then
             echo '{}' > secrets/gcs-key.json
+          fi
+          if [ ! -f secrets/stock-busters-service-account.json ]; then
+            echo '{}' > secrets/stock-busters-service-account.json
           fi
 
       - name: Build and push Docker image
@@ -165,7 +180,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [rag, quantamental]
+        component: [rag, quantamental, api-service]
         test-type: [lint-unit, integration, system]
         include:
           # RAG configuration
@@ -212,6 +227,28 @@ jobs:
             test-path: tests/
             python-version: 3.11
             venv-path: /root/.local/lib/python3.11/site-packages
+          # API-service configuration
+          - component: api-service
+            test-type: lint-unit
+            image-name: api-service
+            dockerfile: src/api-service/Dockerfile
+            context: src/api-service
+            test-path: tests/
+            coverage-path: src/api-service/coverage
+            python-version: 3.12
+            venv-path: /home/app/.venv/lib/python3.12/site-packages
+          - component: api-service
+            test-type: integration
+            image-name: api-service
+            test-path: tests/
+            python-version: 3.12
+            venv-path: /home/app/.venv/lib/python3.12/site-packages
+          - component: api-service
+            test-type: system
+            image-name: api-service
+            test-path: tests/
+            python-version: 3.12
+            venv-path: /home/app/.venv/lib/python3.12/site-packages
     timeout-minutes: 10
     outputs:
       coverage_percentage: ${{ steps.extract-coverage.outputs.coverage }}
@@ -223,8 +260,10 @@ jobs:
           # Check if component changed
           if [ "${{ matrix.component }}" = "rag" ]; then
             CHANGED="${{ needs.detect-changes.outputs.rag }}"
-          else
+          elif [ "${{ matrix.component }}" = "quantamental" ]; then
             CHANGED="${{ needs.detect-changes.outputs.quantamental }}"
+          else
+            CHANGED="${{ needs.detect-changes.outputs.api-service }}"
           fi
           
           # Check if we should skip
@@ -621,6 +660,7 @@ jobs:
           # Check if we have coverage files to combine
           HAS_RAG=false
           HAS_QUANT=false
+          HAS_API=false
           
           if [ -f "src/rag/coverage/coverage.xml" ]; then
             HAS_RAG=true
@@ -632,8 +672,13 @@ jobs:
             echo "✅ Found Quantamental coverage.xml"
           fi
           
+          if [ -f "src/api-service/coverage/coverage.xml" ]; then
+            HAS_API=true
+            echo "✅ Found API-service coverage.xml"
+          fi
+          
           # Combine coverage reports
-          if [ "$HAS_RAG" = true ] || [ "$HAS_QUANT" = true ]; then
+          if [ "$HAS_RAG" = true ] || [ "$HAS_QUANT" = true ] || [ "$HAS_API" = true ]; then
             echo "📊 Combining coverage reports..."
             
             if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
@@ -674,6 +719,110 @@ jobs:
                 exit 1
               fi
               echo "✅ Using Quantamental coverage only"
+            elif [ "$HAS_API" = true ]; then
+              # Only API-service coverage
+              if ! cp src/api-service/coverage/coverage.xml coverage/coverage.xml; then
+                echo "❌ ERROR: Failed to copy API-service coverage.xml"
+                exit 1
+              fi
+              echo "✅ Using API-service coverage only"
+            fi
+            
+            # If we have multiple components, combine them using Python script
+            COMPONENT_COUNT=0
+            [ "$HAS_RAG" = true ] && COMPONENT_COUNT=$((COMPONENT_COUNT + 1))
+            [ "$HAS_QUANT" = true ] && COMPONENT_COUNT=$((COMPONENT_COUNT + 1))
+            [ "$HAS_API" = true ] && COMPONENT_COUNT=$((COMPONENT_COUNT + 1))
+            
+            if [ $COMPONENT_COUNT -gt 1 ]; then
+              echo "Combining $COMPONENT_COUNT components..."
+              
+              # Create Python script to combine coverage
+              cat > /tmp/combine_coverage.py << 'SCRIPT_END'
+import xml.etree.ElementTree as ET
+import time
+import sys
+
+files = []
+if sys.argv[1] == 'true':
+    files.append(('src/rag/coverage/coverage.xml', 'rag'))
+if sys.argv[2] == 'true':
+    files.append(('src/quantamental/coverage/coverage.xml', 'quantamental'))
+if sys.argv[3] == 'true':
+    files.append(('src/api-service/coverage/coverage.xml', 'api-service'))
+
+if len(files) == 0:
+    print("No coverage files to combine")
+    sys.exit(1)
+
+# Parse all coverage files
+roots = []
+for filepath, name in files:
+    try:
+        tree = ET.parse(filepath)
+        roots.append((tree.getroot(), name))
+    except Exception as e:
+        print(f"Error parsing {filepath}: {e}")
+        sys.exit(1)
+
+# Sum up coverage metrics
+total_lines_covered = 0
+total_lines_valid = 0
+total_branches_covered = 0
+total_branches_valid = 0
+
+# Create combined root
+combined_root = ET.Element("coverage")
+combined_root.set("version", roots[0][0].get("version", "1.0"))
+
+# Sum metrics from all components
+for root, name in roots:
+    total_lines_covered += int(root.get("lines-covered", 0))
+    total_lines_valid += int(root.get("lines-valid", 0))
+    total_branches_covered += int(root.get("branches-covered", 0))
+    total_branches_valid += int(root.get("branches-valid", 0))
+
+# Calculate combined rates
+line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0.0
+branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0.0
+
+# Set combined metrics
+combined_root.set("line-rate", str(line_rate))
+combined_root.set("branch-rate", str(branch_rate))
+combined_root.set("lines-covered", str(total_lines_covered))
+combined_root.set("lines-valid", str(total_lines_valid))
+combined_root.set("branches-covered", str(total_branches_covered))
+combined_root.set("branches-valid", str(total_branches_valid))
+combined_root.set("timestamp", str(int(time.time() * 1000)))
+
+# Add sources
+sources = ET.SubElement(combined_root, "sources")
+for _, name in roots:
+    ET.SubElement(sources, "source").text = f"src/{name}"
+
+# Add packages from all components
+packages = ET.SubElement(combined_root, "packages")
+for root, name in roots:
+    root_packages = root.find("packages")
+    if root_packages is not None:
+        for pkg in root_packages.findall("package"):
+            pkg_elem = ET.Element("package")
+            pkg_elem.set("name", f"{name}/{pkg.get('name', '')}")
+            pkg_elem.set("line-rate", pkg.get("line-rate", "0"))
+            pkg_elem.set("branch-rate", pkg.get("branch-rate", "0"))
+            pkg_elem.set("complexity", pkg.get("complexity", "0"))
+            packages.append(pkg_elem)
+
+# Write combined coverage
+ET.ElementTree(combined_root).write("coverage/coverage.xml", encoding="utf-8", xml_declaration=True)
+print(f"✅ Combined coverage: {line_rate*100:.1f}% (lines), {branch_rate*100:.1f}% (branches)")
+SCRIPT_END
+              
+              # Run the combination script
+              if ! python3 /tmp/combine_coverage.py "$HAS_RAG" "$HAS_QUANT" "$HAS_API"; then
+                echo "❌ ERROR: Failed to combine coverage reports"
+                exit 1
+              fi
             fi
             
             # Verify unified coverage file was created
@@ -748,6 +897,35 @@ jobs:
                 fi
                 echo "✅ Copied Quantamental HTML coverage"
               fi
+            elif [ "$HAS_API" = true ]; then
+              if [ -d "src/api-service/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
+                if ! cp -r src/api-service/coverage/htmlcov coverage/htmlcov; then
+                  echo "❌ ERROR: Failed to copy API-service HTML coverage"
+                  exit 1
+                fi
+                if [ ! -d "coverage/htmlcov" ]; then
+                  echo "❌ ERROR: HTML coverage directory was not created"
+                  exit 1
+                fi
+                echo "✅ Copied API-service HTML coverage"
+              fi
+            fi
+            
+            # Copy HTML reports for multiple components
+            if [ $COMPONENT_COUNT -gt 1 ]; then
+              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag || true
+              fi
+              if [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental || true
+              fi
+              if [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
+                cp -r src/api-service/coverage/htmlcov coverage/htmlcov_api || true
+              fi
             fi
             
             echo "✅ Unified coverage report created"
@@ -809,10 +987,11 @@ jobs:
         if: always()
         run: |
           # Verify at least one coverage file exists
-          if [ ! -f "src/rag/coverage/coverage.xml" ] && [ ! -f "src/quantamental/coverage/coverage.xml" ] && [ ! -f "coverage/coverage.xml" ]; then
+          if [ ! -f "src/rag/coverage/coverage.xml" ] && [ ! -f "src/quantamental/coverage/coverage.xml" ] && [ ! -f "src/api-service/coverage/coverage.xml" ] && [ ! -f "coverage/coverage.xml" ]; then
             echo "❌ ERROR: No coverage files found to extract from"
             echo "  Checked: src/rag/coverage/coverage.xml"
             echo "  Checked: src/quantamental/coverage/coverage.xml"
+            echo "  Checked: src/api-service/coverage/coverage.xml"
             echo "  Checked: coverage/coverage.xml"
             exit 1
           fi
@@ -826,6 +1005,8 @@ jobs:
           RAG_BRANCH = "N/A"
           QUANT_COV = "N/A"
           QUANT_BRANCH = "N/A"
+          API_COV = "N/A"
+          API_BRANCH = "N/A"
           
           # Try individual files first (if they exist from current run)
           try:
@@ -857,8 +1038,10 @@ jobs:
                       if packages is not None:
                           rag_rates = []
                           quant_rates = []
+                          api_rates = []
                           rag_branch_rates = []
                           quant_branch_rates = []
+                          api_branch_rates = []
                           
                           for package in packages.findall('package'):
                               name = package.get('name', '')
@@ -875,6 +1058,11 @@ jobs:
                                   quant_rates.append(line_rate)
                                   if branch_rate > 0:
                                       quant_branch_rates.append(branch_rate)
+                              elif name.startswith('api-service/'):
+                                  # Include all packages, even with 0% coverage
+                                  api_rates.append(line_rate)
+                                  if branch_rate > 0:
+                                      api_branch_rates.append(branch_rate)
                           
                           # Calculate coverage from packages if we found any
                           if rag_rates and RAG_COV == "N/A":
@@ -886,6 +1074,11 @@ jobs:
                               QUANT_COV = f"{int((sum(quant_rates) / len(quant_rates)) * 100)}%"
                           if quant_branch_rates and QUANT_BRANCH == "N/A":
                               QUANT_BRANCH = str(int((sum(quant_branch_rates) / len(quant_branch_rates)) * 100))
+                          
+                          if api_rates and API_COV == "N/A":
+                              API_COV = f"{int((sum(api_rates) / len(api_rates)) * 100)}%"
+                          if api_branch_rates and API_BRANCH == "N/A":
+                              API_BRANCH = str(int((sum(api_branch_rates) / len(api_branch_rates)) * 100))
               except Exception as e:
                   # Log error for debugging
                   import sys
@@ -896,6 +1089,8 @@ jobs:
           print(f"rag_branch={RAG_BRANCH}")
           print(f"quant_coverage={QUANT_COV}")
           print(f"quant_branch={QUANT_BRANCH}")
+          print(f"api_coverage={API_COV}")
+          print(f"api_branch={API_BRANCH}")
           SCRIPT_END
           
           # Execute Python script and read outputs
@@ -966,10 +1161,31 @@ jobs:
             fi
           fi
           
-          # If we have data from both, calculate combined
-          if [ $RAG_LINES_TOT -gt 0 ] || [ $QUANT_LINES_TOT -gt 0 ]; then
-            TOTAL_LINES_COV=$((RAG_LINES_COV + QUANT_LINES_COV))
-            TOTAL_LINES_TOT=$((RAG_LINES_TOT + QUANT_LINES_TOT))
+          # Extract API-service coverage if available
+          API_LINES_COV=0
+          API_LINES_TOT=0
+          if [ -f "src/api-service/coverage/coverage.xml" ]; then
+            if ! python3 -c "import xml.etree.ElementTree as ET; ET.parse('src/api-service/coverage/coverage.xml')" 2>/dev/null; then
+              echo "❌ ERROR: API-service coverage.xml is malformed or unreadable"
+              exit 1
+            fi
+            cat > /tmp/extract_api_coverage.py << SCRIPT_END
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('src/api-service/coverage/coverage.xml')
+          root = tree.getroot()
+          print(f"API_LINES_COV={int(root.get('lines-covered', 0))}")
+          print(f"API_LINES_TOT={int(root.get('lines-valid', 0))}")
+          SCRIPT_END
+            if ! eval $(python3 /tmp/extract_api_coverage.py); then
+              echo "❌ ERROR: Failed to extract API-service coverage data"
+              exit 1
+            fi
+          fi
+          
+          # If we have data from any component, calculate combined
+          if [ $RAG_LINES_TOT -gt 0 ] || [ $QUANT_LINES_TOT -gt 0 ] || [ $API_LINES_TOT -gt 0 ]; then
+            TOTAL_LINES_COV=$((RAG_LINES_COV + QUANT_LINES_COV + API_LINES_COV))
+            TOTAL_LINES_TOT=$((RAG_LINES_TOT + QUANT_LINES_TOT + API_LINES_TOT))
             
             if [ $TOTAL_LINES_TOT -gt 0 ]; then
               COMBINED_COV_PCT=$(awk "BEGIN {printf \"%.2f\", ($TOTAL_LINES_COV / $TOTAL_LINES_TOT) * 100}")
@@ -1015,6 +1231,7 @@ jobs:
           echo "📊 Combined Coverage Calculation:"
           echo "  RAG: ${RAG_LINES_COV}/${RAG_LINES_TOT} lines"
           echo "  Quantamental: ${QUANT_LINES_COV}/${QUANT_LINES_TOT} lines"
+          echo "  API-service: ${API_LINES_COV}/${API_LINES_TOT} lines"
           echo "  Combined: ${TOTAL_LINES_COV}/${TOTAL_LINES_TOT} = ${COMBINED_COV}%"
           echo "✅ Combined coverage calculation completed successfully"
 
@@ -1083,6 +1300,18 @@ jobs:
             echo "- **Coverage: ${{ steps.extract-coverage.outputs.quant_coverage }}**" >> $GITHUB_STEP_SUMMARY
             if [ "${{ steps.extract-coverage.outputs.quant_branch }}" != "N/A" ]; then
               echo "- **Branch Coverage: ${{ steps.extract-coverage.outputs.quant_branch }}%**" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- Coverage: N/A (no changes or tests skipped)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # API-service Section
+          echo "#### 🚀 API-service Component" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.extract-coverage.outputs.api_coverage }}" != "N/A" ] && [ -n "${{ steps.extract-coverage.outputs.api_coverage }}" ]; then
+            echo "- **Coverage: ${{ steps.extract-coverage.outputs.api_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.extract-coverage.outputs.api_branch }}" != "N/A" ]; then
+              echo "- **Branch Coverage: ${{ steps.extract-coverage.outputs.api_branch }}%**" >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "- Coverage: N/A (no changes or tests skipped)" >> $GITHUB_STEP_SUMMARY

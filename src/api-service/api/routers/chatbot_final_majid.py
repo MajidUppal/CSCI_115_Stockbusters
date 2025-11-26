@@ -4,12 +4,15 @@ import os
 from fastapi import APIRouter, Header, Query, Body, HTTPException
 from fastapi.responses import FileResponse
 from typing import Dict, Any, List, Optional
+
 # from langchain_openai import ChatOpenAI
 from typing import TypedDict
 from typing import Annotated, TypedDict, List, Dict, Any, Optional
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
 # from langchain_openai import ChatOpenAI
 from langchain_google_vertexai import ChatVertexAI
+
 # from langchain_community.agent_toolkits import PlayWrightBrowserToolkit
 # from langchain_community.tools.playwright.utils import create_async_playwright_browser
 from langgraph.graph import StateGraph, START, END
@@ -17,19 +20,29 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
+
 # from langchain_core.pydantic_v1 import BaseModel, Field
-#from IPython.display import Image, display
+# from IPython.display import Image, display
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, Annotated
 import operator
-from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, ToolMessage, AIMessage
+from langchain_core.messages import (
+    AnyMessage,
+    SystemMessage,
+    HumanMessage,
+    ToolMessage,
+    AIMessage,
+)
+
 # from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
+
 # import gradio as gr
 import uuid
 from dotenv import load_dotenv
 from google.oauth2 import service_account
 from langgraph.checkpoint.sqlite import SqliteSaver
+
 # from api.utils.chat_bot_agent import ChatAgent
 from api.utils.chat_bot_agent import ChatAgent
 
@@ -40,8 +53,10 @@ memory = MemorySaver()
 # memory = SqliteSaver(conn_string=":memory:")
 
 load_dotenv(override=True)
-credentials = service_account.Credentials.from_service_account_file("../secrets/stock-busters-service-account.json")
-llm = ChatVertexAI( model="gemini-2.5-flash", credentials=credentials)
+credentials = service_account.Credentials.from_service_account_file(
+    "../secrets/stock-busters-service-account.json"
+)
+llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
 
 
 system_prompt = """"
@@ -83,24 +98,24 @@ async def get_chats(
     history = []
     welcome_message = "Welcome to Stock busters. I'm your AI assistant, and I'm here to help you gather your financial requirements. To start, may I please know your name?"
     print(welcome_message)
-    history = [AIMessage(content= welcome_message)]
+    history = [AIMessage(content=welcome_message)]
     user_input = ""
     user_confirm = False
     while user_input.lower() != "quit":
         user_input = input("\n")
         # response = chat(user_input, history)
-        response =  abot.graph.invoke({"messages": [{"role": "user", "content": user_input}]}, config=config)
-        print(response['messages'][-1].content)
+        response = abot.graph.invoke(
+            {"messages": [{"role": "user", "content": user_input}]}, config=config
+        )
+        print(response["messages"][-1].content)
         print("\n")
         # print(f"{response}")
         # if response['user_pref']['confirmation'].get() == True:
-        
-        user_confirm = response.get('user_pref', {}).get('confirmation')
+
+        user_confirm = response.get("user_pref", {}).get("confirmation")
         # print("user_confirm=", user_confirm)
         # print("*"*50)
         # print(response)
         if user_confirm == True:
-            user_input='quit'
-    return response.get('user_pref')
-
-
+            user_input = "quit"
+    return response.get("user_pref")

@@ -10,16 +10,23 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from google.oauth2 import service_account
 from api.utils.chat_bot_agent import ChatAgent
-from api.utils.detailed_page_funcs import (get_company_profile, get_quant_data, get_stocks_data, user_pref_stock_selection)
+from api.utils.detailed_page_funcs import (
+    get_company_profile,
+    get_quant_data,
+    get_stocks_data,
+    user_pref_stock_selection,
+)
 
 router = APIRouter()
+
 
 # Request/Response Models
 class ChatMessage(BaseModel):
     message: str
-    
+
     class Config:
         extra = "allow"
+
 
 class ChatResponse(BaseModel):
     chat_id: str
@@ -27,10 +34,12 @@ class ChatResponse(BaseModel):
     user_preferences: Optional[Dict[str, Any]] = None
     completed: bool = False
 
+
 class ChatHistory(BaseModel):
     chat_id: str
     messages: List[Dict[str, str]]
     user_preferences: Optional[Dict[str, Any]] = None
+
 
 # Initialize
 memory = MemorySaver()
@@ -78,7 +87,7 @@ chat_sessions = {}
 async def get_chats(
     model: str,
     x_session_id: str = Header(None, alias="X-Session-ID"),
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
 ):
     """
     Get all chat sessions for a user
@@ -86,38 +95,40 @@ async def get_chats(
     """
     if not x_session_id:
         raise HTTPException(status_code=400, detail="X-Session-ID header is required")
-    
+
     user_chats = []
     for chat_id, session in chat_sessions.items():
-        if session.get('user_id') == x_session_id:
+        if session.get("user_id") == x_session_id:
             # Generate title from first user message
-            messages = session.get('messages', [])
+            messages = session.get("messages", [])
             title = "New Chat"
             if messages:
-                first_user_msg = next((msg for msg in messages if msg.get('role') == 'user'), None)
+                first_user_msg = next(
+                    (msg for msg in messages if msg.get("role") == "user"), None
+                )
                 if first_user_msg:
                     # Use first 50 characters of first user message as title
-                    content = first_user_msg.get('content', '')
-                    title = content[:50] + ('...' if len(content) > 50 else '')
-            
-            user_chats.append({
-                'chat_id': chat_id,
-                'title': title,
-                'message_count': len(messages),
-                'user_preferences': session.get('user_preferences')
-            })
-    
+                    content = first_user_msg.get("content", "")
+                    title = content[:50] + ("..." if len(content) > 50 else "")
+
+            user_chats.append(
+                {
+                    "chat_id": chat_id,
+                    "title": title,
+                    "message_count": len(messages),
+                    "user_preferences": session.get("user_preferences"),
+                }
+            )
+
     if limit:
         user_chats = user_chats[:limit]
-    
+
     return {"chats": user_chats}
 
 
 @router.get("/{model}/chats/{chat_id}")
 async def get_chat(
-    model: str,
-    chat_id: str,
-    x_session_id: str = Header(None, alias="X-Session-ID")
+    model: str, chat_id: str, x_session_id: str = Header(None, alias="X-Session-ID")
 ):
     """
     Get a specific chat session by ID
@@ -125,18 +136,18 @@ async def get_chat(
     """
     if not x_session_id:
         raise HTTPException(status_code=400, detail="X-Session-ID header is required")
-    
+
     if chat_id not in chat_sessions:
         raise HTTPException(status_code=404, detail="Chat not found")
-    
+
     session = chat_sessions[chat_id]
-    if session.get('user_id') != x_session_id:
+    if session.get("user_id") != x_session_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    print("user_pref inside model_chat_chatid=", session.get('user_preferences'))
+    print("user_pref inside model_chat_chatid=", session.get("user_preferences"))
     return ChatHistory(
         chat_id=chat_id,
-        messages=session.get('messages', []),
-        user_preferences=session.get('user_preferences')
+        messages=session.get("messages", []),
+        user_preferences=session.get("user_preferences"),
     )
 
 
@@ -144,7 +155,7 @@ async def get_chat(
 async def start_chat(
     model: str,
     message: Dict[str, Any] = Body(...),
-    x_session_id: str = Header(None, alias="X-Session-ID")
+    x_session_id: str = Header(None, alias="X-Session-ID"),
 ):
     """
     Start a new chat session
@@ -155,60 +166,59 @@ async def start_chat(
     print(f"Session ID: {x_session_id}")
     # print(f"Received raw message: {message}")
     print(f"Message type: {type(message)}")
-    
+
     if not x_session_id:
         raise HTTPException(status_code=400, detail="X-Session-ID header is required")
-    
+
     # Extract message content
-    message_content = message.get('message', '')
+    message_content = message.get("message", "")
     if not message_content:
         raise HTTPException(status_code=400, detail="Message content is required")
-    
+
     print(f"Message content: {message_content}")
-    
+
     # Generate new chat ID
     import uuid
+
     chat_id = str(uuid.uuid4())
-    
+
     # Create config with thread_id
     config = {"configurable": {"thread_id": chat_id}}
-    
+
     # Welcome message
     welcome_message = "Welcome to Stock Busters. I'm your AI assistant, and I'm here to help you gather your financial requirements. To start, may I please know your name?"
-    
+
     # Initialize session
     chat_sessions[chat_id] = {
-        'user_id': x_session_id,
-        'messages': [
-            {'role': 'assistant', 'content': welcome_message},
-            {'role': 'user', 'content': message_content}
+        "user_id": x_session_id,
+        "messages": [
+            {"role": "assistant", "content": welcome_message},
+            {"role": "user", "content": message_content},
         ],
-        'user_preferences': None
+        "user_preferences": None,
     }
-    
+
     # Get AI response
     response = abot.graph.invoke(
-        {"messages": [{"role": "user", "content": message_content}]},
-        config=config
+        {"messages": [{"role": "user", "content": message_content}]}, config=config
     )
-    
-    ai_message = response['messages'][-1].content
-    user_pref = response.get('user_pref', {})
-    
+
+    ai_message = response["messages"][-1].content
+    user_pref = response.get("user_pref", {})
+
     # Update session
-    chat_sessions[chat_id]['messages'].append({
-        'role': 'assistant',
-        'content': ai_message
-    })
-    
+    chat_sessions[chat_id]["messages"].append(
+        {"role": "assistant", "content": ai_message}
+    )
+
     if user_pref:
-        chat_sessions[chat_id]['user_preferences'] = user_pref
-    
+        chat_sessions[chat_id]["user_preferences"] = user_pref
+
     return ChatResponse(
         chat_id=chat_id,
         message=ai_message,
         user_preferences=user_pref if user_pref else None,
-        completed=user_pref.get('confirmation', False) if user_pref else False
+        completed=user_pref.get("confirmation", False) if user_pref else False,
     )
 
 
@@ -217,7 +227,7 @@ async def continue_chat(
     model: str,
     chat_id: str,
     message: Dict[str, Any] = Body(...),
-    x_session_id: str = Header(None, alias="X-Session-ID")
+    x_session_id: str = Header(None, alias="X-Session-ID"),
 ):
     """
     Continue an existing chat session
@@ -225,51 +235,43 @@ async def continue_chat(
     """
     if not x_session_id:
         raise HTTPException(status_code=400, detail="X-Session-ID header is required")
-    
+
     if chat_id not in chat_sessions:
         raise HTTPException(status_code=404, detail="Chat not found")
-    
+
     session = chat_sessions[chat_id]
-    if session.get('user_id') != x_session_id:
+    if session.get("user_id") != x_session_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     # Extract message content
-    message_content = message.get('message', '')
+    message_content = message.get("message", "")
     if not message_content:
         raise HTTPException(status_code=400, detail="Message content is required")
-    
+
     # Add user message to history
-    session['messages'].append({
-        'role': 'user',
-        'content': message_content
-    })
-    
+    session["messages"].append({"role": "user", "content": message_content})
+
     # Create config with thread_id
     config = {"configurable": {"thread_id": chat_id}}
-    
+
     # Get AI response
     response = abot.graph.invoke(
-        {"messages": [{"role": "user", "content": message_content}]},
-        config=config
+        {"messages": [{"role": "user", "content": message_content}]}, config=config
     )
-    
-    ai_message = response['messages'][-1].content
-    user_pref = response.get('user_pref', {})
-    
+
+    ai_message = response["messages"][-1].content
+    user_pref = response.get("user_pref", {})
+
     # Update session
-    session['messages'].append({
-        'role': 'assistant',
-        'content': ai_message
-    })
-    
+    session["messages"].append({"role": "assistant", "content": ai_message})
+
     if user_pref:
-        session['user_preferences'] = user_pref
+        session["user_preferences"] = user_pref
         print("user preference in model_chat_chat_id", user_pref)
-    
+
     return ChatResponse(
         chat_id=chat_id,
         message=ai_message,
         user_preferences=user_pref if user_pref else None,
-        completed=user_pref.get('confirmation', False) if user_pref else False
+        completed=user_pref.get("confirmation", False) if user_pref else False,
     )
-

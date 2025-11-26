@@ -7,17 +7,21 @@ Requires the container to be running on the specified API_BASE_URL.
 Run with:
     API_BASE_URL=http://localhost:9000 pytest tests/system/ -v
 """
+
 import os
 import pytest
 import httpx
 import uuid
 
 
-# Skip all system tests if container is not running
-pytestmark = pytest.mark.skipif(
-    os.environ.get("RUN_SYSTEM_TESTS", "false").lower() != "true",
-    reason="System tests require RUN_SYSTEM_TESTS=true and running container"
-)
+# Mark as system tests and skip if container is not running
+pytestmark = [
+    pytest.mark.system,
+    pytest.mark.skipif(
+        os.environ.get("RUN_SYSTEM_TESTS", "false").lower() != "true",
+        reason="System tests require RUN_SYSTEM_TESTS=true and running container",
+    ),
+]
 
 
 class TestSystemHealth:
@@ -31,7 +35,7 @@ class TestSystemHealth:
 
     def teardown_method(self):
         """Clean up HTTP client."""
-        if hasattr(self, 'client'):
+        if hasattr(self, "client"):
             self.client.close()
 
     def test_root_endpoint_accessible(self):
@@ -49,10 +53,11 @@ class TestSystemHealth:
     def test_api_response_time(self):
         """Test that API responds within acceptable time."""
         import time
+
         start = time.time()
         response = self.client.get("/")
         elapsed = time.time() - start
-        
+
         assert response.status_code == 200
         assert elapsed < 2.0  # Should respond within 2 seconds
 
@@ -66,23 +71,22 @@ class TestSystemChatWorkflow:
         self.base_url = api_base_url
         self.session_id = test_session_id
         self.client = httpx.Client(
-            base_url=self.base_url, 
+            base_url=self.base_url,
             timeout=60.0,
-            headers={"X-Session-ID": self.session_id}
+            headers={"X-Session-ID": self.session_id},
         )
 
     def teardown_method(self):
         """Clean up HTTP client."""
-        if hasattr(self, 'client'):
+        if hasattr(self, "client"):
             self.client.close()
 
     def test_start_new_chat(self):
         """Test starting a new chat conversation."""
         response = self.client.post(
-            "/gemini/chats",
-            json={"message": "My name is Test User"}
+            "/gemini/chats", json={"message": "My name is Test User"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "chat_id" in data
@@ -93,23 +97,21 @@ class TestSystemChatWorkflow:
         """Test complete chat workflow from start to preferences."""
         # Start chat
         start_response = self.client.post(
-            "/gemini/chats",
-            json={"message": "My name is Integration Test"}
+            "/gemini/chats", json={"message": "My name is Integration Test"}
         )
         assert start_response.status_code == 200
         chat_id = start_response.json()["chat_id"]
-        
+
         # Continue with investment horizon
         response = self.client.post(
             f"/gemini/chats/{chat_id}",
-            json={"message": "I prefer long term investments"}
+            json={"message": "I prefer long term investments"},
         )
         assert response.status_code == 200
-        
+
         # Continue with risk appetite
         response = self.client.post(
-            f"/gemini/chats/{chat_id}",
-            json={"message": "I have low risk appetite"}
+            f"/gemini/chats/{chat_id}", json={"message": "I have low risk appetite"}
         )
         assert response.status_code == 200
 
@@ -117,11 +119,10 @@ class TestSystemChatWorkflow:
         """Test retrieving chat history."""
         # Start a chat first
         start_response = self.client.post(
-            "/gemini/chats",
-            json={"message": "Hello, testing history"}
+            "/gemini/chats", json={"message": "Hello, testing history"}
         )
         chat_id = start_response.json()["chat_id"]
-        
+
         # Get chat history
         response = self.client.get(f"/gemini/chats/{chat_id}")
         assert response.status_code == 200
@@ -132,11 +133,8 @@ class TestSystemChatWorkflow:
     def test_list_chats_for_session(self):
         """Test listing all chats for a session."""
         # Start a chat
-        self.client.post(
-            "/gemini/chats",
-            json={"message": "Test for listing"}
-        )
-        
+        self.client.post("/gemini/chats", json={"message": "Test for listing"})
+
         # List chats
         response = self.client.get("/gemini/chats")
         assert response.status_code == 200
@@ -156,7 +154,7 @@ class TestSystemStockDetails:
 
     def teardown_method(self):
         """Clean up HTTP client."""
-        if hasattr(self, 'client'):
+        if hasattr(self, "client"):
             self.client.close()
 
     def test_get_stock_details(self):
@@ -164,7 +162,7 @@ class TestSystemStockDetails:
         response = self.client.get("/details/AAPL")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should have all three sections
         assert "company_profile" in data
         assert "stocks_data" in data
@@ -173,7 +171,7 @@ class TestSystemStockDetails:
     def test_get_stock_details_multiple_tickers(self):
         """Test getting details for multiple tickers."""
         tickers = ["AAPL", "GOOGL", "MSFT"]
-        
+
         for ticker in tickers:
             response = self.client.get(f"/details/{ticker}")
             assert response.status_code == 200
@@ -190,12 +188,12 @@ class TestSystemReportGeneration:
         self.client = httpx.Client(
             base_url=self.base_url,
             timeout=60.0,
-            headers={"X-Session-ID": self.session_id}
+            headers={"X-Session-ID": self.session_id},
         )
 
     def teardown_method(self):
         """Clean up HTTP client."""
-        if hasattr(self, 'client'):
+        if hasattr(self, "client"):
             self.client.close()
 
     def test_generate_investment_report(self):
@@ -207,11 +205,11 @@ class TestSystemReportGeneration:
                     "long_term": True,
                     "short_term": False,
                     "high_risk": False,
-                    "low_risk": True
+                    "low_risk": True,
                 }
-            }
+            },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -227,14 +225,14 @@ class TestSystemReportGeneration:
                     "long_term": True,
                     "short_term": True,
                     "high_risk": True,
-                    "low_risk": True
+                    "low_risk": True,
                 }
-            }
+            },
         )
-        
+
         assert response.status_code == 200
         recommendations = response.json()["report"]["recommendations"]
-        
+
         if len(recommendations) > 0:
             rec = recommendations[0]
             assert "symbol" in rec
@@ -250,11 +248,11 @@ class TestSystemReportGeneration:
                     "long_term": True,
                     "short_term": False,
                     "high_risk": False,
-                    "low_risk": True
+                    "low_risk": True,
                 }
-            }
+            },
         )
-        
+
         # Get reports
         response = self.client.get("/gemini/reports")
         assert response.status_code == 200
