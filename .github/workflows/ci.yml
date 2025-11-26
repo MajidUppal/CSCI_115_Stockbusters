@@ -318,12 +318,10 @@ jobs:
         run: |
           mkdir -p ${{ matrix.coverage-path }}
           # For api-service, ensure the directory is writable by the app user (UID 1000)
-          # by creating it inside the container first, then fixing permissions
+          # Set permissions on the host directory so the app user in the container can write
           if [ "${{ matrix.component }}" = "api-service" ]; then
-            # Create directory structure inside container as root, then chown to app user
-            docker run --rm --entrypoint="" -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
-              ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "mkdir -p /workspace/coverage/htmlcov && chown -R app:app /workspace/coverage"
+            # Make the directory world-writable so the app user (UID 1000) can write to it
+            chmod 777 ${{ matrix.coverage-path }}
           fi
           
           # Run linting
