@@ -649,7 +649,7 @@ def setup_rag_system(credentials):
                     full_doc_text = cached_content
                     full_doc_metadata = cached_metadata or {}
                     used_cache = True
-                    print(f"✓ Retrieved from cache (no ChromaDB lookup needed)")
+                    print("✓ Retrieved from cache (no ChromaDB lookup needed)")
                     source = (
                         full_doc_metadata.get("source", "")
                         if isinstance(full_doc_metadata, dict)
@@ -1374,9 +1374,9 @@ def main():
 
     # Load CSV (from file or GCS)
     if args.csv_path:
-        print(f"Loading CSV from local file: {args.csv_path}")  # noqa: F541
+        print(f"Loading CSV from local file: {args.csv_path}")
         df = pd.read_csv(args.csv_path)
-        print(f"✓ CSV loaded from file")
+        print("✓ CSV loaded from file")
     else:
         print("Downloading CSV from GCS...")
         df = download_csv_from_gcs(INPUT_CSV, GCS_BUCKET_NAME)
