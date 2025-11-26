@@ -250,6 +250,8 @@ jobs:
       - name: Checkout code
         if: steps.check-run.outputs.skip != 'true'
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry
         if: steps.check-run.outputs.skip != 'true'
@@ -309,6 +311,30 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ""
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+
+      - name: Debug coverage file location
+        if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit' && always()
+        run: |
+          echo "🔍 Debugging coverage file location..."
+          echo "Coverage path: ${{ matrix.coverage-path }}"
+          echo "Full path: ${{ github.workspace }}/${{ matrix.coverage-path }}"
+          echo ""
+          echo "Checking if coverage directory exists:"
+          ls -la ${{ matrix.coverage-path }} || echo "Directory does not exist"
+          echo ""
+          echo "Checking for coverage.xml:"
+          if [ -f "${{ matrix.coverage-path }}/coverage.xml" ]; then
+            echo "✅ coverage.xml FOUND"
+            ls -lh "${{ matrix.coverage-path }}/coverage.xml"
+            echo ""
+            echo "File contents (first 20 lines):"
+            head -n 20 "${{ matrix.coverage-path }}/coverage.xml" || echo "Could not read file"
+          else
+            echo "❌ coverage.xml NOT FOUND"
+            echo ""
+            echo "Contents of coverage directory:"
+            find "${{ matrix.coverage-path }}" -type f 2>/dev/null || echo "Could not list directory"
+          fi
 
       - name: Run integration tests
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'integration'
@@ -379,7 +405,9 @@ jobs:
         run: |
           COVERAGE_XML="${{ matrix.coverage-path }}/coverage.xml"
           COMPONENT="${{ matrix.component }}"
+          echo "🔍 Extracting coverage data from: $COVERAGE_XML"
           if [ -f "$COVERAGE_XML" ]; then
+            echo "✅ Coverage file found, extracting data..."
             # Write Python script to file to avoid YAML parsing issues
             cat > /tmp/extract_coverage_data.py << SCRIPT_END
           import xml.etree.ElementTree as ET
@@ -424,7 +452,12 @@ jobs:
             COVERAGE_XML="$COVERAGE_XML" COMPONENT="$COMPONENT" python3 /tmp/extract_coverage_data.py | while IFS='=' read -r key value; do
               echo "${key}=${value}" >> $GITHUB_OUTPUT
             done
+            echo "✅ Coverage data extracted successfully"
           else
+            echo "❌ Coverage file not found at: $COVERAGE_XML"
+            echo "Current directory: $(pwd)"
+            echo "Listing coverage directory:"
+            ls -la "${{ matrix.coverage-path }}" || echo "Directory does not exist"
             echo "coverage=N/A" >> $GITHUB_OUTPUT
             echo "branch_coverage=N/A" >> $GITHUB_OUTPUT
             echo "lines_covered=0" >> $GITHUB_OUTPUT
@@ -432,6 +465,35 @@ jobs:
             echo "branches_covered=0" >> $GITHUB_OUTPUT
             echo "branches_valid=0" >> $GITHUB_OUTPUT
             echo "component=${{ matrix.component }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit coverage files (for test-summary job)
+        if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit' && always() && (github.event_name == 'push' || github.event_name == 'pull_request')
+        run: |
+          # Only commit if coverage file exists
+          if [ -f "${{ matrix.coverage-path }}/coverage.xml" ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Checkout with write permissions
+            git config --local --add safe.directory ${{ github.workspace }}
+            
+            # Add coverage files
+            git add ${{ matrix.coverage-path }}/coverage.xml || true
+            if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+              git add ${{ matrix.coverage-path }}/htmlcov || true
+            fi
+            
+            # Commit if there are changes
+            if [ -n "$(git status --porcelain ${{ matrix.coverage-path }}/)" ]; then
+              git commit -m "Update ${{ matrix.component }} coverage report [skip ci]" || exit 0
+              git push || echo "⚠️ Failed to push coverage files"
+              echo "✅ Coverage files committed for ${{ matrix.component }}"
+            else
+              echo "ℹ️ No coverage changes to commit for ${{ matrix.component }}"
+            fi
+          else
+            echo "⚠️ Coverage file not found at ${{ matrix.coverage-path }}/coverage.xml"
           fi
 
   # Test Summary and Coverage Commit
@@ -466,7 +528,7 @@ jobs:
           echo "quant_branch=$QUANT_BRANCH" >> $GITHUB_OUTPUT
 
       - name: Combine and commit unified coverage report
-        if: always() && github.event_name == 'push'
+        if: always() && (github.event_name == 'push' || github.event_name == 'pull_request')
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
