@@ -257,6 +257,7 @@ def get_chroma_db(collection_name: Optional[str] = None):
         # Extract results from ChromaDB response format
         def get_first(x):
             return x[0] if x else []
+
         ids = get_first(res.get("ids", []))
         docs = get_first(res.get("documents", []))
         metas = get_first(res.get("metadatas", []))

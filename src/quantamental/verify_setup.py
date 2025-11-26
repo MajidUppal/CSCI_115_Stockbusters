@@ -145,7 +145,9 @@ def check_data_files():
             print(f"{check_mark(optional)} {filepath:<45} {description} ({status})")
 
     if not any_exist:
-        print(f"\n{YELLOW}  No data files found. Run data collection first:{RESET}")  # noqa: F541
+        print(
+            f"\n{YELLOW}  No data files found. Run data collection first:{RESET}"
+        )  # noqa: F541
         print(f"   python main.py --step collect")
 
     return any_exist

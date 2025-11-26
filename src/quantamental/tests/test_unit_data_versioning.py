@@ -275,7 +275,9 @@ class TestVersioning:
         manager = DataVersionManager(sample_config)
 
         with patch.object(manager, "gcs_client", None):
-            manager.create_version_snapshot(version_tag="test_v1")  # Test that it doesn't raise
+            manager.create_version_snapshot(
+                version_tag="test_v1"
+            )  # Test that it doesn't raise
 
         # Check JSON file was created
         json_file = (
