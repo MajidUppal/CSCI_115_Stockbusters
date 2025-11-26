@@ -79,8 +79,8 @@ jobs:
             test-path: src/quantamental
     # Skip if component didn't change (unless manual trigger)
     if: |
-      (matrix.component == 'rag' && (needs.detect-changes.outputs.rag == 'true' || github.event_name == 'workflow_dispatch')) ||
-      (matrix.component == 'quantamental' && (needs.detect-changes.outputs.quantamental == 'true' || github.event_name == 'workflow_dispatch'))
+      (${{ matrix.component }} == 'rag' && (${{ needs.detect-changes.outputs.rag }} == 'true' || github.event_name == 'workflow_dispatch')) ||
+      (${{ matrix.component }} == 'quantamental' && (${{ needs.detect-changes.outputs.quantamental }} == 'true' || github.event_name == 'workflow_dispatch'))
     timeout-minutes: 10
     permissions:
       contents: read
@@ -198,9 +198,9 @@ jobs:
     # Skip if component didn't change (unless manual trigger)
     # Skip system tests on feature branches (optimization)
     if: |
-      ((matrix.component == 'rag' && (needs.detect-changes.outputs.rag == 'true' || github.event_name == 'workflow_dispatch')) ||
-       (matrix.component == 'quantamental' && (needs.detect-changes.outputs.quantamental == 'true' || github.event_name == 'workflow_dispatch'))) &&
-      (matrix.test-type != 'system' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Milestone4' || github.event_name == 'workflow_dispatch')
+      ((${{ matrix.component }} == 'rag' && (${{ needs.detect-changes.outputs.rag }} == 'true' || github.event_name == 'workflow_dispatch')) ||
+       (${{ matrix.component }} == 'quantamental' && (${{ needs.detect-changes.outputs.quantamental }} == 'true' || github.event_name == 'workflow_dispatch'))) &&
+      (${{ matrix.test-type }} != 'system' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Milestone4' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 10
     outputs:
       coverage_percentage: ${{ steps.extract-coverage.outputs.coverage }}
