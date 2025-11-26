@@ -317,15 +317,13 @@ jobs:
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit'
         run: |
           mkdir -p ${{ matrix.coverage-path }}
-          # Create coverage directory - override entrypoint for api-service
+          # For api-service, ensure the directory is writable by the app user (UID 1000)
+          # by creating it inside the container first, then fixing permissions
           if [ "${{ matrix.component }}" = "api-service" ]; then
-            docker run --rm --entrypoint="" --user app -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+            # Create directory structure inside container as root, then chown to app user
+            docker run --rm --entrypoint="" -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "mkdir -p /workspace/coverage/htmlcov"
-          else
-            docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
-              ${{ matrix.image-name }}:${{ github.sha }} \
-              mkdir -p /workspace/coverage/htmlcov
+              /bin/bash -c "mkdir -p /workspace/coverage/htmlcov && chown -R app:app /workspace/coverage"
           fi
           
           # Run linting
