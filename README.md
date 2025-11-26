@@ -403,6 +403,9 @@ Each artifact version includes:
 - **Lineage**: Links to the run that created it
 - **Files**: Actual data files (parquet, pkl, csv)
 
+<img width="1024" height="656" alt="image" src="https://github.com/user-attachments/assets/8f8739b1-a103-4fa3-be6a-45ee3de7a713" />
+
+
 ### GCS Bucket (Timestamped Outputs)
 
 Pipeline outputs are also stored in Google Cloud Storage with timestamps for additional versioning:
