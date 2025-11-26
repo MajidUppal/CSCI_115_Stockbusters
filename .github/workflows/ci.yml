@@ -988,89 +988,69 @@ jobs:
               echo "  ❌ src/api-service/coverage/htmlcov/ does not exist"
             fi
             
-            # Copy HTML coverage reports (combine if both exist)
-            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
-              # Copy both HTML reports to separate subdirectories
-              if [ -d "src/rag/coverage/htmlcov" ]; then
+            # Copy HTML coverage reports based on component count
+            # For multiple components: copy to separate subdirectories
+            # For single component: copy to unified htmlcov directory
+            if [ $COMPONENT_COUNT -gt 1 ]; then
+              # Multiple components: copy to component-specific subdirectories
+              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                rm -rf coverage/htmlcov_rag  # Remove existing to avoid nesting
                 if ! cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag; then
                   echo "❌ ERROR: Failed to copy RAG HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov_rag" ]; then
-                  echo "❌ ERROR: RAG HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied RAG HTML coverage"
+                echo "✅ Copied RAG HTML coverage to coverage/htmlcov_rag/"
               fi
-              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+              if [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                rm -rf coverage/htmlcov_quantamental  # Remove existing to avoid nesting
                 if ! cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental; then
                   echo "❌ ERROR: Failed to copy Quantamental HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov_quantamental" ]; then
-                  echo "❌ ERROR: Quantamental HTML coverage directory was not created"
+                echo "✅ Copied Quantamental HTML coverage to coverage/htmlcov_quantamental/"
+              fi
+              if [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
+                rm -rf coverage/htmlcov_api  # Remove existing to avoid nesting
+                if ! cp -r src/api-service/coverage/htmlcov coverage/htmlcov_api; then
+                  echo "❌ ERROR: Failed to copy API-service HTML coverage"
                   exit 1
                 fi
-                echo "✅ Copied Quantamental HTML coverage"
+                echo "✅ Copied API-service HTML coverage to coverage/htmlcov_api/"
               fi
-            elif [ "$HAS_RAG" = true ]; then
-              if [ -d "src/rag/coverage/htmlcov" ]; then
+            else
+              # Single component: copy to unified htmlcov directory
+              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                rm -rf coverage/htmlcov  # Remove existing to avoid nesting
                 if ! cp -r src/rag/coverage/htmlcov coverage/htmlcov; then
                   echo "❌ ERROR: Failed to copy RAG HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov" ]; then
-                  echo "❌ ERROR: HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied RAG HTML coverage"
-              fi
-            elif [ "$HAS_QUANT" = true ]; then
-              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+                echo "✅ Copied RAG HTML coverage to coverage/htmlcov/"
+              elif [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                rm -rf coverage/htmlcov  # Remove existing to avoid nesting
                 if ! cp -r src/quantamental/coverage/htmlcov coverage/htmlcov; then
                   echo "❌ ERROR: Failed to copy Quantamental HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov" ]; then
-                  echo "❌ ERROR: HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied Quantamental HTML coverage"
-              fi
-            elif [ "$HAS_API" = true ]; then
-              if [ -d "src/api-service/coverage/htmlcov" ]; then
+                echo "✅ Copied Quantamental HTML coverage to coverage/htmlcov/"
+              elif [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
+                rm -rf coverage/htmlcov  # Remove existing to avoid nesting
                 if ! cp -r src/api-service/coverage/htmlcov coverage/htmlcov; then
                   echo "❌ ERROR: Failed to copy API-service HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov" ]; then
-                  echo "❌ ERROR: HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied API-service HTML coverage"
+                echo "✅ Copied API-service HTML coverage to coverage/htmlcov/"
               fi
             fi
             
-            # Copy HTML reports for multiple components
-            if [ $COMPONENT_COUNT -gt 1 ]; then
-              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag || true
-              fi
-              if [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental || true
-              fi
-              if [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
-                cp -r src/api-service/coverage/htmlcov coverage/htmlcov_api || true
-              fi
-            fi
+            # Note: HTML files are already copied above based on component count
+            # No need to copy again here to avoid duplicates
             
             echo "✅ Unified coverage report created"
           else
