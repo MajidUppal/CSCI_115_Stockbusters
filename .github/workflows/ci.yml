@@ -737,86 +737,89 @@ jobs:
             if [ $COMPONENT_COUNT -gt 1 ]; then
               echo "Combining $COMPONENT_COUNT components..."
               
-              # Create Python script to combine coverage
-              cat > /tmp/combine_coverage.py << 'SCRIPT_END'
-import xml.etree.ElementTree as ET
-import time
-import sys
-
-files = []
-if sys.argv[1] == 'true':
-    files.append(('src/rag/coverage/coverage.xml', 'rag'))
-if sys.argv[2] == 'true':
-    files.append(('src/quantamental/coverage/coverage.xml', 'quantamental'))
-if sys.argv[3] == 'true':
-    files.append(('src/api-service/coverage/coverage.xml', 'api-service'))
-
-if len(files) == 0:
-    print("No coverage files to combine")
-    sys.exit(1)
-
-# Parse all coverage files
-roots = []
-for filepath, name in files:
-    try:
-        tree = ET.parse(filepath)
-        roots.append((tree.getroot(), name))
-    except Exception as e:
-        print(f"Error parsing {filepath}: {e}")
-        sys.exit(1)
-
-# Sum up coverage metrics
-total_lines_covered = 0
-total_lines_valid = 0
-total_branches_covered = 0
-total_branches_valid = 0
-
-# Create combined root
-combined_root = ET.Element("coverage")
-combined_root.set("version", roots[0][0].get("version", "1.0"))
-
-# Sum metrics from all components
-for root, name in roots:
-    total_lines_covered += int(root.get("lines-covered", 0))
-    total_lines_valid += int(root.get("lines-valid", 0))
-    total_branches_covered += int(root.get("branches-covered", 0))
-    total_branches_valid += int(root.get("branches-valid", 0))
-
-# Calculate combined rates
-line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0.0
-branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0.0
-
-# Set combined metrics
-combined_root.set("line-rate", str(line_rate))
-combined_root.set("branch-rate", str(branch_rate))
-combined_root.set("lines-covered", str(total_lines_covered))
-combined_root.set("lines-valid", str(total_lines_valid))
-combined_root.set("branches-covered", str(total_branches_covered))
-combined_root.set("branches-valid", str(total_branches_valid))
-combined_root.set("timestamp", str(int(time.time() * 1000)))
-
-# Add sources
-sources = ET.SubElement(combined_root, "sources")
-for _, name in roots:
-    ET.SubElement(sources, "source").text = f"src/{name}"
-
-# Add packages from all components
-packages = ET.SubElement(combined_root, "packages")
-for root, name in roots:
-    root_packages = root.find("packages")
-    if root_packages is not None:
-        for pkg in root_packages.findall("package"):
-            pkg_elem = ET.Element("package")
-            pkg_elem.set("name", f"{name}/{pkg.get('name', '')}")
-            pkg_elem.set("line-rate", pkg.get("line-rate", "0"))
-            pkg_elem.set("branch-rate", pkg.get("branch-rate", "0"))
-            pkg_elem.set("complexity", pkg.get("complexity", "0"))
-            packages.append(pkg_elem)
-
-# Write combined coverage
-ET.ElementTree(combined_root).write("coverage/coverage.xml", encoding="utf-8", xml_declaration=True)
-print(f"✅ Combined coverage: {line_rate*100:.1f}% (lines), {branch_rate*100:.1f}% (branches)")
-SCRIPT_END
+              # Write Python script to file to avoid YAML parsing issues
+              cat > /tmp/combine_coverage.py << SCRIPT_END
+          import xml.etree.ElementTree as ET
+          import time
+          import sys
+          
+          files = []
+          if sys.argv[1] == 'true':
+              files.append(('src/rag/coverage/coverage.xml', 'rag'))
+          if sys.argv[2] == 'true':
+              files.append(('src/quantamental/coverage/coverage.xml', 'quantamental'))
+          if sys.argv[3] == 'true':
+              files.append(('src/api-service/coverage/coverage.xml', 'api-service'))
+          
+          if len(files) == 0:
+              print("No coverage files to combine")
+              sys.exit(1)
+          
+          # Parse all coverage files
+          roots = []
+          for filepath, name in files:
+              try:
+                  tree = ET.parse(filepath)
+                  roots.append((tree.getroot(), name))
+              except Exception as e:
+                  print(f"Error parsing {filepath}: {e}")
+                  sys.exit(1)
+          
+          # Sum up coverage metrics
+          total_lines_covered = 0
+          total_lines_valid = 0
+          total_branches_covered = 0
+          total_branches_valid = 0
+          
+          # Create combined root
+          combined_root = ET.Element("coverage")
+          combined_root.set("version", roots[0][0].get("version", "1.0"))
+          
+          # Sum metrics from all components
+          for root, name in roots:
+              total_lines_covered += int(root.get("lines-covered", 0))
+              total_lines_valid += int(root.get("lines-valid", 0))
+              total_branches_covered += int(root.get("branches-covered", 0))
+              total_branches_valid += int(root.get("branches-valid", 0))
+          
+          # Calculate combined rates
+          line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0.0
+          branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0.0
+          
+          # Set combined metrics
+          combined_root.set("line-rate", str(line_rate))
+          combined_root.set("branch-rate", str(branch_rate))
+          combined_root.set("lines-covered", str(total_lines_covered))
+          combined_root.set("lines-valid", str(total_lines_valid))
+          combined_root.set("branches-covered", str(total_branches_covered))
+          combined_root.set("branches-valid", str(total_branches_valid))
+          combined_root.set("timestamp", str(int(time.time() * 1000)))
+          
+          # Add sources
+          sources = ET.SubElement(combined_root, "sources")
+          for _, name in roots:
+              ET.SubElement(sources, "source").text = f"src/{name}"
+          
+          # Add packages from all components
+          packages = ET.SubElement(combined_root, "packages")
+          for root, name in roots:
+              root_packages = root.find("packages")
+              if root_packages is not None:
+                  for pkg in root_packages.findall("package"):
+                      pkg_elem = ET.Element("package")
+                      pkg_elem.set("name", f"{name}/{pkg.get('name', '')}")
+                      pkg_elem.set("line-rate", pkg.get("line-rate", "0"))
+                      pkg_elem.set("branch-rate", pkg.get("branch-rate", "0"))
+                      pkg_elem.set("complexity", pkg.get("complexity", "0"))
+                      packages.append(pkg_elem)
+          
+          # Write combined coverage
+          ET.ElementTree(combined_root).write("coverage/coverage.xml", encoding="utf-8", xml_declaration=True)
+          print(f"✅ Combined coverage: {line_rate*100:.1f}% (lines), {branch_rate*100:.1f}% (branches)")
+          SCRIPT_END
+              
+              # Strip leading spaces from Python script (heredoc preserves YAML indentation)
+              sed -i 's/^          //' /tmp/combine_coverage.py
               
               # Run the combination script
               if ! python3 /tmp/combine_coverage.py "$HAS_RAG" "$HAS_QUANT" "$HAS_API"; then
