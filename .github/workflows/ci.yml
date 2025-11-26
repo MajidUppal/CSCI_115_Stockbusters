@@ -317,9 +317,16 @@ jobs:
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit'
         run: |
           mkdir -p ${{ matrix.coverage-path }}
-          docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
-            ${{ matrix.image-name }}:${{ github.sha }} \
-            mkdir -p /workspace/coverage/htmlcov
+          # Create coverage directory - override entrypoint for api-service
+          if [ "${{ matrix.component }}" = "api-service" ]; then
+            docker run --rm --entrypoint="" -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              /bin/bash -c "mkdir -p /workspace/coverage/htmlcov"
+          else
+            docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              mkdir -p /workspace/coverage/htmlcov
+          fi
           
           # Run linting
           if [ "${{ matrix.component }}" = "rag" ]; then
@@ -331,8 +338,14 @@ jobs:
               ${{ matrix.image-name }}:${{ github.sha }} \
               pytest ${{ matrix.test-path }} --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
           else
-            docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
-              "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            # Run linting - override entrypoint for api-service to prevent server from starting
+            if [ "${{ matrix.component }}" = "api-service" ]; then
+              docker run --rm --entrypoint="" -w /app ${{ matrix.image-name }}:${{ github.sha }} \
+                /bin/bash -c "uv run black --check . && uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && uv run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            else
+              docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
+                "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            fi
             # Run unit tests with coverage
             # For api-service, use --cov=api (source is in /app/api/), for others use --cov=.
             # For api-service, override entrypoint to prevent server from starting
@@ -340,7 +353,7 @@ jobs:
               docker run --rm --entrypoint="" -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
                 ${{ matrix.image-name }}:${{ github.sha }} \
-                /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
+                /bin/bash -c "uv run pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
             else
               docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
@@ -425,7 +438,7 @@ jobs:
             # Override entrypoint to prevent server from starting
             docker run --rm --entrypoint="" -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
+              /bin/bash -c "uv run pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
           else
             docker run --rm -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
@@ -477,7 +490,7 @@ jobs:
             docker run -d --name api-server -p 9000:9000 \
               -e DEV=1 \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && uvicorn api.service:app --host 0.0.0.0 --port 9000"
+              /bin/bash -c "uv run uvicorn api.service:app --host 0.0.0.0 --port 9000"
             # Wait for server
             for i in {1..10}; do
               if curl -f -s --max-time 2 http://localhost:9000/ > /dev/null 2>&1; then
@@ -489,7 +502,7 @@ jobs:
             # Run tests
             docker run --rm --network host --entrypoint="" -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
+              /bin/bash -c "uv run pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
             # Cleanup
             docker stop api-server && docker rm api-server || true
           else
