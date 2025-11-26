@@ -54,6 +54,17 @@ pip-delete-this-directory.txt
 #.pytest_cache/
 # cover/
 
+# Explicitly allow coverage files to be tracked
+!coverage/
+!coverage/**/*
+!src/rag/coverage/
+!src/rag/coverage/**/*
+!src/quantamental/coverage/
+!src/quantamental/coverage/**/*
+!**/coverage.xml
+!**/htmlcov/
+!**/htmlcov/**/*
+
 # Translations
 *.mo
 *.pot

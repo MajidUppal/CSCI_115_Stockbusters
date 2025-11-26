@@ -526,9 +526,13 @@ jobs:
           fi
           
           if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
-            if ! git add "${{ matrix.coverage-path }}/htmlcov"; then
-              echo "❌ ERROR: Failed to add htmlcov directory to git"
-              exit 1
+            # Try to add htmlcov, but don't fail if it's ignored by .gitignore
+            # HTML coverage reports are often in .gitignore, which is fine
+            GIT_ADD_OUTPUT=$(git add "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
+            if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
+              echo "ℹ️  htmlcov directory is ignored by .gitignore (this is expected and OK)"
+            else
+              echo "✅ Added htmlcov directory to git"
             fi
           fi
           
@@ -536,17 +540,35 @@ jobs:
           if [ -z "$(git status --porcelain ${{ matrix.coverage-path }}/)" ]; then
             echo "ℹ️ No coverage changes to commit for ${{ matrix.component }} (files may already be committed)"
           else
+            # Pull latest changes before committing (handle concurrent commits)
+            git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            
+            # Re-stage files in case pull changed anything
+            git add "${{ matrix.coverage-path }}/coverage.xml" || true
+            if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+              GIT_ADD_OUTPUT=$(git add "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
+              if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
+                echo "ℹ️  htmlcov directory is ignored by .gitignore (this is expected and OK)"
+              fi
+            fi
+            
             # Commit and verify success
             if ! git commit -m "Update ${{ matrix.component }} coverage report [skip ci]"; then
               echo "❌ ERROR: Failed to commit coverage files for ${{ matrix.component }}"
               exit 1
             fi
             
-            # Push and verify success
+            # Push and verify success (retry once if it fails due to remote changes)
             if ! git push; then
-              echo "❌ ERROR: Failed to push coverage files for ${{ matrix.component }}"
-              echo "This will cause test-summary job to fail to find coverage files."
-              exit 1
+              echo "⚠️  Push failed, pulling latest changes and retrying..."
+              git pull --rebase --no-edit || git pull --no-edit || true
+              git add "${{ matrix.coverage-path }}/coverage.xml" || true
+              git commit -m "Update ${{ matrix.component }} coverage report [skip ci]" || true
+              if ! git push; then
+                echo "❌ ERROR: Failed to push coverage files for ${{ matrix.component }} after retry"
+                echo "This will cause test-summary job to fail to find coverage files."
+                exit 1
+              fi
             fi
             
             echo "✅ Coverage files committed and pushed successfully for ${{ matrix.component }}"
@@ -741,6 +763,9 @@ jobs:
           
           # Commit if there are changes
           if [ -n "$(git status --porcelain coverage/)" ]; then
+            # Pull latest changes before committing (handle concurrent commits)
+            git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            
             if ! git add coverage/; then
               echo "❌ ERROR: Failed to add coverage files to git"
               exit 1
@@ -751,9 +776,16 @@ jobs:
               exit 1
             fi
             
+            # Push and verify success (retry once if it fails due to remote changes)
             if ! git push; then
-              echo "❌ ERROR: Failed to push unified coverage report"
-              exit 1
+              echo "⚠️  Push failed, pulling latest changes and retrying..."
+              git pull --rebase --no-edit || git pull --no-edit || true
+              git add coverage/ || true
+              git commit -m "Update unified coverage report [skip ci]" || true
+              if ! git push; then
+                echo "❌ ERROR: Failed to push unified coverage report after retry"
+                exit 1
+              fi
             fi
             
             echo "✅ Unified coverage report committed and pushed successfully"
