@@ -321,15 +321,15 @@ experiment tracking and reproducibility.
 
 <img width="800" height="765" alt="image" src="https://github.com/user-attachments/assets/11959926-5295-4746-a462-b2c0dcf68b8f" />
 
-### Data and Model Artifact in W&B ###
+### Data and Model Artifact in Weight & Bias ###
 
 <img width="1914" height="897" alt="image" src="https://github.com/user-attachments/assets/d3d0d924-c6eb-4cfe-ae17-65326d934bd2" />
 
-### The Artifact Lineage###
+<img width="818" height="513" alt="image" src="https://github.com/user-attachments/assets/7f175574-95a7-4c08-959c-9806dafbf480" />
+
+### Artifact Lineage Tracking & Reproducibility
 
 <img width="1305" height="882" alt="image" src="https://github.com/user-attachments/assets/1b5123c0-78c5-455b-83ec-579b19c3736b" />
-
-### Lineage Tracking & Reproducibility
 
 The W&B Artifacts Lineage view provides a visual representation of data flow through our ML pipeline, 
 enabling full reproducibility and traceability. The graph shows how training runs connect to their 
@@ -359,9 +359,91 @@ Our versioned artifacts include: raw input data
 (`quantamental-model` with versions v0-v3), and pipeline outputs (`backtest_output`, `output_combined_quantamental`). 
 This comprehensive versioning strategy satisfies the MS4 requirement for data versioning and reproducibility.
 
-    
+### Experiment Tracking & Model Performance
 
-## Model Fine-Tuning## (Siri)
+The W&B Workspace provides a comprehensive view of model performance across all training runs. 
+The dashboard displays key metrics including ROC-AUC, precision, recall, and probability 
+distributions for each experiment. The confusion matrices compare predictions between runs 
+(e.g., `giddy-firefly-27` vs `fine-firefly-24`), showing the model correctly identifies 
+approximately 125 true negatives and 52 true positives, with 71 false positives and 165 
+false negatives. This visualization enables quick comparison across 27 tracked runs, helping 
+identify which configurations produce the best results and supporting iterative model improvement.
+
+<img width="1840" height="791" alt="image" src="https://github.com/user-attachments/assets/88bc93a2-4e57-4fea-a465-53a4a39d80f2" />
+
+<img width="841" height="420" alt="image" src="https://github.com/user-attachments/assets/accfbf78-a1ad-4a8b-a414-9f90148c028c" />
+
+<img width="897" height="746" alt="image" src="https://github.com/user-attachments/assets/9f71f04d-9e1d-448f-b9d3-f83061786d14" />
+
+
+
+
+
+
+
+## Data Versioning Implementation
+
+Our pipeline implements data versioning at multiple levels to ensure full reproducibility:
+
+### W&B Artifacts (Primary Versioning)
+
+Weights & Biases Artifacts serves as our primary data versioning system, tracking all datasets 
+and models with automatic version increments:
+
+| Artifact Type | Name | Description | Versions |
+|---------------|------|-------------|----------|
+| **Raw Data** | `input_fundamentals` | Quarterly financial metrics from FMP API | v0, v1 |
+| **Raw Data** | `input_sp500_index` | S&P 500 index prices | v0, v1 |
+| **Dataset** | `training-data` | Processed features for model training | v0, v1 |
+| **Model** | `quantamental-model` | Trained Random Forest classifier | v0, v1, v2, v3 |
+| **Output** | `backtest_output` | Prediction results with rankings | v0, v1, v2, v3 |
+
+Each artifact version includes:
+- **Metadata**: Accuracy, validation status, training date
+- **Lineage**: Links to the run that created it
+- **Files**: Actual data files (parquet, pkl, csv)
+
+### GCS Bucket (Timestamped Outputs)
+
+Pipeline outputs are also stored in Google Cloud Storage with timestamps for additional versioning:
+```
+gs://fin-data-bucket-115/model_output/
+├── combined_quantamental_20241120_143558.csv
+├── combined_quantamental_20241124_173024.csv
+└── backtest_results_20241125_162002.csv
+```
+Example from GCS bucket
+<img width="1198" height="931" alt="image" src="https://github.com/user-attachments/assets/3db6f2e8-56d7-468e-ae42-5e71108e7ebb" />
+
+
+
+The timestamp format `YYYYMMDD_HHMMSS` allows chronological tracking of all pipeline runs.
+
+### Version Metadata Files
+
+Each pipeline run generates a version info file (`version_info_ms4.json`) containing:
+```json
+{
+  "timestamp": "2024-11-25T16:20:02",
+  "model_version": "v3",
+  "accuracy": 0.39,
+  "validation_status": "degraded",
+  "data_version": "training-data:v1",
+  "git_commit": "abc123..."
+}
+```
+
+### Why This Approach?
+
+We chose W&B Artifacts over DVC because:
+1. **Unified Platform**: Experiment tracking and versioning in one place
+2. **Automatic Lineage**: Visual graph connecting data → runs → models
+3. **Metadata Support**: Store accuracy, status alongside artifacts
+4. **No Extra Infrastructure**: Built-in cloud storage (vs. DVC requiring remote setup)
+
+
+
+## Model Evaluation ## 
     Should include:
     Training scripts/config files, dataset references (versioned), and experiment logs.
     A concise summary of key results and how the fine-tuned model affects your deployment strategy.
