@@ -246,6 +246,18 @@ The pipeline enforces a **minimum 50% combined coverage** threshold across all c
 - **Quantamental Component**: 45% line coverage, 35% branch coverage
 - **API-service Component**: 68% line coverage, 63% branch coverage
 
+#### Coverage Reports Location
+
+Coverage reports are automatically generated and committed to the repository:
+
+- **Unified Coverage Report**: `coverage/coverage.xml` (Cobertura format) and `coverage/htmlcov/` (browseable HTML)
+- **Component-Specific Reports**:
+  - RAG: `src/rag/coverage/coverage.xml` and `src/rag/coverage/htmlcov/`
+  - Quantamental: `src/quantamental/coverage/coverage.xml` and `src/quantamental/coverage/htmlcov/`
+  - API-service: `src/api-service/coverage/coverage.xml` and `src/api-service/coverage/htmlcov/`
+
+The unified coverage report combines metrics from all components and is updated on every CI run.
+
 #### Documentation
 
 For detailed information about the CI pipeline, including architecture, job descriptions, test types, coverage calculation methodology, and troubleshooting, see:

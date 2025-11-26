@@ -430,16 +430,23 @@ Where:
 
 ### Coverage Reports
 
-**Location**: `coverage/`
+**Unified Coverage Reports** (root level):
+- **Location**: `coverage/`
+- **XML Report**: `coverage/coverage.xml` (Cobertura format, combines all components)
+- **HTML Reports**: `coverage/htmlcov/` (browseable HTML, combines all components)
 
-**Files**:
-- `coverage.xml`: Unified XML coverage report (Cobertura format)
-- `htmlcov/`: HTML coverage reports (browseable)
+**Component-Specific Reports**:
+- **RAG**:
+  - XML: `src/rag/coverage/coverage.xml`
+  - HTML: `src/rag/coverage/htmlcov/`
+- **Quantamental**:
+  - XML: `src/quantamental/coverage/coverage.xml`
+  - HTML: `src/quantamental/coverage/htmlcov/`
+- **API-service**:
+  - XML: `src/api-service/coverage/coverage.xml`
+  - HTML: `src/api-service/coverage/htmlcov/`
 
-**Component Reports**:
-- `src/rag/coverage/coverage.xml`
-- `src/quantamental/coverage/coverage.xml`
-- `src/api-service/coverage/coverage.xml`
+**Note**: The unified coverage report in `coverage/` is automatically committed to the repository after each CI run. Component-specific reports are generated during test execution but may not be committed (only the unified report is committed).
 
 **Branch Coverage**: Collected and reported alongside line coverage.
 

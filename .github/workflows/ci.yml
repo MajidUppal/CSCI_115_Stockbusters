@@ -989,15 +989,71 @@ jobs:
             exit 1
           fi
           
+          # List HTML coverage directories that exist
+          echo "📁 Checking for HTML coverage directories:"
+          if [ -d "coverage/htmlcov" ]; then
+            echo "  ✅ coverage/htmlcov/ exists ($(find coverage/htmlcov -type f | wc -l) files)"
+          else
+            echo "  ⚠️  coverage/htmlcov/ does not exist"
+          fi
+          if [ -d "coverage/htmlcov_rag" ]; then
+            echo "  ✅ coverage/htmlcov_rag/ exists ($(find coverage/htmlcov_rag -type f | wc -l) files)"
+          fi
+          if [ -d "coverage/htmlcov_quantamental" ]; then
+            echo "  ✅ coverage/htmlcov_quantamental/ exists ($(find coverage/htmlcov_quantamental -type f | wc -l) files)"
+          fi
+          if [ -d "coverage/htmlcov_api" ]; then
+            echo "  ✅ coverage/htmlcov_api/ exists ($(find coverage/htmlcov_api -type f | wc -l) files)"
+          fi
+          
           # Commit if there are changes
           if [ -n "$(git status --porcelain coverage/)" ]; then
             # Pull latest changes before committing (handle concurrent commits)
             git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
             
-            if ! git add coverage/; then
-              echo "❌ ERROR: Failed to add coverage files to git"
+            # Add coverage.xml first
+            if ! git add coverage/coverage.xml; then
+              echo "❌ ERROR: Failed to add coverage.xml to git"
               exit 1
             fi
+            echo "✅ Added coverage.xml"
+            
+            # Explicitly add HTML coverage directories if they exist
+            if [ -d "coverage/htmlcov" ]; then
+              if ! git add -f coverage/htmlcov/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov/ (may be ignored)"
+              else
+                echo "✅ Added coverage/htmlcov/"
+              fi
+            fi
+            
+            if [ -d "coverage/htmlcov_rag" ]; then
+              if ! git add -f coverage/htmlcov_rag/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov_rag/"
+              else
+                echo "✅ Added coverage/htmlcov_rag/"
+              fi
+            fi
+            
+            if [ -d "coverage/htmlcov_quantamental" ]; then
+              if ! git add -f coverage/htmlcov_quantamental/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov_quantamental/"
+              else
+                echo "✅ Added coverage/htmlcov_quantamental/"
+              fi
+            fi
+            
+            if [ -d "coverage/htmlcov_api" ]; then
+              if ! git add -f coverage/htmlcov_api/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov_api/"
+              else
+                echo "✅ Added coverage/htmlcov_api/"
+              fi
+            fi
+            
+            # Verify what's staged
+            echo "📋 Files staged for commit:"
+            git status --short coverage/ || true
             
             if ! git commit -m "Update unified coverage report [skip ci]"; then
               echo "❌ ERROR: Failed to commit unified coverage report"
@@ -1008,7 +1064,11 @@ jobs:
             if ! git push; then
               echo "⚠️  Push failed, pulling latest changes and retrying..."
               git pull --rebase --no-edit || git pull --no-edit || true
-              git add coverage/ || true
+              git add -f coverage/coverage.xml || true
+              git add -f coverage/htmlcov/ 2>/dev/null || true
+              git add -f coverage/htmlcov_rag/ 2>/dev/null || true
+              git add -f coverage/htmlcov_quantamental/ 2>/dev/null || true
+              git add -f coverage/htmlcov_api/ 2>/dev/null || true
               git commit -m "Update unified coverage report [skip ci]" || true
               if ! git push; then
                 echo "❌ ERROR: Failed to push unified coverage report after retry"
