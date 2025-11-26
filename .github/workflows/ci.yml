@@ -1019,9 +1019,9 @@ jobs:
           echo "✅ Combined coverage calculation completed successfully"
 
       - name: Check combined coverage threshold
-        if: always() && steps.unified-coverage.outputs.unified_coverage_pct != '0.0'
+        if: always() && steps.combined-coverage.outputs.unified_coverage_pct != '0.0'
         run: |
-          COVERAGE_PCT=${{ steps.unified-coverage.outputs.unified_coverage_pct }}
+          COVERAGE_PCT=${{ steps.combined-coverage.outputs.unified_coverage_pct }}
           THRESHOLD=50.0
           
           echo "📊 Combined Coverage Check"
@@ -1045,19 +1045,21 @@ jobs:
           # Unified Coverage Section
           echo "### 📈 Combined Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.unified-coverage.outputs.unified_coverage }}" != "N/A" ] && [ -n "${{ steps.unified-coverage.outputs.unified_coverage }}" ]; then
-            COV_PCT=${{ steps.unified-coverage.outputs.unified_coverage_pct }}
+          
+          # Combined Coverage Summary
+          if [ "${{ steps.combined-coverage.outputs.unified_coverage }}" != "N/A" ] && [ -n "${{ steps.combined-coverage.outputs.unified_coverage }}" ]; then
+            COV_PCT=${{ steps.combined-coverage.outputs.unified_coverage_pct }}
             THRESHOLD=50.0
             if awk "BEGIN {exit !($COV_PCT >= $THRESHOLD)}"; then
-              echo "**Overall Coverage: ${{ steps.unified-coverage.outputs.unified_coverage }}** ✅ (meets 50% threshold)" >> $GITHUB_STEP_SUMMARY
+              echo "**Combined Coverage: ${{ steps.combined-coverage.outputs.unified_coverage }}** ✅ (meets 50% threshold)" >> $GITHUB_STEP_SUMMARY
             else
-              echo "**Overall Coverage: ${{ steps.unified-coverage.outputs.unified_coverage }}** ❌ (below 50% threshold)" >> $GITHUB_STEP_SUMMARY
+              echo "**Combined Coverage: ${{ steps.combined-coverage.outputs.unified_coverage }}** ❌ (below 50% threshold)" >> $GITHUB_STEP_SUMMARY
             fi
-            if [ "${{ steps.unified-coverage.outputs.unified_branch }}" != "N/A" ]; then
-              echo "**Branch Coverage: ${{ steps.unified-coverage.outputs.unified_branch }}%**" >> $GITHUB_STEP_SUMMARY
-            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Combined Coverage: N/A (coverage data not available)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
           
           # Component Breakdown
           echo "### Component Breakdown" >> $GITHUB_STEP_SUMMARY
