@@ -5,6 +5,7 @@ Tests RAG-based stock reasoning generation functionality
 
 import sys
 import os
+import tempfile
 
 import pytest
 import pandas as pd

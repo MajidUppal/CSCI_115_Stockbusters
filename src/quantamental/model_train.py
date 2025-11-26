@@ -9,6 +9,7 @@ Model Training Module
 import pandas as pd
 import numpy as np
 import joblib
+from dateutil.relativedelta import relativedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
