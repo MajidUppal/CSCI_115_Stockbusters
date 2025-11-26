@@ -114,10 +114,23 @@ AC215_StockBusters/
     │   └── 📁 tests/               # API tests
     │
     ├── 📁 frontend/                # ⚛️ React Frontend
+    │   │   ├── app/
+    │   │   │   ├── chat/           # Chat interface
+    │   │   │   ├── report/         # Stock reports
+    │   │   │   ├── stock-detail/   # Stock detail pages
+    │   │   │   ├── settings/       # User settings
+    │   │   │   ├── page            # Home page
+    │   │   │   └── layout          # Header, Footer, Theme
+    │   │   │
+    │   │   ├── components          # components for corresponding app pages plus share ui component
+    │   │   ├── lib/
+    │   │       ├── DataService.js  # API integration
+    │   │       ├── Common.js
+    │   │       └── utils.js
+    │   ├── .env.development│   
     │   ├── Dockerfile
-    │   ├── README.md
-    │   ├── package.json
-    │   └── components.json
+    │   ├── docker-shell.sh 
+    │   └── README.md
     │
     └── 📁 agents/                  # 🤖 Orchestration Agent
     │    └── orchestrator/
