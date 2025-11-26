@@ -743,25 +743,25 @@ jobs:
           
           # Try to read from individual coverage files (they may exist from previous runs or be committed)
           if [ -f "src/rag/coverage/coverage.xml" ]; then
-            eval $(python3 << 'PYEOF'
-import xml.etree.ElementTree as ET
-tree = ET.parse('src/rag/coverage/coverage.xml')
-root = tree.getroot()
-print(f"RAG_LINES_COV={int(root.get('lines-covered', 0))}")
-print(f"RAG_LINES_TOT={int(root.get('lines-valid', 0))}")
-PYEOF
-)
+            cat > /tmp/extract_rag_coverage.py << SCRIPT_END
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('src/rag/coverage/coverage.xml')
+          root = tree.getroot()
+          print(f"RAG_LINES_COV={int(root.get('lines-covered', 0))}")
+          print(f"RAG_LINES_TOT={int(root.get('lines-valid', 0))}")
+          SCRIPT_END
+            eval $(python3 /tmp/extract_rag_coverage.py)
           fi
           
           if [ -f "src/quantamental/coverage/coverage.xml" ]; then
-            eval $(python3 << 'PYEOF'
-import xml.etree.ElementTree as ET
-tree = ET.parse('src/quantamental/coverage/coverage.xml')
-root = tree.getroot()
-print(f"QUANT_LINES_COV={int(root.get('lines-covered', 0))}")
-print(f"QUANT_LINES_TOT={int(root.get('lines-valid', 0))}")
-PYEOF
-)
+            cat > /tmp/extract_quant_coverage.py << SCRIPT_END
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('src/quantamental/coverage/coverage.xml')
+          root = tree.getroot()
+          print(f"QUANT_LINES_COV={int(root.get('lines-covered', 0))}")
+          print(f"QUANT_LINES_TOT={int(root.get('lines-valid', 0))}")
+          SCRIPT_END
+            eval $(python3 /tmp/extract_quant_coverage.py)
           fi
           
           # If we have data from both, calculate combined
