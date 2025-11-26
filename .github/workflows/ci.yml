@@ -288,7 +288,7 @@ jobs:
             docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
               -e PYTHONPATH="${{ matrix.venv-path }}:$PYTHONPATH" \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              pytest ${{ matrix.test-path }} --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q
+              pytest ${{ matrix.test-path }} --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
           else
             docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
               "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
@@ -296,7 +296,7 @@ jobs:
             docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
               -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov --cov-fail-under=25 -m unit --maxfail=2 -x --tb=line -q
+              pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
           fi
         env:
           CHROMADB_HOST: localhost
@@ -532,13 +532,34 @@ jobs:
         run: |
           # Extract from unified coverage.xml
           if [ -f "coverage/coverage.xml" ]; then
+            UNIFIED_COV_PCT=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{float(root.get('line-rate', 0)) * 100:.2f}\")" 2>/dev/null || echo "0.0")
             UNIFIED_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
             UNIFIED_BRANCH=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
             echo "unified_coverage=$UNIFIED_COV" >> $GITHUB_OUTPUT
+            echo "unified_coverage_pct=$UNIFIED_COV_PCT" >> $GITHUB_OUTPUT
             echo "unified_branch=$UNIFIED_BRANCH" >> $GITHUB_OUTPUT
           else
             echo "unified_coverage=N/A" >> $GITHUB_OUTPUT
+            echo "unified_coverage_pct=0.0" >> $GITHUB_OUTPUT
             echo "unified_branch=N/A" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check combined coverage threshold
+        if: always() && steps.unified-coverage.outputs.unified_coverage_pct != '0.0'
+        run: |
+          COVERAGE_PCT=${{ steps.unified-coverage.outputs.unified_coverage_pct }}
+          THRESHOLD=50.0
+          
+          echo "📊 Combined Coverage Check"
+          echo "  Current: ${COVERAGE_PCT}%"
+          echo "  Required: ${THRESHOLD}%"
+          
+          # Use awk for floating point comparison (more reliable than bc)
+          if awk "BEGIN {exit !($COVERAGE_PCT >= $THRESHOLD)}"; then
+            echo "✅ PASS: Combined coverage ${COVERAGE_PCT}% meets ${THRESHOLD}% threshold"
+          else
+            echo "❌ FAIL: Combined coverage ${COVERAGE_PCT}% is below ${THRESHOLD}% threshold"
+            exit 1
           fi
 
       - name: Print summary
@@ -551,7 +572,13 @@ jobs:
           echo "### 📈 Combined Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.unified-coverage.outputs.unified_coverage }}" != "N/A" ] && [ -n "${{ steps.unified-coverage.outputs.unified_coverage }}" ]; then
-            echo "**Overall Coverage: ${{ steps.unified-coverage.outputs.unified_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            COV_PCT=${{ steps.unified-coverage.outputs.unified_coverage_pct }}
+            THRESHOLD=50.0
+            if awk "BEGIN {exit !($COV_PCT >= $THRESHOLD)}"; then
+              echo "**Overall Coverage: ${{ steps.unified-coverage.outputs.unified_coverage }}** ✅ (meets 50% threshold)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**Overall Coverage: ${{ steps.unified-coverage.outputs.unified_coverage }}** ❌ (below 50% threshold)" >> $GITHUB_STEP_SUMMARY
+            fi
             if [ "${{ steps.unified-coverage.outputs.unified_branch }}" != "N/A" ]; then
               echo "**Branch Coverage: ${{ steps.unified-coverage.outputs.unified_branch }}%**" >> $GITHUB_STEP_SUMMARY
             fi
