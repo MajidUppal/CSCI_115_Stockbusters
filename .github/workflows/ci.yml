@@ -553,94 +553,6 @@ jobs:
             echo "ℹ️ No coverage changes to commit"
           fi
 
-      - name: Combine and commit unified coverage report
-        if: always() && github.event_name == 'push'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          
-          mkdir -p coverage
-          
-          # Check if we have coverage files to combine
-          HAS_RAG=false
-          HAS_QUANT=false
-          
-          if [ -f "src/rag/coverage/coverage.xml" ]; then
-            HAS_RAG=true
-            echo "✅ Found RAG coverage.xml"
-          fi
-          
-          if [ -f "src/quantamental/coverage/coverage.xml" ]; then
-            HAS_QUANT=true
-            echo "✅ Found Quantamental coverage.xml"
-          fi
-          
-          # Combine coverage reports
-          if [ "$HAS_RAG" = true ] || [ "$HAS_QUANT" = true ]; then
-            echo "📊 Combining coverage reports..."
-            
-            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
-              # Both components have coverage - combine them
-              echo "Combining RAG and Quantamental coverage..."
-              
-              # Install coverage tool if not available
-              pip install coverage --quiet || true
-              
-              # Combine coverage using Python (simplified approach - calculate percentages only)
-              python3 -c 'import xml.etree.ElementTree as ET; import time; rag=ET.parse("src/rag/coverage/coverage.xml").getroot(); quant=ET.parse("src/quantamental/coverage/coverage.xml").getroot(); rlc=int(rag.get("lines-covered",0)); rlv=int(rag.get("lines-valid",0)); rbc=int(rag.get("branches-covered",0)); rbv=int(rag.get("branches-valid",0)); qlc=int(quant.get("lines-covered",0)); qlv=int(quant.get("lines-valid",0)); qbc=int(quant.get("branches-covered",0)); qbv=int(quant.get("branches-valid",0)); tlc=rlc+qlc; tlv=rlv+qlv; tbc=rbc+qbc; tbv=rbv+qbv; clr=tlc/tlv if tlv>0 else 0.0; cbr=tbc/tbv if tbv>0 else 0.0; root=ET.Element("coverage"); root.set("version",rag.get("version","1.0")); root.set("line-rate",str(clr)); root.set("branch-rate",str(cbr)); root.set("lines-covered",str(tlc)); root.set("lines-valid",str(tlv)); root.set("branches-covered",str(tbc)); root.set("branches-valid",str(tbv)); root.set("timestamp",str(int(time.time()*1000))); src=ET.SubElement(root,"sources"); ET.SubElement(src,"source").text="src/rag"; ET.SubElement(src,"source").text="src/quantamental"; pkg=ET.SubElement(root,"packages"); rp=rag.find("packages"); [pkg.append(ET.Element("package",{"name":"rag/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (rp.findall("package") if rp is not None else [])]; qp=quant.find("packages"); [pkg.append(ET.Element("package",{"name":"quantamental/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (qp.findall("package") if qp is not None else [])]; ET.ElementTree(root).write("coverage/coverage.xml",encoding="utf-8",xml_declaration=True); print("✅ Combined coverage: {:.1f}% (lines), {:.1f}% (branches)".format(clr*100,cbr*100))'
-              
-            elif [ "$HAS_RAG" = true ]; then
-              # Only RAG coverage
-              cp src/rag/coverage/coverage.xml coverage/coverage.xml
-              echo "✅ Using RAG coverage only"
-            elif [ "$HAS_QUANT" = true ]; then
-              # Only Quantamental coverage
-              cp src/quantamental/coverage/coverage.xml coverage/coverage.xml
-              echo "✅ Using Quantamental coverage only"
-            fi
-            
-            # Copy HTML coverage reports (combine if both exist)
-            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
-              # Copy both HTML reports to separate subdirectories
-              if [ -d "src/rag/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag
-                echo "✅ Copied RAG HTML coverage"
-              fi
-              if [ -d "src/quantamental/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental
-                echo "✅ Copied Quantamental HTML coverage"
-              fi
-            elif [ "$HAS_RAG" = true ]; then
-              if [ -d "src/rag/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-                cp -r src/rag/coverage/htmlcov coverage/htmlcov
-                echo "✅ Copied RAG HTML coverage"
-              fi
-            elif [ "$HAS_QUANT" = true ]; then
-              if [ -d "src/quantamental/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov
-                echo "✅ Copied Quantamental HTML coverage"
-              fi
-            fi
-            
-            echo "✅ Unified coverage report created"
-          else
-            echo "ℹ️ No coverage files found to combine"
-          fi
-          
-          # Commit if there are changes
-          if [ -n "$(git status --porcelain coverage/)" ]; then
-            git add coverage/
-            git commit -m "Update unified coverage report [skip ci]" || exit 0
-            git push || echo "⚠️ Failed to push coverage files"
-            echo "✅ Unified coverage report committed"
-          else
-            echo "ℹ️ No coverage changes to commit"
-          fi
-
       - name: Extract coverage from files
         id: extract-coverage
         if: always()
@@ -694,16 +606,17 @@ jobs:
                               branch_rate = float(package.get('branch-rate', '0'))
                               
                               if name.startswith('rag/'):
-                                  if line_rate > 0:
-                                      rag_rates.append(line_rate)
+                                  # Include all packages, even with 0% coverage
+                                  rag_rates.append(line_rate)
                                   if branch_rate > 0:
                                       rag_branch_rates.append(branch_rate)
                               elif name.startswith('quantamental/'):
-                                  if line_rate > 0:
-                                      quant_rates.append(line_rate)
+                                  # Include all packages, even with 0% coverage
+                                  quant_rates.append(line_rate)
                                   if branch_rate > 0:
                                       quant_branch_rates.append(branch_rate)
                           
+                          # Calculate coverage from packages if we found any
                           if rag_rates and RAG_COV == "N/A":
                               RAG_COV = f"{int((sum(rag_rates) / len(rag_rates)) * 100)}%"
                           if rag_branch_rates and RAG_BRANCH == "N/A":
@@ -714,6 +627,9 @@ jobs:
                           if quant_branch_rates and QUANT_BRANCH == "N/A":
                               QUANT_BRANCH = str(int((sum(quant_branch_rates) / len(quant_branch_rates)) * 100))
               except Exception as e:
+                  # Log error for debugging
+                  import sys
+                  print(f"Error extracting from unified coverage: {e}", file=sys.stderr)
                   pass
           
           print(f"rag_coverage={RAG_COV}")
