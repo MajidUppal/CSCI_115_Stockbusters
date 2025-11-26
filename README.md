@@ -227,13 +227,13 @@ The unified CI pipeline runs on every push and pull request and includes:
 
 **Successful CI Pipeline Execution:**
 
-![Successful Automated CI run on push](docs/Successful%20Automated%20CI%20run%20on%20push.png)
+![Successful Automated Unified CI run on push](docs/Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
 
 *Complete CI pipeline run showing all jobs passing*
 
 **CI Test Summary with Coverage:**
 
-![CI Test Summary](docs/CI%20Test%20Summary.png)
+![Unified CI Test Summary](docs/Unified%20CI%20Test%20Summary.png)
 
 *Test summary showing combined coverage (62%) and individual component breakdown*
 

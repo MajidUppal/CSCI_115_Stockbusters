@@ -6,6 +6,14 @@ The RAG component is part of a unified CI/CD pipeline built on GitHub Actions th
 
 **Pipeline Location**: `.github/workflows/ci.yml` (unified pipeline for all components)
 
+![Successful Automated Unified CI run on push](../../../docs/Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
+
+*Complete unified CI pipeline run showing all jobs passing*
+
+![Unified CI Test Summary](../../../docs/Unified%20CI%20Test%20Summary.png)
+
+*Unified CI test summary showing combined coverage and individual component breakdown*
+
 ## Pipeline Architecture
 
 The unified CI pipeline uses a **matrix strategy** to efficiently test multiple components and test types in parallel. For the RAG component, the pipeline consists of:
@@ -91,7 +99,8 @@ The unified pipeline automatically triggers on:
 4. Create dummy GCS key file (if missing) for build context
 5. Log in to GitHub Container Registry (GHCR)
 6. Build and push Docker image:
-   - **Tag**: `ghcr.io/${{ github.repository }}/rag-service:${{ github.sha }}`
+   - **Tag**: `ghcr.io/<owner>/<repo>/rag-service:${{ github.sha }}`
+   - **Format**: Repository name is automatically lowercased (e.g., `username/csci115-ai-agent`)
    - **Cache**: Uses GitHub Actions cache (`type=gha`) for faster builds
    - **Context**: Project root (`.`)
    - **Dockerfile**: `./src/rag/Dockerfile`

@@ -10,7 +10,7 @@ The Unified CI Pipeline is a comprehensive continuous integration system that au
 
 The pipeline uses Docker containers for isolation, runs multiple test types (lint, unit, integration, system), generates code coverage reports, and combines them into a unified report.
 
-![Successful Automated CI run on push](Successful%20Automated%20CI%20run%20on%20push.png)
+![Successful Automated Unified CI run on push](Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
 
 *Example: Successful CI pipeline execution triggered by a push event*
 
@@ -295,7 +295,7 @@ The pipeline uses concurrency groups to prevent multiple runs for the same branc
 - **Test Status**: Overall test result (passed/skipped/failed)
 - **Coverage Reports**: Links to unified XML and HTML reports
 
-![CI Test Summary](CI%20Test%20Summary.png)
+![Unified CI Test Summary](Unified%20CI%20Test%20Summary.png)
 
 *Example: CI pipeline test summary showing combined coverage and component breakdown*
 
@@ -513,10 +513,14 @@ Where:
 
 **Format**: `ghcr.io/<repository>/<image-name>:<commit-sha>`
 
+The repository name is automatically lowercased from `${{ github.repository }}`.
+
 **Examples**:
-- `ghcr.io/user/repo/rag-service:abc123`
-- `ghcr.io/user/repo/quantamental-service:abc123`
-- `ghcr.io/user/repo/api-service:abc123`
+- `ghcr.io/<owner>/<repo>/rag-service:<commit-sha>`
+- `ghcr.io/<owner>/<repo>/quantamental-service:<commit-sha>`
+- `ghcr.io/<owner>/<repo>/api-service:<commit-sha>`
+
+Where `<owner>/<repo>` is your GitHub repository (e.g., `username/csci115-ai-agent`).
 
 ### Image Tags
 
@@ -528,7 +532,14 @@ Where:
 
 Tests pull images by commit SHA:
 ```bash
-docker pull ghcr.io/<repo>/<image-name>:<commit-sha>
+docker pull ghcr.io/<owner>/<repo>/<image-name>:<commit-sha>
+```
+
+For example:
+```bash
+docker pull ghcr.io/<owner>/<repo>/rag-service:abc123def456
+docker pull ghcr.io/<owner>/<repo>/quantamental-service:abc123def456
+docker pull ghcr.io/<owner>/<repo>/api-service:abc123def456
 ```
 
 ### Image Caching
