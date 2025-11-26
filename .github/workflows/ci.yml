@@ -772,6 +772,10 @@ jobs:
           total_branches_valid = 0
           
           # Create combined root
+          if len(roots) == 0:
+              print("No valid coverage files found to combine")
+              sys.exit(1)
+          
           combined_root = ET.Element("coverage")
           combined_root.set("version", roots[0][0].get("version", "1.0"))
           
@@ -819,7 +823,7 @@ jobs:
           SCRIPT_END
               
               # Strip leading spaces from Python script (heredoc preserves YAML indentation)
-              sed -i 's/^          //' /tmp/combine_coverage.py
+              sed -i '' 's/^          //' /tmp/combine_coverage.py || sed -i 's/^          //' /tmp/combine_coverage.py
               
               # Run the combination script
               if ! python3 /tmp/combine_coverage.py "$HAS_RAG" "$HAS_QUANT" "$HAS_API"; then

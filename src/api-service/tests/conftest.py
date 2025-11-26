@@ -42,12 +42,19 @@ _storage_sa_patcher = patch(
 )
 _storage_sa_patcher.start()
 
-# Patch service account credentials
+# Patch service account credentials - must be before any imports that use it
 _credentials_patcher = patch(
     "google.oauth2.service_account.Credentials.from_service_account_file",
     return_value=MagicMock(),
 )
 _credentials_patcher.start()
+
+# Also patch at the module level for chatbot_final and stock_details
+_chatbot_credentials_patcher = patch(
+    "api.routers.chatbot_final.service_account.Credentials.from_service_account_file",
+    return_value=MagicMock(),
+)
+_chatbot_credentials_patcher.start()
 
 # Patch ChatVertexAI
 _llm_patcher = patch(

@@ -59,8 +59,16 @@ pip-delete-this-directory.txt
 !coverage/**/*
 !src/rag/coverage/
 !src/rag/coverage/**/*
+!src/rag/coverage/htmlcov/
+!src/rag/coverage/htmlcov/**/*
 !src/quantamental/coverage/
 !src/quantamental/coverage/**/*
+!src/quantamental/coverage/htmlcov/
+!src/quantamental/coverage/htmlcov/**/*
+!src/api-service/coverage/
+!src/api-service/coverage/**/*
+!src/api-service/coverage/htmlcov/
+!src/api-service/coverage/htmlcov/**/*
 !**/coverage.xml
 !**/htmlcov/
 !**/htmlcov/**/*
