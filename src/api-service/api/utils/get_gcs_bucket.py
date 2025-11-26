@@ -4,13 +4,19 @@ from google.cloud import storage
 from io import BytesIO
 
 credentials_path = "../secrets/stock-busters-service-account.json"
+import os
+storage_client = None
+
 try:
-    storage_client = storage.Client.from_service_account_json(credentials_path)
-    print(f"GCS Client initialized using service account: {credentials_path}")
+    if os.path.exists(credentials_path):
+        storage_client = storage.Client.from_service_account_json(credentials_path)
+        print(f"GCS Client initialized using service account: {credentials_path}")
+    else:
+        # Credentials file not found - will be mocked in tests
+        print(f"Info: Credentials file not found at {credentials_path}. GCS client will be mocked in tests.")
 except Exception as e:
-    print(f"Error initializing GCS Client from service account file: {e}")
-    # Handle the error, maybe exit the script or fall back to another method
-    # For simplicity, we'll let the script continue and likely fail later
+    # Any error initializing - will be mocked in tests
+    print(f"Info: Could not initialize GCS Client: {e}. Will be mocked in tests.")
     storage_client = None
 
 bucket_name = "fin-data-bucket-115"

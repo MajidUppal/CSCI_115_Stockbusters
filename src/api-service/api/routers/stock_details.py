@@ -25,9 +25,20 @@ file_quant_model = "model_output/combined_quantamental_hybrid_with_factors_and_b
 file_company_profile = "model_output/company_profiles.csv"
 file_stocks = "model_output/ohlcv_raw.parquet"
 
+# Load dataframes - will return None if GCS client is not initialized (will be mocked in tests)
 df_quant_model = get_gcs_data(file_quant_model)
 df_company_profile = get_gcs_data(file_company_profile)
 df_stocks = get_gcs_data(file_stocks, file_type="parquet")
+
+# If dataframes are None (credentials missing), create empty dataframes to prevent errors
+# These will be replaced by mocks in tests
+import pandas as pd
+if df_quant_model is None:
+    df_quant_model = pd.DataFrame()
+if df_company_profile is None:
+    df_company_profile = pd.DataFrame()
+if df_stocks is None:
+    df_stocks = pd.DataFrame()
 
 
 reports_storage = defaultdict(list)

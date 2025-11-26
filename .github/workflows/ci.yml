@@ -334,10 +334,18 @@ jobs:
             docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
               "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
             # Run unit tests with coverage
-            docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
-              -w /app \
-              ${{ matrix.image-name }}:${{ github.sha }} \
-              pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
+            # For api-service, use --cov=api (source is in /app/api/), for others use --cov=.
+            if [ "${{ matrix.component }}" = "api-service" ]; then
+              docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+                -w /app \
+                ${{ matrix.image-name }}:${{ github.sha }} \
+                pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
+            else
+              docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+                -w /app \
+                ${{ matrix.image-name }}:${{ github.sha }} \
+                pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
+            fi
           fi
           
           # Verify coverage files were generated
