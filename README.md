@@ -158,28 +158,28 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 
 
-### Application Design Document ###              (Mahmood/Majid/Seraphim)
+### Application Design Document ###              
 
-```
-Update intro here
 
-```
-## Solution Architecture ## (Mahmood/Majid/Seraphim)
-  ** from MS4 requirement, please add   High-level overview of system components and their interactions (e.g., data flow, APIs, frontend, model). >  <-- delete this line once completed **
+[Architecture Design Document](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone4/docs/Architecture_Design_Document_MS4.pdf)
 
-```
-TBD - update here 
 
-```
-## Technical Architecture ##  (Mahmood/Majid/Seraphim)
+## Solution Architecture ## 
 
-<from MS4 requirement please add Technologies, frameworks, and design patterns used, and how they support your overall system design.> <-- delete this line once completed
+Below is the solution architecture for Stockbusters. For details refer to the design document below
 
-```
-update here
-```
+<img width="1095" height="603" alt="image" src="https://github.com/user-attachments/assets/a2b19430-681e-4aa9-947e-65ac0d9d5e79" />
+ 
 
-### APIs and Frontend Implementation ###  (Mahmood/Majid)
+## Technical Architecture ##  
+
+The technical architecture for Stockbusters is shown below. For details refer to the design document below
+
+<img width="1094" height="600" alt="image" src="https://github.com/user-attachments/assets/920ed09f-781c-4ced-b5f1-cca1f4b9c4a1" />
+
+
+
+### APIs and Frontend Implementation ###  
 
 # Frontend - Stock Busters
 
