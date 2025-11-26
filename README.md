@@ -23,93 +23,115 @@ Milestone 4 focuses on:
 
 ### Project Milestone 4 - Code Organization
 
-## please review your own section. it is mocked up structure - Seraphim /Majid/Mahmood/Siri ##
+
 
 ```
 AC215_StockBusters/
 │
-├── src/
-│   ├── quant-pipeline/              ← Data pipeline, quantamental model, hybrid score calculation , backtest
-│   │   ├── data_fetch.py
-│   │   ├── data_preprocess.py
-│   │   ├── feature_engineering.py
-│   │   ├── model_train.py
-│   │   ├── hybrid_score.py
-│   │   ├── backtest.py
-│   │   ├── export_outputs.py
-│   │   ├── config.py
-│   │   └── run_pipeline.py          
-│   │
-│   ├── api-service/                 ← FastAPI backend   
-│   │   ├── main.py
-│   │   ├── routers/
-│   │   ├── services/
-│   │   ├── gcs_client.py
-│   │   ├── model_loader.py
-│   │   └── Dockerfile
-│   │
-│   ├── agent-orchestrator/           ← LLM multi-agent brain
-│   │   ├── agent_controller.py
-│   │   ├── planner_agent.py
-│   │   ├── quant_agent.py
-│   │   ├── rag_agent.py
-│   │   ├── llm_client.py
-│   │   └── Dockerfile
-│   │
-│   ├── rag/                          ← RAG service with ChromaDB
-│   │   ├── rag.py                    ← Main RAG module
-│   │   ├── Dockerfile
-│   │   ├── docker-entrypoint.sh
-│   │   ├── pyproject.toml
-│   │   ├── pytest.ini
-│   │   ├── tests/
-│   │   │   ├── unit/                 ← Unit tests
-│   │   │   ├── integration/          ← Integration tests
-│   │   │   └── system/               ← System/E2E tests
-│   │   ├── data/                     ← PDF documents for RAG
-│   │   ├── docs/                     ← Documentation
-│   │   └── README.md
-│   │
-│   ├── model-deploy/                 ← Vertex AI or Cloud Run infra
-│   │   ├── deploy_model.py
-│   │   ├── deploy_api.py
-│   │   └── cloudbuild.yaml
-│   │
-│   ├── ml-workflow/                  ← Vertex AI pipelines (optional)
-│   │   ├── pipeline.yaml
-│   │   └── components/
-│   │
-│   ├── frontend/
-│   │   ├── app/
-│   │   │   ├── chat/              # Chat interface
-│   │   │   ├── report/            # Stock reports
-│   │   │   ├── stock-detail/      # Stock detail pages
-│   │   │   ├── settings/          # User settings
-│   │   │   ├── page               # Home page
-│   │   │   └── layout             # Header, Footer, Theme
-│   │   │
-│   │   ├── components             # components for corresponding app pages plus share ui component
-│   │   ├── lib/
-│   │   │   ├── DataService.js     # API integration
-│   │   │   ├── Common.js
-│   │   │   └── utils.js
-│   │   ├── Dockerfile 
-│   │   ├── docker-shell.sh 
-│   │   └── .env.development 
-│   │  
-│   │
-│   └── notebooks/                    ← Your raw development notebooks
-│       ├── Quantamental_MS4.ipynb
-│       ├── RAG_Processing.ipynb
-│       └── Agent_Prototype.ipynb
+├──  README.md                    # Project documentation
+├──  compose.yml                  # Docker Compose configuration
+├──  .pre-commit-config.yaml      # Pre-commit hooks
 │
-├── secrets/
-│   └── service-account.json          ← for GCS
+├── .github/
+│   └── workflows/
+│       ├── quantamental-ci.yml     # Quantamental CI pipeline
+│       └── ci-rag.yml              # RAG CI pipeline
 │
-├── dvc.yaml                           ← data versioning
-├── requirements.txt
-├── README.md
-└── .env.example
+├── 📁 docs/
+│   └── CI_PIPELINE.md              # CI/CD documentation
+│
+├── 📁 coverage/                    # Test coverage reports
+│
+└── 📁 src/
+    │
+    ├── 📁 quantamental/            # ML Pipeline (Main Component)
+    │   ├── Dockerfile
+    │   ├── README.md
+    │   ├── config.yaml             # Pipeline configuration
+    │   ├── requirements.txt
+    │   │
+    │   ├── # Core Pipeline Scripts
+    │   ├── main.py                 # Quantamental Main Pipeline orchestration (7 steps)
+    │   ├── data_collect.py         # FMP API data collection
+    │   ├── data_process.py         # Feature engineering
+    │   ├── model_train.py          # Random Forest training
+    │   ├── model_predict.py        # Prediction generation
+    │   ├── model_validation.py     # Model Quality gates
+    │   ├── hybrid_scoring.py       # Technical + fundamental scoring calculation 
+    │   ├── backtest.py             # Backtesting & output
+    │   ├── data_versioning.py      # W&B artifact versioning
+    │   ├── generate_stock_reasoning.py  # RAG reasoning integration
+    │   └── utils.py                # Utility functions
+    │   │
+    │   ├── 📁 tests/               # Test suite (130+ tests)
+    │   │   ├── conftest.py         # Pytest fixtures
+    │   │   ├── test_unit_*.py      # Unit tests
+    │   │   ├── test_integration_*.py   # Integration tests
+    │   │   ├── test_system_*.py    # System tests
+    │   │   └── test_model_performance.py  # Validation tests
+    │   │
+    │   └── 📁 data/                # Local data directory
+    │       └── version_info_*.json # Version metadata
+    │
+    ├── 📁 rag/                     # RAG Service
+    │   ├── Dockerfile
+    │   ├── docker-entrypoint.sh
+    │   ├── pyproject.toml
+    │   ├── pytest.ini
+    │   ├── README.md
+    │   ├── rag.py                  # RAG core functionality
+    │   ├── generate_stock_reasoning.py
+    │   │
+    │   ├── 📁 data/
+    │   │   └── LLM-Quant_Expanded_RAG_with_context.md
+    │   │
+    │   ├── 📁 docs/
+    │   │   ├── APPLICATION_DESIGN.md
+    │   │   ├── CONTINUOUS_INTEGRATION_PIPELINE.md
+    │   │   └── DATA_VERSIONING.md
+    │   │
+    │   └── 📁 tests/
+    │       ├── unit/               # Unit tests
+    │       ├── integration/        # Integration tests
+    │       └── system/             # System tests
+    │
+    ├── 📁 api-service/             # FastAPI Backend
+    │   ├── Dockerfile
+    │   │
+    │   ├── 📁 api/
+    │   │   ├── service.py          # Main FastAPI app
+    │   │   ├── utils.py
+    │   │   │
+    │   │   ├── 📁 routers/
+    │   │   │   ├── chatbot_final.py
+    │   │   │   └── stock_details.py
+    │   │   │
+    │   │   └── 📁 utils/
+    │   │       ├── chat_bot_agent.py
+    │   │       ├── detailed_page_funcs.py
+    │   │       └── get_gcs_bucket.py
+    │   │
+    │   └── 📁 tests/               # API tests
+    │
+    ├── 📁 frontend/                # ⚛️ React Frontend
+    │   ├── Dockerfile
+    │   ├── README.md
+    │   ├── package.json
+    │   └── components.json
+    │
+    └── 📁 agents/                  # 🤖 Orchestration Agent
+    │    └── orchestrator/
+    │        ├── Dockerfile
+    │        ├── README.md
+    │        └── orchestrator.py
+    ├── secrets/
+    └── service-account.json          ← for GCS
+    │
+    ├── dvc.yaml                           ← data versioning
+    ├── requirements.txt
+    ├── README.md
+    └── .env.example
+
 ```
 
 
