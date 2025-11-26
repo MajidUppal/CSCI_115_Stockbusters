@@ -3,13 +3,13 @@ Test suite for data_versioning.py
 Tests data versioning with W&B artifacts
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
 import tempfile
 import shutil
-from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
+
+import pytest
+import pandas as pd
+from unittest.mock import patch, MagicMock
 from data_versioning import DataVersionManager
 
 
@@ -275,7 +275,7 @@ class TestVersioning:
         manager = DataVersionManager(sample_config)
 
         with patch.object(manager, "gcs_client", None):
-            result = manager.create_version_snapshot(version_tag="test_v1")
+            manager.create_version_snapshot(version_tag="test_v1")  # Test that it doesn't raise
 
         # Check JSON file was created
         json_file = (

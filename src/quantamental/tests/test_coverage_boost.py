@@ -4,9 +4,7 @@ Based on actual code structure.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-import pandas as pd
-import numpy as np
+from unittest.mock import patch, MagicMock
 
 
 class TestModelTrainCoverage:

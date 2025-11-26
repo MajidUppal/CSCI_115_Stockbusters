@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 import joblib
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 import wandb
 import logging
 
@@ -31,7 +30,7 @@ class QuantamentalPredictor:
         self.model = None
         self.scaler = None
 
-        logger.info(f"🔮 Quantamental Predictor initialized")
+        logger.info("🔮 Quantamental Predictor initialized")
 
     def load_model_from_wandb(
         self, artifact_name: str = "quantamental-model:latest"
@@ -78,12 +77,12 @@ class QuantamentalPredictor:
         Returns:
             (model, scaler)
         """
-        logger.info(f"📥 Loading model from local files...")
+        logger.info("📥 Loading model from local files...")
 
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
 
-        logger.info(f"✅ Model loaded from local files")
+        logger.info("✅ Model loaded from local files")
 
         self.model = model
         self.scaler = scaler
@@ -153,7 +152,7 @@ class QuantamentalPredictor:
         df_predict["pred_prob"] = pred_prob
         df_predict["pred_rank"] = df_predict["pred_prob"].rank(ascending=False)
 
-        logger.info(f"✅ Predictions generated")
+        logger.info("✅ Predictions generated")
         logger.info(f"   Mean probability: {pred_prob.mean():.4f}")
         logger.info(f"   Std probability: {pred_prob.std():.4f}")
 
@@ -260,7 +259,7 @@ def main():
     output_path = predictor.save_predictions(df_predict)
 
     print("\n✅ Prediction complete!")
-    print(f"\n📊 Top 10 Stocks:")
+    print("\n📊 Top 10 Stocks:")
     print(top_stocks.to_string(index=False))
     print(f"\n💾 Full predictions saved to: {output_path}")
 

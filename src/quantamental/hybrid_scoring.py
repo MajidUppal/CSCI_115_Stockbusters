@@ -232,7 +232,7 @@ def calculate_hybrid_scores(df: pd.DataFrame) -> pd.DataFrame:
 
     df_score["H_Score Recommendation"] = df_score.apply(classify_stock_v2, axis=1)
 
-    logger.info(f"   Recommendations generated")
+    logger.info("   Recommendations generated")
     logger.info(
         f"      {(df_score['H_Score Recommendation'].str.contains('Buy')).sum()} Buy signals"
     )
@@ -251,7 +251,7 @@ def calculate_hybrid_scores(df: pd.DataFrame) -> pd.DataFrame:
         lambda s: s.rank(ascending=False)
     )
 
-    logger.info(f" Hybrid scoring complete!")
+    logger.info(" Hybrid scoring complete!")
 
     # Clean up temporary columns
     temp_cols = [c for c in df_score.columns if c.endswith("_rank") or c == "ym"]
@@ -393,7 +393,7 @@ def calculate_backtest_metrics(df: pd.DataFrame) -> pd.DataFrame:
         logger.info(f"      Avg Hit Rate: {metrics['hit_rate_pos'].mean()*100:.1f}%")
     else:
         logger.warning(
-            f"      No valid backtest metrics (this is normal for latest predictions)"
+            "      No valid backtest metrics (this is normal for latest predictions)"
         )
 
     return df_result

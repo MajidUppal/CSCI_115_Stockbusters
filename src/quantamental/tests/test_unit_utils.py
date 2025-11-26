@@ -3,14 +3,14 @@ UNIT TESTS - Utils Module
 Tests individual utility functions in isolation
 """
 
-import pytest
-import yaml
-import tempfile
 import os
 import sys
-import pandas as pd
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+
+import pytest
+import pandas as pd
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -155,7 +155,7 @@ class TestFeatureList:
     def test_get_feature_list_contains_fundamental(self):
         """Test that feature list contains fundamental features."""
         config = load_config()
-        features = get_feature_list(config)
+        get_feature_list(config)  # Test that it doesn't raise
 
         # Should contain fundamental features (without _lag suffix)
         fund_count = len(config["features"]["fundamental"])
@@ -197,7 +197,7 @@ class TestDirectoryHelpers:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "a", "b", "c", "d")
 
-            result = ensure_dir(test_path)
+            ensure_dir(test_path)  # Test that it doesn't raise
 
             assert os.path.exists(test_path)
             assert os.path.exists(os.path.join(tmpdir, "a"))
@@ -378,23 +378,6 @@ class TestGCSHandler:
 
         with pytest.raises(ValueError, match="Unsupported format"):
             handler.upload_dataframe(df, "test.txt", format="txt")
-
-    @pytest.mark.unit
-    def test_download_file_success(self):
-        """Test successful file download."""
-        with patch("utils.storage.Client") as mock_client:
-            # Setup mocks
-            mock_bucket = MagicMock()
-            mock_blob = MagicMock()
-            mock_bucket.blob.return_value = mock_blob
-            mock_client.return_value.bucket.return_value = mock_bucket
-
-            handler = GCSHandler("test-bucket")
-
-            result = handler.download_file("test.txt", "/tmp/test.txt")
-
-            assert result == "/tmp/test.txt"
-            mock_blob.download_to_filename.assert_called_once_with("/tmp/test.txt")
 
     @pytest.mark.unit
     def test_download_file_success(self):

@@ -34,7 +34,7 @@ class QuantamentalBacktester:
 
         self.output_folder = config["gcs"]["output_folder"]
 
-        logger.info(f" Quantamental Backtester initialized")
+        logger.info(" Quantamental Backtester initialized")
         logger.info(f"   GCS Bucket: {config['gcs']['bucket_name']}")
         logger.info(f"   Output Folder: {self.output_folder}")
 
@@ -246,7 +246,7 @@ class QuantamentalBacktester:
         # ============================================
         logger.info("    Calculating Hybrid Quantamental Scores...")
         df_combined = calculate_hybrid_scores(df_predict)
-        logger.info(f"    Hybrid scores calculated")
+        logger.info("    Hybrid scores calculated")
 
         # ============================================
         # STEP 1.5: Calculate fwd_return_1m if missing
@@ -267,9 +267,9 @@ class QuantamentalBacktester:
                 df_combined["fwd_sp500_return_1m"] = df_combined.groupby("symbol")[
                     "sp500_return_1m"
                 ].shift(-1)
-                logger.info(f"    Added 'fwd_return_1m' and 'fwd_sp500_return_1m'")
+                logger.info("    Added 'fwd_return_1m' and 'fwd_sp500_return_1m'")
             else:
-                logger.info(f"    Added 'fwd_return_1m' (no S&P500 benchmark)")
+                logger.info("    Added 'fwd_return_1m' (no S&P500 benchmark)")
 
             # Log stats
             valid_fwd = df_combined["fwd_return_1m"].notna().sum()
@@ -280,7 +280,7 @@ class QuantamentalBacktester:
         # ============================================
         logger.info("    Calculating backtest metrics...")
         df_combined = calculate_backtest_metrics(df_combined)
-        logger.info(f"    Backtest metrics calculated")
+        logger.info("    Backtest metrics calculated")
 
         # ============================================
         # STEP 3: Handle column name mappings
@@ -330,7 +330,7 @@ class QuantamentalBacktester:
                     df_combined["sector"] = (
                         df_combined["symbol"].map(sector_map).fillna("Unknown")
                     )
-                    logger.info(f"    Added 'sector' from company profiles")
+                    logger.info("    Added 'sector' from company profiles")
 
                 if (
                     "industry" not in df_combined.columns
@@ -340,7 +340,7 @@ class QuantamentalBacktester:
                     df_combined["industry"] = (
                         df_combined["symbol"].map(industry_map).fillna("Unknown")
                     )
-                    logger.info(f"    Added 'industry' from company profiles")
+                    logger.info("    Added 'industry' from company profiles")
 
             except Exception as e:
                 logger.warning(f"     Could not load company profiles: {e}")
@@ -348,11 +348,11 @@ class QuantamentalBacktester:
                 # Fallback: set as Unknown
                 if "sector" not in df_combined.columns:
                     df_combined["sector"] = "Unknown"
-                    logger.info(f"    Added 'sector' as 'Unknown'")
+                    logger.info("    Added 'sector' as 'Unknown'")
 
                 if "industry" not in df_combined.columns:
                     df_combined["industry"] = "Unknown"
-                    logger.info(f"    Added 'industry' as 'Unknown'")
+                    logger.info("    Added 'industry' as 'Unknown'")
 
         # ============================================
         # STEP 4: Define the EXACT 40 columns
@@ -451,7 +451,7 @@ class QuantamentalBacktester:
 
         # Verify column count
         if len(df_output.columns) == 40:
-            logger.info(f"    SUCCESS: Output has exactly 40 columns as required!")
+            logger.info("    SUCCESS: Output has exactly 40 columns as required!")
         else:
             logger.warning(
                 f"     WARNING: Output has {len(df_output.columns)} columns, expected 40!"
@@ -471,7 +471,7 @@ class QuantamentalBacktester:
             logger.info(
                 f"    Loaded cached company profiles ({len(profiles)} companies)"
             )
-        except:
+        except Exception:
             # Create minimal profiles
             profiles = df_predict[["symbol"]].drop_duplicates().copy()
             profiles["companyName"] = profiles["symbol"]
@@ -552,7 +552,7 @@ class QuantamentalBacktester:
         logger.info(
             f"   1. Combined CSV: {len(df_output):,} rows × {len(df_output.columns)} columns"
         )
-        logger.info(f"      Target: 40 columns")
+        logger.info("      Target: 40 columns")
         logger.info(
             f"      Status: {' PERFECT MATCH!' if len(df_output.columns) == 40 else '⚠️ COUNT MISMATCH'}"
         )
@@ -560,15 +560,15 @@ class QuantamentalBacktester:
         logger.info(f"   3. Equity Curves: {len(df_equity):,} data points")
 
         # Show column breakdown
-        logger.info(f"\n    Column breakdown:")
-        logger.info(f"      Core (3): symbol, pred_prob_next_month, signal")
+        logger.info("\n    Column breakdown:")
+        logger.info("      Core (3): symbol, pred_prob_next_month, signal")
         logger.info(
-            f"      Hybrid Scores (6): Hybrid_Score, Fundamental_Score, Technical_Score, etc."
+            "      Hybrid Scores (6): Hybrid_Score, Fundamental_Score, Technical_Score, etc."
         )
-        logger.info(f"      Fundamentals (11): roe, roic, peRatio, etc.")
-        logger.info(f"      Technicals (8): return_1m, RSI_14, MACD, etc.")
-        logger.info(f"      Backtest (9): sharpe_1m_annual, cagr, hit_rates, etc.")
-        logger.info(f"      Other (3): date, sector, industry")
+        logger.info("      Fundamentals (11): roe, roic, peRatio, etc.")
+        logger.info("      Technicals (8): return_1m, RSI_14, MACD, etc.")
+        logger.info("      Backtest (9): sharpe_1m_annual, cagr, hit_rates, etc.")
+        logger.info("      Other (3): date, sector, industry")
         logger.info("=" * 60)
 
         return output_files
@@ -584,7 +584,7 @@ def main():
     df = pd.read_parquet(f"{config['data']['data_dir']}/quantamental_monthly.parquet")
 
     # Run backtest
-    results = backtester.run_backtest(df, use_wandb_logging=True)
+    backtester.run_backtest(df, use_wandb_logging=True)
 
     print("\n Backtest complete!")
     print(f"   Results saved to GCS bucket: {config['gcs']['bucket_name']}")

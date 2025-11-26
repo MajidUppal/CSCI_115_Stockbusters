@@ -8,10 +8,7 @@ Model Training Module
 
 import pandas as pd
 import numpy as np
-import pickle
 import joblib
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
@@ -46,7 +43,7 @@ class QuantamentalTrainer:
         self.tech_cols = config["features"]["technical"]
         self.fund_cols = config["features"]["fundamental"]
 
-        logger.info(f" Quantamental Trainer initialized")
+        logger.info(" Quantamental Trainer initialized")
         logger.info(f"   Features: {len(self.feature_names)} total")
 
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -77,7 +74,7 @@ class QuantamentalTrainer:
         # Drop rows with missing features or labels
         df_model = df.dropna(subset=self.feature_names + ["label"])
 
-        logger.info(f" Features prepared")
+        logger.info(" Features prepared")
         logger.info(
             f"   Label distribution: {df_model['label'].value_counts(normalize=True).to_dict()}"
         )
@@ -102,7 +99,7 @@ class QuantamentalTrainer:
         df_train = df.loc[train_mask].copy()
         df_test = df.loc[test_mask].copy()
 
-        logger.info(f" Train/Test Split:")
+        logger.info(" Train/Test Split:")
         logger.info(
             f"   Train: {train_start.date()} → {train_end.date()} ({len(df_train):,} rows)"
         )
@@ -158,7 +155,7 @@ class QuantamentalTrainer:
             "roc_auc": roc_auc_score(y_test, y_prob),
         }
 
-        logger.info(f" Test Metrics:")
+        logger.info(" Test Metrics:")
         for k, v in metrics.items():
             logger.info(f"   {k}: {v:.4f}")
 
@@ -317,7 +314,7 @@ class QuantamentalTrainer:
 
         run.log_artifact(data_artifact)
         logger.info(
-            f"Training data logged to W&B as artifact (version will auto-increment)"
+            "Training data logged to W&B as artifact (version will auto-increment)"
         )
 
         # Log data statistics
@@ -368,7 +365,7 @@ class QuantamentalTrainer:
         artifact.add_file(artifact_paths["config"])
         run.log_artifact(artifact)
 
-        logger.info(f" Model logged to W&B as artifact")
+        logger.info(" Model logged to W&B as artifact")
 
         # Log classification report
         report = classification_report(y_test, y_pred, output_dict=True)

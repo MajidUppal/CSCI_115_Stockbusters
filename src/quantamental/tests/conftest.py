@@ -7,7 +7,6 @@ BEFORE any test files are loaded.
 """
 
 import sys
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch, AsyncMock
 import pytest

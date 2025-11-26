@@ -4,7 +4,6 @@ Verifies all components are ready for MS4
 """
 
 import sys
-import os
 from pathlib import Path
 import importlib.util
 
@@ -69,8 +68,6 @@ def check_dependencies():
 
                 version = yaml.__version__
             elif module_name == "google.cloud.storage":
-                from google.cloud import storage
-
                 version = "installed"
             else:
                 mod = importlib.import_module(module_name)
@@ -148,7 +145,7 @@ def check_data_files():
             print(f"{check_mark(optional)} {filepath:<45} {description} ({status})")
 
     if not any_exist:
-        print(f"\n{YELLOW}  No data files found. Run data collection first:{RESET}")
+        print(f"\n{YELLOW}  No data files found. Run data collection first:{RESET}")  # noqa: F541
         print(f"   python main.py --step collect")
 
     return any_exist
@@ -200,7 +197,7 @@ def check_wandb_setup():
 
             # Try to access API
             try:
-                api = wandb.Api()
+                wandb.Api()
                 print(f"{check_mark(True)} W&B API accessible")
                 return True
             except Exception as e:
@@ -286,7 +283,7 @@ def check_ms4_modifications():
             has_versioning = "run_data_versioning" in main_content
             checks.append(("main.py has versioning", has_versioning))
             print(f"{check_mark(has_versioning)} main.py includes data versioning")
-    except:
+    except Exception:
         checks.append(("main.py has versioning", False))
         print(f"{check_mark(False)} Could not check main.py")
 
@@ -297,7 +294,7 @@ def check_ms4_modifications():
             has_api_columns = "pred_next_month" in backtest_content
             checks.append(("backtest.py has API columns", has_api_columns))
             print(f"{check_mark(has_api_columns)} backtest.py has API column fixes")
-    except:
+    except Exception:
         checks.append(("backtest.py has API columns", False))
         print(f"{check_mark(False)} Could not check backtest.py")
 
@@ -308,7 +305,7 @@ def check_ms4_modifications():
             has_ms4 = "MS4" in readme_content or "Data Versioning" in readme_content
             checks.append(("README.md has MS4 docs", has_ms4))
             print(f"{check_mark(has_ms4)} README.md has MS4 documentation")
-    except:
+    except Exception:
         checks.append(("README.md has MS4 docs", False))
         print(f"{check_mark(False)} Could not check README.md")
 

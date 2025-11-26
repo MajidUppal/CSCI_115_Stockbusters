@@ -3,11 +3,12 @@ INTEGRATION TESTS - Data Pipeline Flow
 Tests complete data processing pipeline with multiple modules
 """
 
+import sys
+import os
+
 import pytest
 import pandas as pd
 import numpy as np
-import sys
-import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -49,7 +50,7 @@ class TestDataProcessingPipeline:
             }
         )
 
-        sp500_index = pd.DataFrame(
+        _sp500_index = pd.DataFrame(
             {
                 "date": pd.date_range("2023-01-01", periods=n_days),
                 "close": np.random.uniform(4000, 4200, n_days),

@@ -6,7 +6,6 @@ Tests hybrid score calculation and backtest metrics
 import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 from hybrid_scoring import calculate_hybrid_scores, calculate_backtest_metrics
 
 

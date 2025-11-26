@@ -6,7 +6,6 @@ Uses mocked metrics since current model has 39% accuracy.
 """
 
 import pytest
-from unittest.mock import Mock, patch
 
 
 @pytest.fixture

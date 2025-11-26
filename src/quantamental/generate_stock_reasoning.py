@@ -29,10 +29,6 @@ from types import SimpleNamespace
 
 # LangChain imports
 from langchain_google_vertexai import ChatVertexAI
-from langchain_community.vectorstores import Chroma
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.embeddings import Embeddings
@@ -259,7 +255,8 @@ def get_chroma_db(collection_name: Optional[str] = None):
         )
 
         # Extract results from ChromaDB response format
-        get_first = lambda x: x[0] if x else []
+        def get_first(x):
+            return x[0] if x else []
         ids = get_first(res.get("ids", []))
         docs = get_first(res.get("documents", []))
         metas = get_first(res.get("metadatas", []))
@@ -514,7 +511,7 @@ def download_csv_from_gcs(
                 blob = bucket.blob(file_name)
                 print(f"Using: {file_name}")
             else:
-                print(f"Available files in bucket (first 30):")
+                print("Available files in bucket (first 30):")
                 for f in all_files[:30]:
                     print(f"  - {f}")
                 raise FileNotFoundError(
@@ -566,7 +563,7 @@ def setup_rag_system(credentials):
     # Set GCS_BUCKET_NAME for ChromaDB connection (override any existing env var)
     # Force use of stock-busters-chroma-bucket for ChromaDB
     os.environ["GCS_BUCKET_NAME"] = "stock-busters-chroma-bucket"
-    print(f"Using ChromaDB bucket: stock-busters-chroma-bucket")
+    print("Using ChromaDB bucket: stock-busters-chroma-bucket")
 
     # Connect to existing ChromaDB in GCS (functions now in this file)
     print(f"Connecting to ChromaDB in GCS bucket: {GCS_CHROMADB_BUCKET}")
@@ -618,7 +615,7 @@ def setup_rag_system(credentials):
 
     # Get the FastEmbed embedder (uses BAAI/bge-small-en-v1.5 by default)
     fastembed_embedder = get_embedder()
-    embeddings = FastEmbedWrapper(fastembed_embedder)
+    FastEmbedWrapper(fastembed_embedder)  # Initialize wrapper
     print("✓ FastEmbed embeddings initialized (384 dimensions)")
 
     # Retrieve the full .md document that was embedded as a single document
@@ -661,11 +658,11 @@ def setup_rag_system(credentials):
                     print(f"  Source: {source[:100]}...")
                 else:
                     print(
-                        f"  Cache mismatch or incomplete, will retrieve from ChromaDB..."
+                        "  Cache mismatch or incomplete, will retrieve from ChromaDB..."
                     )
-        except Exception as e:
+        except Exception:
             # Cache file corrupted, will search below
-            print(f"  Cache file error, will retrieve from ChromaDB...")
+            print("  Cache file error, will retrieve from ChromaDB...")
 
     # If cache didn't work, retrieve from ChromaDB
     if not full_doc_text:
@@ -698,7 +695,7 @@ def setup_rag_system(credentials):
                         else {}
                     )
                     if full_doc_text:
-                        print(f"  ✓ Found by direct ID lookup")
+                        print("  ✓ Found by direct ID lookup")
                         break
             except Exception:
                 continue
@@ -733,7 +730,7 @@ def setup_rag_system(credentials):
                                         if full_doc_results.get("metadatas")
                                         else {}
                                     )
-                                    print(f"  ✓ Found in sample search")
+                                    print("  ✓ Found in sample search")
                                     break
             except Exception:
                 pass
@@ -757,7 +754,7 @@ def setup_rag_system(credentials):
                             full_doc_id = all_results["ids"][idx]
                             full_doc_text = all_results["documents"][idx]
                             full_doc_metadata = metadata
-                            print(f"  ✓ Found in full search")
+                            print("  ✓ Found in full search")
                             break
 
     if not full_doc_text:
@@ -780,7 +777,7 @@ def setup_rag_system(credentials):
                     },
                     f,
                 )
-            print(f"  ✓ Cached document content (will skip ChromaDB lookup next time)")
+            print("  ✓ Cached document content (will skip ChromaDB lookup next time)")
         except Exception:
             pass  # Cache write failure is not critical
 
@@ -876,6 +873,7 @@ Example: Attractive P/E ratio. Strong RSI momentum."""
     print(
         f"✓ Optimized RAG chain created (context in system message, ~{len(full_doc_text):,} chars)"
     )
+    # retriever is created but not used in this function
     print(
         f"  Each stock query will only send ~100-200 chars (vs ~12k+ chars with old method)"
     )
@@ -989,7 +987,7 @@ def process_csv_with_rag(
                     )
 
     # Update DataFrame with results
-    for idx, (reasoning, stock_time, symbol, error) in results.items():
+    for idx, (reasoning, _stock_time, _symbol, _error) in results.items():
         df.at[idx, "rag_reasoning"] = reasoning
 
     total_time = time.time() - start_time
@@ -1026,7 +1024,7 @@ def generate_reasoning_for_dataframe(
     df_enhanced = process_csv_with_rag(
         df, chain, sample_size=sample_size, max_workers=max_workers
     )
-    print(f"✓ Reasoning generation complete. Added 'rag_reasoning' column.")
+    print("✓ Reasoning generation complete. Added 'rag_reasoning' column.")
     return df_enhanced
 
 
@@ -1234,7 +1232,10 @@ def run_pipeline_with_reasoning(
                     gcs_output_folder = config.get("gcs", {}).get(
                         "output_folder", "model_output"
                     )
-                    gcs_output_path = f"{gcs_output_folder}/combined_quantamental_hybrid_with_factors_and_backtest_with_reasoning.csv"
+                    gcs_output_path = (
+                        f"{gcs_output_folder}/"
+                        f"combined_quantamental_hybrid_with_factors_and_backtest_with_reasoning.csv"
+                    )
 
                     # Add reasoning
                     enhanced_file = add_reasoning_to_combined_file(
@@ -1295,7 +1296,10 @@ def main():
         "--mode",
         choices=["standalone", "pipeline"],
         default="standalone",
-        help="Execution mode: 'standalone' (process existing CSV) or 'pipeline' (run full pipeline with reasoning). Default: standalone",
+        help=(
+            "Execution mode: 'standalone' (process existing CSV) or "
+            "'pipeline' (run full pipeline with reasoning). Default: standalone"
+        ),
     )
 
     # Standalone mode arguments
@@ -1346,7 +1350,7 @@ def main():
     # Pipeline mode
     if args.mode == "pipeline":
         print("Running in PIPELINE mode...")
-        results = run_pipeline_with_reasoning(
+        run_pipeline_with_reasoning(
             force_refresh=args.force_refresh,
             skip_training=args.skip_training,
             rag_enabled=not args.disable_rag,
@@ -1370,7 +1374,7 @@ def main():
 
     # Load CSV (from file or GCS)
     if args.csv_path:
-        print(f"Loading CSV from local file: {args.csv_path}")
+        print(f"Loading CSV from local file: {args.csv_path}")  # noqa: F541
         df = pd.read_csv(args.csv_path)
         print(f"✓ CSV loaded from file")
     else:

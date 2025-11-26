@@ -81,7 +81,7 @@ class DataProcessor:
         # Forward-fill to handle gaps
         df[["RSI_14", "volatility_21d"]] = g[["RSI_14", "volatility_21d"]].ffill()
 
-        logger.info(f"✅ Technical indicators computed")
+        logger.info("✅ Technical indicators computed")
 
         return df
 
@@ -269,7 +269,7 @@ class DataProcessor:
                 logger.info("💾 Using cached technicals")
             else:
                 raise FileNotFoundError
-        except:
+        except Exception:
             ohlcv_ta = self.compute_technicals(ohlcv)
             ohlcv_ta.to_parquet(cache_path, index=False)
 
@@ -281,7 +281,7 @@ class DataProcessor:
 
         # Save intermediate result
         cleaned.to_parquet(f"{self.data_dir}/quantamental_cleaned.parquet", index=False)
-        logger.info(f"💾 Saved → quantamental_cleaned.parquet")
+        logger.info("💾 Saved → quantamental_cleaned.parquet")
 
         # Step 4: Validate and filter
         validated = self.validate_data(cleaned)
@@ -289,7 +289,7 @@ class DataProcessor:
             f"{self.data_dir}/quantamental_filtered.parquet", index=False
         )
         validated.to_csv(f"{self.data_dir}/quantamental_filtered.csv", index=False)
-        logger.info(f"💾 Saved → quantamental_filtered.parquet & .csv")
+        logger.info("💾 Saved → quantamental_filtered.parquet & .csv")
 
         # Step 5: Merge with S&P 500 benchmark
         sp500_index = sp500_index.rename(columns={"close": "sp500_close"})
@@ -305,7 +305,7 @@ class DataProcessor:
         df_monthly.to_parquet(
             f"{self.data_dir}/quantamental_monthly.parquet", index=False
         )
-        logger.info(f"💾 Saved → quantamental_monthly.parquet")
+        logger.info("💾 Saved → quantamental_monthly.parquet")
 
         logger.info("✅ Data processing pipeline complete!")
 

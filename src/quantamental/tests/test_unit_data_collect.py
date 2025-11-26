@@ -2,12 +2,12 @@
 Unit tests for data_collect module (FMPDataCollector class)
 """
 
-import pytest
-import pandas as pd
-import asyncio
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
 import sys
 import os
+
+import pytest
+import pandas as pd
+from unittest.mock import patch, MagicMock, AsyncMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

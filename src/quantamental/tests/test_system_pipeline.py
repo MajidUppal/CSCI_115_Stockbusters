@@ -3,12 +3,12 @@ SYSTEM TESTS - End-to-End Pipeline
 Tests complete pipeline execution from start to finish
 """
 
+import sys
+import os
+
 import pytest
 import pandas as pd
 import numpy as np
-import sys
-import os
-import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

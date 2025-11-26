@@ -7,11 +7,10 @@ For MS4 requirement: Data versioning strategy
 """
 
 import pandas as pd
-import numpy as np
 from datetime import datetime
 from pathlib import Path
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict
 import json
 import wandb
 
@@ -502,7 +501,7 @@ class DataVersionManager:
                             "start": str(date_col.min()),
                             "end": str(date_col.max()),
                         }
-                    except:
+                    except Exception:
                         pass
 
                 # Add symbol count if available

@@ -3,15 +3,12 @@ Unit tests for generate_stock_reasoning.py
 Tests RAG-based stock reasoning generation functionality
 """
 
+import sys
+import os
+
 import pytest
 import pandas as pd
-import numpy as np
-import tempfile
-import os
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, mock_open
-from io import BytesIO
-import sys
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

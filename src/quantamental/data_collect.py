@@ -10,9 +10,6 @@ import os
 import asyncio
 import aiohttp
 import pandas as pd
-import numpy as np
-from datetime import date
-from dateutil.relativedelta import relativedelta
 from tqdm import tqdm
 import logging
 
@@ -35,7 +32,7 @@ class FMPDataCollector:
         self.concurrency = config["api"]["concurrency"]
         self.headers = {"User-Agent": "quantamental/1.0"}
 
-        logger.info(f"📊 FMP Data Collector initialized")
+        logger.info("📊 FMP Data Collector initialized")
         logger.info(f"   Date range: {self.start_date} → {self.end_date}")
 
     async def fetch_sp500(self) -> list:
@@ -224,7 +221,7 @@ class FMPDataCollector:
         df.to_parquet(cache_path, index=False)
         df.to_csv(f"{self.data_dir}/sp500_index.csv", index=False)
 
-        logger.info(f"✅ Fetched S&P 500 index benchmark")
+        logger.info("✅ Fetched S&P 500 index benchmark")
 
         return df
 
