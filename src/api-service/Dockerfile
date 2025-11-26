@@ -39,9 +39,8 @@ WORKDIR /app
 COPY --chown=app:app pyproject.toml uv.lock* ./
 
 # Install dependencies in a separate layer for better caching
-# Install both main and dev dependencies (needed for CI tests)
-RUN uv sync --frozen --extra dev
-# RUN uv sync --extra dev
+RUN uv sync --frozen
+# RUN uv sync
 
 # Copy the rest of the source code
 COPY --chown=app:app . ./
