@@ -147,12 +147,24 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 ### Application Design Document ###              (Mahmood/Majid/Seraphim)
 
+```
+Update intro here
+
+```
 ## Solution Architecture ## (Mahmood/Majid/Seraphim)
   ** from MS4 requirement, please add   High-level overview of system components and their interactions (e.g., data flow, APIs, frontend, model). >  <-- delete this line once completed **
 
+```
+TBD - update here 
+
+```
 ## Technical Architecture ##  (Mahmood/Majid/Seraphim)
 
 <from MS4 requirement please add Technologies, frameworks, and design patterns used, and how they support your overall system design.> <-- delete this line once completed
+
+```
+update here
+```
 
 ### APIs and Frontend Implementation ###  (Mahmood/Majid)
 
@@ -287,6 +299,28 @@ The unified coverage report combines metrics from all components and is updated 
 For detailed information about the CI pipeline, including architecture, job descriptions, test types, coverage calculation methodology, and troubleshooting, see:
 
 📖 **[Complete CI Pipeline Documentation](docs/CI_PIPELINE.md)**
+
+
+##  Quantamental ML Model pipeline
+
+The quantamental pipeline is orchestrated through `main.py`, which executes a 7-step 
+workflow: 
+(1) data collection from the FMP API 
+(2) feature engineering with 30+ technical and fundamental indicators
+(3) model training using Random Forest classification
+(4) model validation against quality thresholds (35% minimum, 80% production)
+(5) prediction and backtesting with hybrid scoring
+(6) optional RAG reasoning via ChromaDB and Vertex AI
+(7) data versioning through W&B Artifacts. 
+
+Currently, the pipeline is executed manually via `python main.py`, while GitHub 
+Actions handles continuous integration (automated testing and linting on each push). 
+All training runs, metrics, and model artifacts are logged to Weights & Biases for 
+experiment tracking and reproducibility.
+
+<img width="800" height="765" alt="image" src="https://github.com/user-attachments/assets/11959926-5295-4746-a462-b2c0dcf68b8f" />
+
+
 
 
 ## Data Versioning and Reproducibility##   (Siri)
