@@ -378,42 +378,52 @@ jobs:
         id: extract-coverage
         run: |
           COVERAGE_XML="${{ matrix.coverage-path }}/coverage.xml"
+          COMPONENT="${{ matrix.component }}"
           if [ -f "$COVERAGE_XML" ]; then
-            # Extract both percentage and raw numbers for accurate combination
-            python3 << 'PYEOF'
-import xml.etree.ElementTree as ET
-import sys
-
-try:
-    tree = ET.parse('${{ matrix.coverage-path }}/coverage.xml')
-    root = tree.getroot()
-    
-    line_rate = float(root.get('line-rate', 0))
-    branch_rate = float(root.get('branch-rate', 0))
-    lines_covered = int(root.get('lines-covered', 0))
-    lines_valid = int(root.get('lines-valid', 0))
-    branches_covered = int(root.get('branches-covered', 0))
-    branches_valid = int(root.get('branches-valid', 0))
-    
-    coverage_pct = int(line_rate * 100)
-    branch_pct = int(branch_rate * 100)
-    
-    print(f"coverage={coverage_pct}%")
-    print(f"branch_coverage={branch_pct}")
-    print(f"lines_covered={lines_covered}")
-    print(f"lines_valid={lines_valid}")
-    print(f"branches_covered={branches_covered}")
-    print(f"branches_valid={branches_valid}")
-    print(f"component=${{ matrix.component }}")
-except Exception as e:
-    print("coverage=N/A")
-    print("branch_coverage=N/A")
-    print("lines_covered=0")
-    print("lines_valid=0")
-    print("branches_covered=0")
-    print("branches_valid=0")
-    print(f"component=${{ matrix.component }}")
-PYEOF
+            # Write Python script to file to avoid YAML parsing issues
+            cat > /tmp/extract_coverage_data.py << SCRIPT_END
+          import xml.etree.ElementTree as ET
+          import sys
+          import os
+          
+          coverage_xml = os.environ.get('COVERAGE_XML', '')
+          component = os.environ.get('COMPONENT', '')
+          
+          try:
+              tree = ET.parse(coverage_xml)
+              root = tree.getroot()
+              
+              line_rate = float(root.get('line-rate', 0))
+              branch_rate = float(root.get('branch-rate', 0))
+              lines_covered = int(root.get('lines-covered', 0))
+              lines_valid = int(root.get('lines-valid', 0))
+              branches_covered = int(root.get('branches-covered', 0))
+              branches_valid = int(root.get('branches-valid', 0))
+              
+              coverage_pct = int(line_rate * 100)
+              branch_pct = int(branch_rate * 100)
+              
+              print(f"coverage={coverage_pct}%")
+              print(f"branch_coverage={branch_pct}")
+              print(f"lines_covered={lines_covered}")
+              print(f"lines_valid={lines_valid}")
+              print(f"branches_covered={branches_covered}")
+              print(f"branches_valid={branches_valid}")
+              print(f"component={component}")
+          except Exception as e:
+              print("coverage=N/A")
+              print("branch_coverage=N/A")
+              print("lines_covered=0")
+              print("lines_valid=0")
+              print("branches_covered=0")
+              print("branches_valid=0")
+              print(f"component={component}")
+          SCRIPT_END
+            
+            # Execute Python script with environment variables and capture output
+            COVERAGE_XML="$COVERAGE_XML" COMPONENT="$COMPONENT" python3 /tmp/extract_coverage_data.py | while IFS='=' read -r key value; do
+              echo "${key}=${value}" >> $GITHUB_OUTPUT
+            done
           else
             echo "coverage=N/A" >> $GITHUB_OUTPUT
             echo "branch_coverage=N/A" >> $GITHUB_OUTPUT
