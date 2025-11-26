@@ -10,6 +10,10 @@ The Unified CI Pipeline is a comprehensive continuous integration system that au
 
 The pipeline uses Docker containers for isolation, runs multiple test types (lint, unit, integration, system), generates code coverage reports, and combines them into a unified report.
 
+![Successful Automated CI run on push](Successful%20Automated%20CI%20run%20on%20push.png)
+
+*Example: Successful CI pipeline execution triggered by a push event*
+
 ## Table of Contents
 
 1. [Pipeline Architecture](#pipeline-architecture)
@@ -290,6 +294,10 @@ The pipeline uses concurrency groups to prevent multiple runs for the same branc
   - API-service: Coverage %, Branch Coverage %
 - **Test Status**: Overall test result (passed/skipped/failed)
 - **Coverage Reports**: Links to unified XML and HTML reports
+
+![CI Test Summary](CI%20Test%20Summary.png)
+
+*Example: CI pipeline test summary showing combined coverage and component breakdown*
 
 ---
 
