@@ -9,17 +9,17 @@
 This repository contains the development-ready version of the LLM-Powered Quantamental Stock Screener application for AC215/E115 Milestone 4.
 Milestone 4 focuses on:
 
-    - End-to-end local functionality
+- End-to-end local functionality
 
-    - Clean code organization
+- Code organization
 
-    - Fully working backend APIs, agents, model, and frontend
+- Fully working backend APIs, agents, model, and frontend
 
-    - Continuous Integration with automated tests
+- Continuous Integration with automated tests
 
-    - Data versioning and reproducibility
+- Data versioning and reproducibility
 
-    - A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
+- A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
 
 ### Project Milestone 4 - Code Organization
 
