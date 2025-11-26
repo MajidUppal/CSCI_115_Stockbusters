@@ -33,6 +33,7 @@ class TestModelPerformance:
     MIN_PRECISION = 0.75
     MIN_RECALL = 0.75
 
+    @pytest.mark.unit
     def test_model_accuracy_meets_threshold(self, mock_good_model_metrics):
         """
         Test: Model accuracy must be >= 80%
@@ -47,6 +48,7 @@ class TestModelPerformance:
             f"threshold {self.MIN_ACCURACY:.2%}. DO NOT DEPLOY!"
         )
 
+    @pytest.mark.unit
     def test_model_roc_auc_meets_threshold(self, mock_good_model_metrics):
         """Test: ROC-AUC must be >= 85%"""
         metrics = mock_good_model_metrics
@@ -56,6 +58,7 @@ class TestModelPerformance:
             f"threshold {self.MIN_ROC_AUC:.2%}. DO NOT DEPLOY!"
         )
 
+    @pytest.mark.unit
     def test_model_balanced_performance(self, mock_good_model_metrics):
         """Test: Precision and recall both meet thresholds"""
         metrics = mock_good_model_metrics
@@ -71,6 +74,7 @@ class TestModelPerformance:
 class TestModelValidationFramework:
     """Test that validation framework works correctly"""
 
+    @pytest.mark.unit
     def test_framework_rejects_low_accuracy(self):
         """Test: Framework correctly rejects models below threshold"""
 
@@ -86,6 +90,7 @@ class TestModelValidationFramework:
                 f"below threshold"
             )
 
+    @pytest.mark.unit
     def test_framework_accepts_good_accuracy(self):
         """Test: Framework accepts models above threshold"""
 
@@ -97,6 +102,7 @@ class TestModelValidationFramework:
 
         assert good_model_metrics["accuracy"] >= MIN_ACCURACY
 
+    @pytest.mark.unit
     def test_detects_performance_degradation(self):
         """Test: Framework detects declining performance"""
 
@@ -116,6 +122,7 @@ class TestModelValidationFramework:
 class TestDocumentation:
     """Verify documentation acknowledges current model limitation"""
 
+    @pytest.mark.unit
     def test_readme_mentions_limitation(self):
         """
         Test: README.md documents the 39% accuracy issue

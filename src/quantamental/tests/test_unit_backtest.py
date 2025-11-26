@@ -90,6 +90,7 @@ def sample_prediction_data():
 class TestBacktesterInit:
     """Test QuantamentalBacktester initialization"""
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     def test_init_with_config(self, mock_gcs, sample_config):
         """Test backtester initialization"""
@@ -104,6 +105,7 @@ class TestBacktesterInit:
 class TestCreateAgentOutputFiles:
     """Test create_agent_output_files method"""
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     @patch("hybrid_scoring.calculate_hybrid_scores")  # Fixed: patch from hybrid_scoring
     @patch(
@@ -146,6 +148,7 @@ class TestCreateAgentOutputFiles:
         assert "profiles" in result
         assert "equity" in result
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     @patch("hybrid_scoring.calculate_hybrid_scores")
     @patch("hybrid_scoring.calculate_backtest_metrics")
@@ -176,6 +179,7 @@ class TestCreateAgentOutputFiles:
         assert len(df_output) > 0
         assert "symbol" in df_output.columns
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     @patch("hybrid_scoring.calculate_hybrid_scores")
     @patch("hybrid_scoring.calculate_backtest_metrics")
@@ -213,6 +217,7 @@ class TestCreateAgentOutputFiles:
         for col in required:
             assert col in df_output.columns, f"Missing column: {col}"
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     @patch("hybrid_scoring.calculate_hybrid_scores")
     @patch("hybrid_scoring.calculate_backtest_metrics")
@@ -243,6 +248,7 @@ class TestCreateAgentOutputFiles:
         assert "symbol" in df_profiles.columns
         assert len(df_profiles) > 0
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     @patch("hybrid_scoring.calculate_hybrid_scores")
     @patch("hybrid_scoring.calculate_backtest_metrics")
@@ -278,6 +284,7 @@ class TestCreateAgentOutputFiles:
 class TestRunBacktest:
     """Test run_backtest method"""
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     @patch("backtest.QuantamentalPredictor")
     @patch("backtest.wandb")
@@ -327,6 +334,7 @@ class TestRunBacktest:
         assert "gcs_paths" in result
         assert "num_stocks" in result
 
+    @pytest.mark.unit
     @patch("backtest.GCSHandler")
     def test_backtester_has_required_attributes(self, mock_gcs, sample_config):
         """Test backtester has all required attributes"""

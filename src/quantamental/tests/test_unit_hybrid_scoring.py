@@ -57,6 +57,7 @@ def sample_data_with_fwd_returns(sample_data):
 class TestHybridScoring:
     """Test hybrid score calculations"""
 
+    @pytest.mark.unit
     def test_calculate_hybrid_scores_basic(self, sample_data):
         """Test basic hybrid score calculation"""
         result = calculate_hybrid_scores(sample_data)
@@ -69,6 +70,7 @@ class TestHybridScoring:
         assert "Hybrid_Rank" in result.columns
         assert "H_Score Recommendation" in result.columns
 
+    @pytest.mark.unit
     def test_hybrid_scores_in_valid_range(self, sample_data):
         """Test scores are in valid range [0, 1]"""
         result = calculate_hybrid_scores(sample_data)
@@ -80,6 +82,7 @@ class TestHybridScoring:
         assert result["Fundamental_Score"].min() >= 0
         assert result["Fundamental_Score"].max() <= 1
 
+    @pytest.mark.unit
     def test_hybrid_cs_pct_percentile(self, sample_data):
         """Test Hybrid_CS_Pct is a valid percentile"""
         result = calculate_hybrid_scores(sample_data)
@@ -87,6 +90,7 @@ class TestHybridScoring:
         assert result["Hybrid_CS_Pct"].min() >= 0
         assert result["Hybrid_CS_Pct"].max() <= 1
 
+    @pytest.mark.unit
     def test_recommendations_are_valid(self, sample_data):
         """Test recommendations are from valid set"""
         result = calculate_hybrid_scores(sample_data)
@@ -101,6 +105,7 @@ class TestHybridScoring:
 
         assert result["H_Score Recommendation"].isin(valid_recs).all()
 
+    @pytest.mark.unit
     def test_hybrid_score_is_average(self, sample_data):
         """Test Hybrid_Score = 50% Tech + 50% Fund"""
         result = calculate_hybrid_scores(sample_data)
@@ -111,6 +116,7 @@ class TestHybridScoring:
             result["Hybrid_Score"].values, expected.values, decimal=5
         )
 
+    @pytest.mark.unit
     def test_handles_missing_date_column(self):
         """Test error handling for missing date column"""
         df = pd.DataFrame({"symbol": ["AAPL"] * 10, "return_1m": np.random.randn(10)})
@@ -124,6 +130,7 @@ class TestHybridScoring:
 class TestBacktestMetrics:
     """Test backtest metrics calculations"""
 
+    @pytest.mark.unit
     def test_calculate_backtest_metrics_basic(self, sample_data_with_fwd_returns):
         """Test basic backtest metrics calculation"""
         result = calculate_backtest_metrics(sample_data_with_fwd_returns)
@@ -137,6 +144,7 @@ class TestBacktestMetrics:
         assert "hit_rate_pos" in result.columns
         assert "cagr" in result.columns
 
+    @pytest.mark.unit
     def test_metrics_with_no_forward_returns(self, sample_data):
         """Test handling of missing forward returns"""
         result = calculate_backtest_metrics(sample_data)
@@ -145,6 +153,7 @@ class TestBacktestMetrics:
         assert "sharpe_1m_annual" in result.columns
         assert result["sharpe_1m_annual"].isna().all()
 
+    @pytest.mark.unit
     def test_sharpe_ratio_calculation(self, sample_data_with_fwd_returns):
         """Test Sharpe ratio is calculated correctly"""
         result = calculate_backtest_metrics(sample_data_with_fwd_returns)
@@ -153,6 +162,7 @@ class TestBacktestMetrics:
         sharpe = result["sharpe_1m_annual"].dropna()
         assert np.isfinite(sharpe).all() or sharpe.isna().all()
 
+    @pytest.mark.unit
     def test_hit_rate_in_valid_range(self, sample_data_with_fwd_returns):
         """Test hit rates are between 0 and 1"""
         result = calculate_backtest_metrics(sample_data_with_fwd_returns)
@@ -161,6 +171,7 @@ class TestBacktestMetrics:
         assert (hit_pos >= 0).all()
         assert (hit_pos <= 1).all()
 
+    @pytest.mark.unit
     def test_max_drawdown_is_negative(self, sample_data_with_fwd_returns):
         """Test max drawdown is negative or zero"""
         result = calculate_backtest_metrics(sample_data_with_fwd_returns)
@@ -168,6 +179,7 @@ class TestBacktestMetrics:
         dd = result["max_drawdown"].dropna()
         assert (dd <= 0).all()
 
+    @pytest.mark.unit
     def test_cagr_calculation(self, sample_data_with_fwd_returns):
         """Test CAGR is calculated"""
         result = calculate_backtest_metrics(sample_data_with_fwd_returns)
@@ -180,6 +192,7 @@ class TestBacktestMetrics:
 class TestIntegration:
     """Integration tests for hybrid scoring pipeline"""
 
+    @pytest.mark.unit
     def test_full_pipeline(self, sample_data):
         """Test complete pipeline: scores → metrics"""
         # Calculate scores
@@ -208,6 +221,7 @@ class TestIntegration:
         for col in expected_cols:
             assert col in result.columns
 
+    @pytest.mark.unit
     def test_preserves_original_columns(self, sample_data):
         """Test original columns are preserved"""
         original_cols = set(sample_data.columns)
@@ -217,6 +231,7 @@ class TestIntegration:
         # All original columns should still exist
         assert original_cols.issubset(set(result.columns))
 
+    @pytest.mark.unit
     def test_handles_single_symbol(self):
         """Test with single symbol"""
         df = pd.DataFrame(
