@@ -93,8 +93,10 @@ AC215_StockBusters/
 │   │   │   ├── DataService.js     # API integration
 │   │   │   ├── Common.js
 │   │   │   └── utils.js
-│   │   └── .env.development
-│   │
+│   │   ├── Dockerfile 
+│   │   ├── docker-shell.sh 
+│   │   └── .env.development 
+│   │  
 │   │
 │   └── notebooks/                    ← Your raw development notebooks
 │       ├── Quantamental_MS4.ipynb
