@@ -865,7 +865,16 @@ jobs:
           SCRIPT_END
               
               # Strip leading spaces from Python script (heredoc preserves YAML indentation)
-              sed -i '' 's/^          //' /tmp/combine_coverage.py || sed -i 's/^          //' /tmp/combine_coverage.py
+              # Use Python to strip indentation (more portable than sed)
+              python3 << 'STRIP_SCRIPT'
+import re
+with open('/tmp/combine_coverage.py', 'r') as f:
+    content = f.read()
+# Remove 10 leading spaces from each line (YAML indentation)
+content = re.sub(r'^          ', '', content, flags=re.MULTILINE)
+with open('/tmp/combine_coverage.py', 'w') as f:
+    f.write(content)
+STRIP_SCRIPT
               
               # Run the combination script
               if ! python3 /tmp/combine_coverage.py "$HAS_RAG" "$HAS_QUANT" "$HAS_API"; then
