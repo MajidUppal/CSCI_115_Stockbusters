@@ -306,13 +306,13 @@ For detailed information about the CI pipeline, including architecture, job desc
 The quantamental pipeline is orchestrated through `main.py`, which executes a 7-step 
 workflow:
 
- (1) data collection from the FMP API
- (2) feature engineering with 30+ technical and fundamental indicators
- (3) model training using Random Forest classification
- (4) model validation against quality thresholds (35% minimum, 80% production)
- (5) prediction and backtesting with hybrid scoring
- (6) optional RAG reasoning via ChromaDB and Vertex AI
- (7) data versioning through W&B Artifacts. 
+ - (1) Data collection from the FMP API
+ - (2) Feature engineering with 30+ technical and fundamental indicators
+ - (3) Model training using Random Forest classification
+ - (4) Model validation against quality thresholds (35% minimum, 80% production)
+ - (5) Prediction and backtesting with hybrid scoring
+ - (6) Optional RAG reasoning via ChromaDB and Vertex AI
+ - (7) Data versioning through W&B Artifacts. 
 
 Currently, the pipeline is executed manually via `python main.py`, while GitHub 
 Actions handles continuous integration (automated testing and linting on each push). 
@@ -321,15 +321,43 @@ experiment tracking and reproducibility.
 
 <img width="800" height="765" alt="image" src="https://github.com/user-attachments/assets/11959926-5295-4746-a462-b2c0dcf68b8f" />
 
+### Data and Model Artifact in W&B ###
 
+<img width="1914" height="897" alt="image" src="https://github.com/user-attachments/assets/d3d0d924-c6eb-4cfe-ae17-65326d934bd2" />
 
+### The Artifact Lineage###
 
-## Data Versioning and Reproducibility##   (Siri)
+<img width="1305" height="882" alt="image" src="https://github.com/user-attachments/assets/1b5123c0-78c5-455b-83ec-579b19c3736b" />
 
-    <MS4 : Implement and document your data versioning workflow (e.g., using DVC or an equivalent approach).
-    Should include:
-    The chosen method and a short justification for it. Version history for datasets or large artifacts (commits, tags, or snapshots).
-    Instructions for data retrieval (dvc pull, push, or equivalent). If applicable, include LLM prompts and outputs for generated data. >
+### Lineage Tracking & Reproducibility
+
+The W&B Artifacts Lineage view provides a visual representation of data flow through our ML pipeline, 
+enabling full reproducibility and traceability. The graph shows how training runs connect to their 
+input and output artifacts.
+
+**What the graph shows:**
+- **Training Runs**: `fine-firefly-24` and `giddy-firefly-27` represent pipeline executions
+- **Input Artifacts**: `training-data:v1` (processed dataset used for training)
+- **Output Artifacts**: `quantamental-model:v3` (trained model), feature importance tables, and run history
+
+**Versioned Artifacts:**
+| Type | Artifact | Versions |
+|------|----------|----------|
+| Raw Data | `input_fundamentals`, `input_sp500_index` | v0, v1 |
+| Dataset | `training-data` | v0, v1 |
+| Model | `quantamental-model` | v0, v1, v2, v3 |
+| Output | `backtest_output`, `output_combined_quantamental` | v0-v3 |
+
+This lineage tracking ensures that any prediction can be traced back through the model, training data, 
+and raw inputs—providing complete reproducibility for our ML pipeline.
+
+For example, the run `fine-firefly-24` consumed `training-data:v1` as input and produced `quantamental-model:v3`, feature importance tables, and run history logs as outputs. 
+This lineage tracking ensures that for any model version, we can trace back to the exact dataset, hyperparameters, and code that produced it. 
+
+Our versioned artifacts include: raw input data 
+(`input_fundamentals`, `input_sp500_index`), processed training data (`training-data`), trained models 
+(`quantamental-model` with versions v0-v3), and pipeline outputs (`backtest_output`, `output_combined_quantamental`). 
+This comprehensive versioning strategy satisfies the MS4 requirement for data versioning and reproducibility.
 
     
 
