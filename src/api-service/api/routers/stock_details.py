@@ -49,6 +49,7 @@ router = APIRouter()
 
 @router.get("/details/{ticker}")
 async def get_chat(ticker: str):
+    """The gets tickers and generate detailed report for the stock"""
     company_profile = get_company_profile(ticker, df_company_profile)
     stocks_data = get_stocks_data(ticker, df_stocks)
     quant_model = get_quant_data(ticker, df_quant_model)
@@ -186,6 +187,7 @@ async def generate_report(
 
 @router.get("/{model}/reports")
 async def get_reports(model: str, limit: int = 20, x_session_id: str = Header(None, alias="X-Session-ID")):
+    """"Generates reports for specific chats"""
     session_reports = reports_storage.get(x_session_id, [])
     sorted_reports = sorted(session_reports, key=lambda x: x.get("generated_at", ""), reverse=True)[:limit]
     return sorted_reports
@@ -193,7 +195,9 @@ async def get_reports(model: str, limit: int = 20, x_session_id: str = Header(No
 
 @router.get("/report")
 async def get_recommended_stocks(user_pref: str):
+    """Collects user preference and generate report as per the user preference"""
     print(user_pref)
+    # converts the string to a dictionary
     user_prefs_dict = ast.literal_eval(user_pref)
     short_listed = user_pref_stock_selection(df_quant_model, user_prefs_dict)
     return {"stocks": short_listed}
