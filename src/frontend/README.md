@@ -25,9 +25,9 @@ A modern, AI-powered stock trading assistant built with Next.js 15, featuring re
 - **AI Analysis**: Detailed bullet-point explanations for stock recommendations
 - **Company Information**: Comprehensive company details, metrics, and descriptions
 - **Key Metrics Dashboard**: AI scores (Technical/Fundamental/Hybrid), Sharpe ratio, CAGR, and Max Drawdown
-- **Market News**: Latest news articles related to the stock
 
-### Settings & Profile Management
+
+### Settings & Profile Management 
 - **Investment Profile**: Customize your investment preferences
 - **Risk Tolerance**: Set your risk tolerance level
 - **Investment Goals**: Define your investment objectives
@@ -48,10 +48,45 @@ A modern, AI-powered stock trading assistant built with Next.js 15, featuring re
 - **Data Storage**: Google Cloud Storage (for quantamental models)
 - **Docker Network**: Custom Docker network for container communication
 
+## 🏗️ Architecture
+
+The frontend follows a modular architecture with Docker-based backend communication:
+
+### Frontend Architecture
+- **App Router**: Next.js 15 App Router for file-based routing
+- **Component Library**: Reusable UI components with shadcn/ui
+- **Service Layer**: Abstracted API calls through DataService
+- **State Management**: React hooks and context
+- **Styling**: Tailwind CSS with custom design system
+- **Type Safety**: JSDoc comments for better IDE support
+
+### Docker Network Communication
+- **Custom Network**: `stockbusters-app-network` enables container-to-container communication
+- **API Service**: FastAPI backend runs in Docker container on port 9000
+- **Frontend**: Next.js app communicates with API via `http://localhost:9000`
+- **Session Management**: X-Session-ID headers maintain user sessions across requests
+- **Environment-based Configuration**: Different settings for development and production
+
+### Data Flow
+```
+User Browser (Port 3000)
+    ↓
+Next.js Frontend
+    ↓ HTTP Requests
+Docker Network (stockbusters-app-network)
+    ↓
+API Service Container (Port 9000)
+    ↓
+FastAPI Backend
+    ↓
+Google Cloud Storage (Quantamental Models)
+```
+
+
 ## 📋 Prerequisites
 
 - Node.js 18.x or higher
-- npm or yarn
+- npm 
 - Docker (for running api-service container)
 - Backend API service running in Docker on port 9000
 
@@ -66,6 +101,7 @@ A modern, AI-powered stock trading assistant built with Next.js 15, featuring re
 2. **Install dependencies**
    ```bash
    npm install
+   npm install recharts
    ```
 
 3. **Configure environment variables**
@@ -97,7 +133,7 @@ The application uses Docker containers connected through a custom network:
 
 2. **Start the frontend development server**
    
-   In the frontend directory:
+   In the frontend container run:
    ```bash
    npm run dev
    ```
@@ -107,18 +143,6 @@ The application uses Docker containers connected through a custom network:
 3. **Open your browser**
    
    Navigate to [http://localhost:3000](http://localhost:3000)
-
-### Production Mode
-
-1. **Build the application**
-   ```bash
-   npm run build
-   ```
-
-2. **Start the production server**
-   ```bash
-   npm start
-   ```
 
 ## 📁 Project Structure
 
@@ -130,30 +154,30 @@ frontend/
 │   ├── chat/
 │   │   ├── page.jsx                # Main chat page
 │   │   ├── ChatHistory.jsx         # Chat history component
-│   │   ├── ChatHistorySidebar.jsx  # Chat sidebar navigation
+│   │   ├── ChatHistorySidebar.jsx  # Chat sidebar navigation component
 │   │   ├── ChatInput.jsx           # Message input component
 │   │   └── ChatMessage.jsx         # Message display component
 │   ├── layout/
 │   │   ├── Footer.jsx              # Footer component
 │   │   ├── Header.jsx              # Header/navigation component
-│   │   └── ThemeToggle.jsx         # Theme switcher
+│   │   └── ThemeToggle.jsx         # Theme switcher component
 │   ├── report/
 │   │   ├── page.jsx                # Stock report page
-│   │   ├── ReportSidebar.jsx       # Report history sidebar
-│   │   └── ReportTable.jsx         # Stock recommendations table
+│   │   ├── ReportSidebar.jsx       # Report history sidebar component
+│   │   └── ReportTable.jsx         # Stock recommendations table component
 │   ├── settings/
 │   │   ├── page.jsx                # Settings main page
 │   │   ├── CheckboxGroup.jsx       # Checkbox group component
 │   │   ├── FormField.jsx           # Form field component
-│   │   ├── ProfileHeader.jsx       # Profile header
+│   │   ├── ProfileHeader.jsx       # Profile header component
 │   │   ├── SelectField.jsx         # Select dropdown component
-│   │   ├── SettingsItem.jsx        # Individual setting item
-│   │   ├── SettingsSection.jsx     # Settings section wrapper
+│   │   ├── SettingsItem.jsx        # Individual setting item component
+│   │   ├── SettingsSection.jsx     # Settings section wrapper component
 │   │   └── ToggleSwitch.jsx        # Toggle switch component
-│   ├── stock/
+│   ├── stock-detail/
 │   │   ├── page.jsx                # Stock detail page
-│   │   ├── StockPriceChart.jsx     # Candlestick price chart
-│   │   └── StockVolumeChart.jsx    # Volume bar chart
+│   │   ├── StockPriceChart.jsx     # Candlestick price chart component
+│   │   └── StockVolumeChart.jsx    # Volume bar chart component
 │   ├── ui/
 │   │   └── MarketNewsCard.jsx      # Market news card component
 │   ├── globals.css                 # Global styles
@@ -162,22 +186,6 @@ frontend/
 │   └── page.jsx                    # Home page
 ├── components/
 │   └── ui/                         # shadcn/ui components
-│       ├── alert.jsx
-│       ├── avatar.jsx
-│       ├── badge.jsx
-│       ├── button.jsx
-│       ├── card.jsx
-│       ├── checkbox.jsx
-│       ├── dialog.jsx
-│       ├── dropdown-menu.jsx
-│       ├── input.jsx
-│       ├── label.jsx
-│       ├── select.jsx
-│       ├── separator.jsx
-│       ├── switch.jsx
-│       ├── table.jsx
-│       ├── tabs.jsx
-│       └── textarea.jsx
 ├── hooks/
 │   └── [custom hooks]
 ├── lib/
@@ -223,15 +231,9 @@ POST   http://localhost:9000/api/report/generate?model={model}
 
 #### Stock Operations
 ```
-GET    http://localhost:9000/api/stock/{symbol}?model={model}&report_id={reportId}
-GET    http://localhost:9000/api/stock/{symbol}/news
+GET    http://localhost:9000/api/stock/{ticker}
 ```
 
-#### Settings Operations
-```
-GET    http://localhost:9000/api/settings
-PUT    http://localhost:9000/api/settings
-```
 
 See `lib/DataService.js` for detailed request/response formats.
 
@@ -241,7 +243,7 @@ The application uses session-based authentication with X-Session-ID headers for 
 
 ## 🎨 Features Walkthrough
 
-### 1. Set Your Investment Profile
+### 1. Set Your Investment Profile - Inprogress
 
 - Navigate to Settings
 - Configure your investment preferences:
@@ -250,17 +252,18 @@ The application uses session-based authentication with X-Session-ID headers for 
   - Preferred sectors
   - Time horizon (Short, Medium, Long term)
   - AI Model (Technical, Fundamental, Hybrid)
+  - Still need to integrate it backend.
 
 ### 2. Chat with AI Assistant
 
 - Start a conversation about stocks
 - Ask questions like "What are the best tech stocks?"
-- AI uses your profile preferences to provide personalized recommendations
-- Continue conversations across sessions
+- AI uses users identified preferences to provide personalized recommendations
+- Continue conversations based on prior chat history
+- Chat with the AI until it provides recommendations
 
 ### 3. Generate Stock Reports
 
-- Chat with the AI until it provides recommendations
 - Click the "Generate Report" button
 - View comprehensive stock recommendations table
 - Stocks are scored based on your selected AI model (Technical/Fundamental/Hybrid)
@@ -268,11 +271,10 @@ The application uses session-based authentication with X-Session-ID headers for 
 
 ### 4. Analyze Stock Details
 
-- Click on any stock in a report to view details
+- Click on More Details button on Stock Report page to view details of individual stocks
 - View candlestick price charts
 - Analyze trading volume
 - Read AI-generated analysis
-- Check latest market news
 - Switch between different time ranges (1W, 1M, 3M, 6M, 1Y, YTD, 5Y, MAX)
 
 ### 5. Review Past Reports
@@ -287,104 +289,6 @@ The application uses session-based authentication with X-Session-ID headers for 
 
 The application supports light and dark themes with a toggle switch in the header.
 
-### Color Schemes
-
-The app uses CSS variables for theming. Edit `app/globals.css`:
-
-```css
-:root {
-  --primary: your-color;
-  --secondary: your-color;
-  /* ... */
-}
-```
-
-### Chart Colors
-
-Edit chart colors in:
-- `app/stock/StockPriceChart.jsx` - Line colors for candlesticks
-- `app/stock/StockVolumeChart.jsx` - Bar colors for volume
-
-## 📊 Data Models
-
-### Chat Object
-```javascript
-{
-  chat_id: string,
-  title: string,
-  dts: ISO datetime,
-  messages: [
-    {
-      message_id: string,
-      role: "user" | "assistant",
-      content: string,
-      timestamp: ISO datetime
-    }
-  ]
-}
-```
-
-### Report Object
-```javascript
-{
-  report_id: string,
-  title: string,
-  generated_date: ISO datetime,
-  chat_id: string,
-  model: "technical" | "fundamental" | "hybrid",
-  stocks: [
-    {
-      symbol: string,
-      sector: string,
-      signal: "Strong Buy" | "Buy" | "Hold" | "Sell",
-      technical_score: number,
-      fundamental_score: number,
-      hybrid_score: number,
-      sharpe: number,
-      cagr: number,
-      max_drawdown: number
-    }
-  ]
-}
-```
-
-### Stock Detail Object
-```javascript
-{
-  symbol: string,
-  stock_name: string,
-  company_name: string,
-  sector: string,
-  industry: string,
-  market_cap: string,
-  exchange: string,
-  signal: string,
-  technical_score: number,
-  fundamental_score: number,
-  hybrid_score: number,
-  sharpe: number,
-  cagr: number,
-  max_drawdown: number,
-  description: string,
-  ai_analysis: string[],
-  price_data: [...],
-  volume_data: [...],
-  news: [...]
-}
-```
-
-### User Settings Object
-```javascript
-{
-  risk_tolerance: "conservative" | "moderate" | "aggressive",
-  investment_goals: string[],
-  preferred_sectors: string[],
-  time_horizon: "short" | "medium" | "long",
-  model: "technical" | "fundamental" | "hybrid",
-  notifications: boolean,
-  email_updates: boolean
-}
-```
 
 ## 🐛 Troubleshooting
 
@@ -430,7 +334,7 @@ Edit chart colors in:
    lsof -i :3000
    lsof -i :9000
    ```
-2. Kill the process or change ports in `.env.development`
+2. Kill the process or change ports 
 
 ### Charts not displaying
 
@@ -470,7 +374,7 @@ npm install recharts
 **Problem**: `.env.development` changes not taking effect
 
 **Solution**:
-1. Restart the development server
+1. Restart the development container
 2. Check file name is exactly `.env.development`
 3. Verify variables start with `NEXT_PUBLIC_` for client-side access
 4. Clear browser cache
@@ -517,26 +421,6 @@ The application uses a custom Docker network for container communication:
    ```
    Frontend runs on port 3000 and connects to API on port 9000
 
-### Vercel (Frontend Only)
-
-1. Push code to GitHub
-2. Import project in Vercel
-3. Add environment variables:
-   - `NEXT_PUBLIC_BASE_API_URL` (your production API URL)
-   - `NEXTAUTH_SECRET`
-   - `NEXTAUTH_URL`
-4. Deploy
-
-### Production Docker Deployment
-
-**Build and Run Frontend:**
-```bash
-docker build -t stock-busters-frontend .
-docker run -p 3000:3000 \
-  -e NEXT_PUBLIC_BASE_API_URL=http://api-service:9000 \
-  --network stockbusters-app-network \
-  stock-busters-frontend
-```
 
 **Note**: Ensure the api-service container is running on the same Docker network.
 
@@ -551,21 +435,10 @@ docker run -p 3000:3000 \
 | `NEXTAUTH_SECRET` | NextAuth.js secret key | - | Yes |
 | `NEXTAUTH_URL` | NextAuth.js callback URL | `http://localhost:3000` | Yes |
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-[Your License Here]
 
 ## 👥 Authors
 
-Mahmood - Full Stack Developer
+Mahmood Masqati
 
 ## 📞 Support
 
@@ -589,40 +462,6 @@ For issues and questions:
 - [ ] Mobile app version (React Native)
 - [ ] Social sharing features
 - [ ] Watchlist management
-
-## 🏗️ Architecture
-
-The frontend follows a modular architecture with Docker-based backend communication:
-
-### Frontend Architecture
-- **App Router**: Next.js 15 App Router for file-based routing
-- **Component Library**: Reusable UI components with shadcn/ui
-- **Service Layer**: Abstracted API calls through DataService
-- **State Management**: React hooks and context
-- **Styling**: Tailwind CSS with custom design system
-- **Type Safety**: JSDoc comments for better IDE support
-
-### Docker Network Communication
-- **Custom Network**: `stockbusters-app-network` enables container-to-container communication
-- **API Service**: FastAPI backend runs in Docker container on port 9000
-- **Frontend**: Next.js app communicates with API via `http://localhost:9000`
-- **Session Management**: X-Session-ID headers maintain user sessions across requests
-- **Environment-based Configuration**: Different settings for development and production
-
-### Data Flow
-```
-User Browser (Port 3000)
-    ↓
-Next.js Frontend
-    ↓ HTTP Requests
-Docker Network (stockbusters-app-network)
-    ↓
-API Service Container (Port 9000)
-    ↓
-FastAPI Backend
-    ↓
-Google Cloud Storage (Quantamental Models)
-```
 
 ## 📈 Performance
 
