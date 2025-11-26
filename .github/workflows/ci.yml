@@ -865,8 +865,8 @@ jobs:
           SCRIPT_END
               
               # Strip leading spaces from Python script (heredoc preserves YAML indentation)
-              # Use Python one-liner to strip indentation (avoids YAML parsing issues with heredoc)
-              python3 -c "import re; content = open('/tmp/combine_coverage.py').read(); open('/tmp/combine_coverage.py', 'w').write(re.sub(r'^          ', '', content, flags=re.MULTILINE))"
+              # Find minimum indentation and strip it (handles any number of leading spaces)
+              python3 -c "lines=open('/tmp/combine_coverage.py').readlines(); non_empty=[l for l in lines if l.strip()]; min_indent=min(len(l)-len(l.lstrip(' ')) for l in non_empty) if non_empty else 0; fixed=[l[min_indent:] if l.strip() else l for l in lines]; open('/tmp/combine_coverage.py','w').writelines(fixed)"
               
               # Run the combination script
               if ! python3 /tmp/combine_coverage.py "$HAS_RAG" "$HAS_QUANT" "$HAS_API"; then
