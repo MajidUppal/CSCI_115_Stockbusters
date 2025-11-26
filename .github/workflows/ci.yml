@@ -373,19 +373,55 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
 
-      - name: Extract coverage percentage
+      - name: Extract coverage data
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit' && always()
         id: extract-coverage
         run: |
           COVERAGE_XML="${{ matrix.coverage-path }}/coverage.xml"
           if [ -f "$COVERAGE_XML" ]; then
-            COVERAGE=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
-            BRANCH_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
-            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "branch_coverage=$BRANCH_COV" >> $GITHUB_OUTPUT
+            # Extract both percentage and raw numbers for accurate combination
+            python3 << 'PYEOF'
+import xml.etree.ElementTree as ET
+import sys
+
+try:
+    tree = ET.parse('${{ matrix.coverage-path }}/coverage.xml')
+    root = tree.getroot()
+    
+    line_rate = float(root.get('line-rate', 0))
+    branch_rate = float(root.get('branch-rate', 0))
+    lines_covered = int(root.get('lines-covered', 0))
+    lines_valid = int(root.get('lines-valid', 0))
+    branches_covered = int(root.get('branches-covered', 0))
+    branches_valid = int(root.get('branches-valid', 0))
+    
+    coverage_pct = int(line_rate * 100)
+    branch_pct = int(branch_rate * 100)
+    
+    print(f"coverage={coverage_pct}%")
+    print(f"branch_coverage={branch_pct}")
+    print(f"lines_covered={lines_covered}")
+    print(f"lines_valid={lines_valid}")
+    print(f"branches_covered={branches_covered}")
+    print(f"branches_valid={branches_valid}")
+    print(f"component=${{ matrix.component }}")
+except Exception as e:
+    print("coverage=N/A")
+    print("branch_coverage=N/A")
+    print("lines_covered=0")
+    print("lines_valid=0")
+    print("branches_covered=0")
+    print("branches_valid=0")
+    print(f"component=${{ matrix.component }}")
+PYEOF
           else
             echo "coverage=N/A" >> $GITHUB_OUTPUT
             echo "branch_coverage=N/A" >> $GITHUB_OUTPUT
+            echo "lines_covered=0" >> $GITHUB_OUTPUT
+            echo "lines_valid=0" >> $GITHUB_OUTPUT
+            echo "branches_covered=0" >> $GITHUB_OUTPUT
+            echo "branches_valid=0" >> $GITHUB_OUTPUT
+            echo "component=${{ matrix.component }}" >> $GITHUB_OUTPUT
           fi
 
   # Test Summary and Coverage Commit
@@ -419,8 +455,97 @@ jobs:
           echo "quant_coverage=$QUANT_COV" >> $GITHUB_OUTPUT
           echo "quant_branch=$QUANT_BRANCH" >> $GITHUB_OUTPUT
 
+      - name: Combine and commit unified coverage report
+        if: always() && github.event_name == 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          mkdir -p coverage
+          
+          # Check if we have coverage files to combine
+          HAS_RAG=false
+          HAS_QUANT=false
+          
+          if [ -f "src/rag/coverage/coverage.xml" ]; then
+            HAS_RAG=true
+            echo "✅ Found RAG coverage.xml"
+          fi
+          
+          if [ -f "src/quantamental/coverage/coverage.xml" ]; then
+            HAS_QUANT=true
+            echo "✅ Found Quantamental coverage.xml"
+          fi
+          
+          # Combine coverage reports
+          if [ "$HAS_RAG" = true ] || [ "$HAS_QUANT" = true ]; then
+            echo "📊 Combining coverage reports..."
+            
+            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
+              # Both components have coverage - combine them
+              echo "Combining RAG and Quantamental coverage..."
+              
+              # Install coverage tool if not available
+              pip install coverage --quiet || true
+              
+              # Combine coverage using Python (simplified approach - calculate percentages only)
+              python3 -c 'import xml.etree.ElementTree as ET; import time; rag=ET.parse("src/rag/coverage/coverage.xml").getroot(); quant=ET.parse("src/quantamental/coverage/coverage.xml").getroot(); rlc=int(rag.get("lines-covered",0)); rlv=int(rag.get("lines-valid",0)); rbc=int(rag.get("branches-covered",0)); rbv=int(rag.get("branches-valid",0)); qlc=int(quant.get("lines-covered",0)); qlv=int(quant.get("lines-valid",0)); qbc=int(quant.get("branches-covered",0)); qbv=int(quant.get("branches-valid",0)); tlc=rlc+qlc; tlv=rlv+qlv; tbc=rbc+qbc; tbv=rbv+qbv; clr=tlc/tlv if tlv>0 else 0.0; cbr=tbc/tbv if tbv>0 else 0.0; root=ET.Element("coverage"); root.set("version",rag.get("version","1.0")); root.set("line-rate",str(clr)); root.set("branch-rate",str(cbr)); root.set("lines-covered",str(tlc)); root.set("lines-valid",str(tlv)); root.set("branches-covered",str(tbc)); root.set("branches-valid",str(tbv)); root.set("timestamp",str(int(time.time()*1000))); src=ET.SubElement(root,"sources"); ET.SubElement(src,"source").text="src/rag"; ET.SubElement(src,"source").text="src/quantamental"; pkg=ET.SubElement(root,"packages"); rp=rag.find("packages"); [pkg.append(ET.Element("package",{"name":"rag/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (rp.findall("package") if rp is not None else [])]; qp=quant.find("packages"); [pkg.append(ET.Element("package",{"name":"quantamental/"+p.get("name",""),"line-rate":p.get("line-rate","0"),"branch-rate":p.get("branch-rate","0"),"complexity":p.get("complexity","0")})) for p in (qp.findall("package") if qp is not None else [])]; ET.ElementTree(root).write("coverage/coverage.xml",encoding="utf-8",xml_declaration=True); print("✅ Combined coverage: {:.1f}% (lines), {:.1f}% (branches)".format(clr*100,cbr*100))'
+              
+            elif [ "$HAS_RAG" = true ]; then
+              # Only RAG coverage
+              cp src/rag/coverage/coverage.xml coverage/coverage.xml
+              echo "✅ Using RAG coverage only"
+            elif [ "$HAS_QUANT" = true ]; then
+              # Only Quantamental coverage
+              cp src/quantamental/coverage/coverage.xml coverage/coverage.xml
+              echo "✅ Using Quantamental coverage only"
+            fi
+            
+            # Copy HTML coverage reports (combine if both exist)
+            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
+              # Copy both HTML reports to separate subdirectories
+              if [ -d "src/rag/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag
+                echo "✅ Copied RAG HTML coverage"
+              fi
+              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental
+                echo "✅ Copied Quantamental HTML coverage"
+              fi
+            elif [ "$HAS_RAG" = true ]; then
+              if [ -d "src/rag/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                cp -r src/rag/coverage/htmlcov coverage/htmlcov
+                echo "✅ Copied RAG HTML coverage"
+              fi
+            elif [ "$HAS_QUANT" = true ]; then
+              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov
+                echo "✅ Copied Quantamental HTML coverage"
+              fi
+            fi
+            
+            echo "✅ Unified coverage report created"
+          else
+            echo "ℹ️ No coverage files found to combine"
+          fi
+          
+          # Commit if there are changes
+          if [ -n "$(git status --porcelain coverage/)" ]; then
+            git add coverage/
+            git commit -m "Update unified coverage report [skip ci]" || exit 0
+            git push || echo "⚠️ Failed to push coverage files"
+            echo "✅ Unified coverage report committed"
+          else
+            echo "ℹ️ No coverage changes to commit"
+          fi
+
       - name: Extract coverage from files
         id: extract-coverage
+        if: always()
         run: |
           # Write Python script to file to avoid YAML parsing issues
           cat > /tmp/extract_coverage.py << 'SCRIPT_END'
@@ -592,23 +717,81 @@ jobs:
             echo "ℹ️ No coverage changes to commit"
           fi
 
-      - name: Extract unified coverage
-        id: unified-coverage
+      - name: Calculate combined coverage from job outputs
+        id: combined-coverage
         if: always()
         run: |
-          # Extract from unified coverage.xml
-          if [ -f "coverage/coverage.xml" ]; then
-            UNIFIED_COV_PCT=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{float(root.get('line-rate', 0)) * 100:.2f}\")" 2>/dev/null || echo "0.0")
-            UNIFIED_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
-            UNIFIED_BRANCH=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
-            echo "unified_coverage=$UNIFIED_COV" >> $GITHUB_OUTPUT
-            echo "unified_coverage_pct=$UNIFIED_COV_PCT" >> $GITHUB_OUTPUT
-            echo "unified_branch=$UNIFIED_BRANCH" >> $GITHUB_OUTPUT
-          else
-            echo "unified_coverage=N/A" >> $GITHUB_OUTPUT
-            echo "unified_coverage_pct=0.0" >> $GITHUB_OUTPUT
-            echo "unified_branch=N/A" >> $GITHUB_OUTPUT
+          # Calculate combined coverage from the tests job outputs
+          # Since matrix jobs don't expose outputs easily, we'll use the coverage files
+          # that should be in the workspace from the tests job (if they persist)
+          # OR calculate from the unified coverage.xml if it exists
+          
+          RAG_LINES_COV=0
+          RAG_LINES_TOT=0
+          QUANT_LINES_COV=0
+          QUANT_LINES_TOT=0
+          
+          # Try to read from individual coverage files (they may exist from previous runs or be committed)
+          if [ -f "src/rag/coverage/coverage.xml" ]; then
+            eval $(python3 << 'PYEOF'
+import xml.etree.ElementTree as ET
+tree = ET.parse('src/rag/coverage/coverage.xml')
+root = tree.getroot()
+print(f"RAG_LINES_COV={int(root.get('lines-covered', 0))}")
+print(f"RAG_LINES_TOT={int(root.get('lines-valid', 0))}")
+PYEOF
+)
           fi
+          
+          if [ -f "src/quantamental/coverage/coverage.xml" ]; then
+            eval $(python3 << 'PYEOF'
+import xml.etree.ElementTree as ET
+tree = ET.parse('src/quantamental/coverage/coverage.xml')
+root = tree.getroot()
+print(f"QUANT_LINES_COV={int(root.get('lines-covered', 0))}")
+print(f"QUANT_LINES_TOT={int(root.get('lines-valid', 0))}")
+PYEOF
+)
+          fi
+          
+          # If we have data from both, calculate combined
+          if [ $RAG_LINES_TOT -gt 0 ] || [ $QUANT_LINES_TOT -gt 0 ]; then
+            TOTAL_LINES_COV=$((RAG_LINES_COV + QUANT_LINES_COV))
+            TOTAL_LINES_TOT=$((RAG_LINES_TOT + QUANT_LINES_TOT))
+            
+            if [ $TOTAL_LINES_TOT -gt 0 ]; then
+              COMBINED_COV_PCT=$(awk "BEGIN {printf \"%.2f\", ($TOTAL_LINES_COV / $TOTAL_LINES_TOT) * 100}")
+              COMBINED_COV=$(awk "BEGIN {printf \"%.0f\", ($TOTAL_LINES_COV / $TOTAL_LINES_TOT) * 100}")
+            else
+              COMBINED_COV_PCT=0.0
+              COMBINED_COV=0
+            fi
+          else
+            # Fallback: try unified coverage.xml
+            if [ -f "coverage/coverage.xml" ]; then
+              COMBINED_COV_PCT=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{float(root.get('line-rate', 0)) * 100:.2f}\")" 2>/dev/null || echo "0.0")
+              COMBINED_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}\")" 2>/dev/null || echo "0")
+            else
+              COMBINED_COV_PCT=0.0
+              COMBINED_COV=0
+            fi
+          fi
+          
+          echo "unified_coverage=${COMBINED_COV}%" >> $GITHUB_OUTPUT
+          echo "unified_coverage_pct=${COMBINED_COV_PCT}" >> $GITHUB_OUTPUT
+          
+          # Extract branch coverage from unified file if available
+          if [ -f "coverage/coverage.xml" ]; then
+            UNIFIED_BRANCH=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "0")
+            echo "unified_branch=${UNIFIED_BRANCH}" >> $GITHUB_OUTPUT
+          else
+            echo "unified_branch=0" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "📊 Combined Coverage Calculation:"
+          echo "  RAG: ${RAG_LINES_COV}/${RAG_LINES_TOT} lines"
+          echo "  Quantamental: ${QUANT_LINES_COV}/${QUANT_LINES_TOT} lines"
+          echo "  Combined: ${TOTAL_LINES_COV}/${TOTAL_LINES_TOT} = ${COMBINED_COV}%"
 
       - name: Check combined coverage threshold
         if: always() && steps.unified-coverage.outputs.unified_coverage_pct != '0.0'
