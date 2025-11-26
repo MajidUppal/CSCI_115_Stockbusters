@@ -638,14 +638,37 @@ jobs:
           if [ -z "$(git status --porcelain ${{ matrix.coverage-path }}/)" ]; then
             echo "ℹ️ No coverage changes to commit for ${{ matrix.component }} (files may already be committed)"
           else
-            # Pull latest changes before committing (handle concurrent commits)
-            git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            # Fix permissions on HTML files before pulling (Docker creates them as root)
+            if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+              sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+              chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+            fi
             
-            # Re-stage files in case pull changed anything
+            # Ensure we're on the correct branch
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+              # We're in detached HEAD state, checkout the branch
+              BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+              git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME" 2>/dev/null || true
+            fi
+            
+            # Stash current changes before pulling
+            git stash push -m "temp coverage files" "${{ matrix.coverage-path }}/" 2>/dev/null || true
+            
+            # Pull latest changes (use merge instead of rebase to avoid permission issues)
+            git pull --no-edit --no-rebase || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            
+            # Restore stashed changes
+            git stash pop 2>/dev/null || true
+            
+            # Re-stage files
             git add "${{ matrix.coverage-path }}/coverage.xml" || true
             if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
               HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
               if [ "$HTML_FILE_COUNT" -gt 0 ]; then
+                # Fix permissions again after pull
+                sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
                 GIT_ADD_OUTPUT=$(git add -f "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
                 if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
                   echo "⚠️  WARNING: htmlcov still ignored, trying individual files..."
@@ -665,8 +688,31 @@ jobs:
             # Push and verify success (retry once if it fails due to remote changes)
             if ! git push; then
               echo "⚠️  Push failed, pulling latest changes and retrying..."
-              git pull --rebase --no-edit || git pull --no-edit || true
+              
+              # Fix permissions before pulling
+              if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+                sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+              fi
+              
+              # Ensure we're on the correct branch
+              CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+              if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+                git checkout "$BRANCH_NAME" 2>/dev/null || true
+              fi
+              
+              # Use merge instead of rebase to avoid permission issues
+              git pull --no-edit --no-rebase || git pull --no-edit || true
+              
+              # Re-add files
               git add "${{ matrix.coverage-path }}/coverage.xml" || true
+              if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+                sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                git add -f "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+              fi
+              
               git commit -m "Update ${{ matrix.component }} coverage report [skip ci]" || true
               if ! git push; then
                 echo "❌ ERROR: Failed to push coverage files for ${{ matrix.component }} after retry"
@@ -1086,8 +1132,19 @@ jobs:
           
           # Commit if there are changes
           if [ -n "$(git status --porcelain coverage/)" ]; then
-            # Pull latest changes before committing (handle concurrent commits)
-            git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            # Fix permissions on HTML files before pulling (Docker creates them as root)
+            find coverage/ -type d -name "htmlcov*" -exec sudo chown -R runner:runner {} \; 2>/dev/null || true
+            find coverage/ -type d -name "htmlcov*" -exec chmod -R u+w {} \; 2>/dev/null || true
+            
+            # Ensure we're on the correct branch
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+              BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+              git checkout "$BRANCH_NAME" 2>/dev/null || true
+            fi
+            
+            # Pull latest changes (use merge instead of rebase to avoid permission issues)
+            git pull --no-edit --no-rebase || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
             
             # Add coverage.xml first
             if ! git add coverage/coverage.xml; then
@@ -1141,7 +1198,22 @@ jobs:
             # Push and verify success (retry once if it fails due to remote changes)
             if ! git push; then
               echo "⚠️  Push failed, pulling latest changes and retrying..."
-              git pull --rebase --no-edit || git pull --no-edit || true
+              
+              # Fix permissions on HTML files before pulling
+              find coverage/ -type d -name "htmlcov*" -exec sudo chown -R runner:runner {} \; 2>/dev/null || true
+              find coverage/ -type d -name "htmlcov*" -exec chmod -R u+w {} \; 2>/dev/null || true
+              
+              # Ensure we're on the correct branch
+              CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+              if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+                git checkout "$BRANCH_NAME" 2>/dev/null || true
+              fi
+              
+              # Use merge instead of rebase to avoid permission issues
+              git pull --no-edit --no-rebase || git pull --no-edit || true
+              
+              # Re-add files
               git add -f coverage/coverage.xml || true
               git add -f coverage/htmlcov/ 2>/dev/null || true
               git add -f coverage/htmlcov_rag/ 2>/dev/null || true
