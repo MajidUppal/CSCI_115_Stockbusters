@@ -77,10 +77,6 @@ jobs:
             context: src/quantamental
             image-name: quantamental-service
             test-path: src/quantamental
-    # Skip if component didn't change (unless manual trigger)
-    if: |
-      (${{ matrix.component }} == 'rag' && (${{ needs.detect-changes.outputs.rag }} == 'true' || github.event_name == 'workflow_dispatch')) ||
-      (${{ matrix.component }} == 'quantamental' && (${{ needs.detect-changes.outputs.quantamental }} == 'true' || github.event_name == 'workflow_dispatch'))
     timeout-minutes: 10
     permissions:
       contents: read
@@ -89,13 +85,31 @@ jobs:
       image-tag: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
+      - name: Check if component changed
+        id: check-component
+        run: |
+          if [ "${{ matrix.component }}" = "rag" ]; then
+            CHANGED="${{ needs.detect-changes.outputs.rag }}"
+          else
+            CHANGED="${{ needs.detect-changes.outputs.quantamental }}"
+          fi
+          if [ "$CHANGED" != "true" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "⏭️ Component ${{ matrix.component }} did not change, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
       - name: Checkout code
+        if: steps.check-component.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
+        if: steps.check-component.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: steps.check-component.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -103,12 +117,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set lowercase image name
+        if: steps.check-component.outputs.skip != 'true'
         id: image-name
         run: |
           IMAGE_NAME=$(echo "${{ github.repository }}/${{ matrix.image-name }}" | tr '[:upper:]' '[:lower:]')
           echo "name=$IMAGE_NAME" >> $GITHUB_OUTPUT
 
       - name: Extract metadata
+        if: steps.check-component.outputs.skip != 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -118,7 +134,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Create dummy secrets (RAG only)
-        if: matrix.component == 'rag'
+        if: steps.check-component.outputs.skip != 'true' && matrix.component == 'rag'
         run: |
           mkdir -p secrets
           if [ ! -f secrets/gcs-key.json ]; then
@@ -126,6 +142,7 @@ jobs:
           fi
 
       - name: Build and push Docker image
+        if: steps.check-component.outputs.skip != 'true'
         uses: docker/build-push-action@v5
         id: build
         with:
@@ -195,21 +212,47 @@ jobs:
             test-path: tests/
             python-version: 3.11
             venv-path: /root/.local/lib/python3.11/site-packages
-    # Skip if component didn't change (unless manual trigger)
-    # Skip system tests on feature branches (optimization)
-    if: |
-      ((${{ matrix.component }} == 'rag' && (${{ needs.detect-changes.outputs.rag }} == 'true' || github.event_name == 'workflow_dispatch')) ||
-       (${{ matrix.component }} == 'quantamental' && (${{ needs.detect-changes.outputs.quantamental }} == 'true' || github.event_name == 'workflow_dispatch'))) &&
-      (${{ matrix.test-type }} != 'system' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Milestone4' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 10
     outputs:
       coverage_percentage: ${{ steps.extract-coverage.outputs.coverage }}
       branch_coverage: ${{ steps.extract-coverage.outputs.branch_coverage }}
     steps:
+      - name: Check if component changed and should run
+        id: check-run
+        run: |
+          # Check if component changed
+          if [ "${{ matrix.component }}" = "rag" ]; then
+            CHANGED="${{ needs.detect-changes.outputs.rag }}"
+          else
+            CHANGED="${{ needs.detect-changes.outputs.quantamental }}"
+          fi
+          
+          # Check if we should skip
+          SKIP=false
+          if [ "$CHANGED" != "true" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            SKIP=true
+          fi
+          
+          # Check system test condition
+          if [ "${{ matrix.test-type }}" = "system" ]; then
+            if [ "${{ github.ref }}" != "refs/heads/main" ] && [ "${{ github.ref }}" != "refs/heads/develop" ] && [ "${{ github.ref }}" != "refs/heads/Milestone4" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+              SKIP=true
+            fi
+          fi
+          
+          if [ "$SKIP" = "true" ]; then
+            echo "⏭️ Skipping ${{ matrix.component }} ${{ matrix.test-type }} tests"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
       - name: Checkout code
+        if: steps.check-run.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
+        if: steps.check-run.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -217,18 +260,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set lowercase image name
+        if: steps.check-run.outputs.skip != 'true'
         id: image-name
         run: |
           IMAGE_NAME=$(echo "${{ github.repository }}/${{ matrix.image-name }}" | tr '[:upper:]' '[:lower:]')
           echo "name=$IMAGE_NAME" >> $GITHUB_OUTPUT
 
       - name: Pull Docker image
+        if: steps.check-run.outputs.skip != 'true'
         run: |
           docker pull ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:${{ github.sha }} || echo "Image not found, will be built"
           docker tag ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:${{ github.sha }} ${{ matrix.image-name }}:${{ github.sha }} || true
 
       - name: Run lint and unit tests
-        if: matrix.test-type == 'lint-unit'
+        if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit'
         run: |
           mkdir -p ${{ matrix.coverage-path }}
           docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
@@ -266,7 +311,7 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
 
       - name: Run integration tests
-        if: matrix.test-type == 'integration'
+        if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'integration'
         run: |
           if [ "${{ matrix.component }}" = "rag" ]; then
             docker run --rm -e PYTHONPATH="${{ matrix.venv-path }}:$PYTHONPATH" \
@@ -290,7 +335,7 @@ jobs:
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
 
       - name: Run system tests
-        if: matrix.test-type == 'system'
+        if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'system'
         run: |
           if [ "${{ matrix.component }}" = "rag" ]; then
             # Start server
@@ -329,7 +374,7 @@ jobs:
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
 
       - name: Extract coverage percentage
-        if: matrix.test-type == 'lint-unit' && always()
+        if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit' && always()
         id: extract-coverage
         run: |
           COVERAGE_XML="${{ matrix.coverage-path }}/coverage.xml"
