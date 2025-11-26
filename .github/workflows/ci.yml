@@ -416,15 +416,10 @@ jobs:
             echo "✅ Found Quantamental coverage.xml"
           fi
           
-          # Combine coverage reports using coverage combine
+          # Combine coverage reports
           if [ "$HAS_RAG" = true ] || [ "$HAS_QUANT" = true ]; then
             echo "📊 Combining coverage reports..."
             
-            # Create temporary directory for coverage data files
-            mkdir -p coverage_temp
-            
-            # Copy coverage data files (coverage.py creates .coverage files)
-            # We'll use the XML files and convert them, or combine the data directly
             if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
               # Both components have coverage - combine them
               echo "Combining RAG and Quantamental coverage..."
@@ -432,90 +427,89 @@ jobs:
               # Install coverage tool if not available
               pip install coverage --quiet || true
               
-              # Combine coverage reports using Python (write script to file to avoid YAML parsing issues)
-              cat > /tmp/combine_coverage.py << 'SCRIPT_END'
-import xml.etree.ElementTree as ET
-import time
-import sys
-
-try:
-    rag_tree = ET.parse('src/rag/coverage/coverage.xml')
-    rag_root = rag_tree.getroot()
-    quant_tree = ET.parse('src/quantamental/coverage/coverage.xml')
-    quant_root = quant_tree.getroot()
-    
-    combined_root = ET.Element('coverage')
-    combined_root.set('version', rag_root.get('version', '1.0'))
-    
-    rag_lines_covered = int(rag_root.get('lines-covered', 0))
-    rag_lines_valid = int(rag_root.get('lines-valid', 0))
-    rag_branches_covered = int(rag_root.get('branches-covered', 0))
-    rag_branches_valid = int(rag_root.get('branches-valid', 0))
-    
-    quant_lines_covered = int(quant_root.get('lines-covered', 0))
-    quant_lines_valid = int(quant_root.get('lines-valid', 0))
-    quant_branches_covered = int(quant_root.get('branches-covered', 0))
-    quant_branches_valid = int(quant_root.get('branches-valid', 0))
-    
-    total_lines_covered = rag_lines_covered + quant_lines_covered
-    total_lines_valid = rag_lines_valid + quant_lines_valid
-    total_branches_covered = rag_branches_covered + quant_branches_covered
-    total_branches_valid = rag_branches_valid + quant_branches_valid
-    
-    combined_line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0.0
-    combined_branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0.0
-    
-    combined_root.set('line-rate', str(combined_line_rate))
-    combined_root.set('branch-rate', str(combined_branch_rate))
-    combined_root.set('lines-covered', str(total_lines_covered))
-    combined_root.set('lines-valid', str(total_lines_valid))
-    combined_root.set('branches-covered', str(total_branches_covered))
-    combined_root.set('branches-valid', str(total_branches_valid))
-    combined_root.set('timestamp', str(int(time.time() * 1000)))
-    
-    sources = ET.SubElement(combined_root, 'sources')
-    ET.SubElement(sources, 'source').text = 'src/rag'
-    ET.SubElement(sources, 'source').text = 'src/quantamental'
-    
-    packages = ET.SubElement(combined_root, 'packages')
-    
-    rag_packages = rag_root.find('packages')
-    if rag_packages is not None:
-        for pkg in rag_packages.findall('package'):
-            pkg_copy = ET.Element('package')
-            pkg_copy.set('name', 'rag/' + pkg.get('name', ''))
-            pkg_copy.set('line-rate', pkg.get('line-rate', '0'))
-            pkg_copy.set('branch-rate', pkg.get('branch-rate', '0'))
-            pkg_copy.set('complexity', pkg.get('complexity', '0'))
-            for cls in pkg.findall('class'):
-                pkg_copy.append(cls)
-            packages.append(pkg_copy)
-    
-    quant_packages = quant_root.find('packages')
-    if quant_packages is not None:
-        for pkg in quant_packages.findall('package'):
-            pkg_copy = ET.Element('package')
-            pkg_copy.set('name', 'quantamental/' + pkg.get('name', ''))
-            pkg_copy.set('line-rate', pkg.get('line-rate', '0'))
-            pkg_copy.set('branch-rate', pkg.get('branch-rate', '0'))
-            pkg_copy.set('complexity', pkg.get('complexity', '0'))
-            for cls in pkg.findall('class'):
-                pkg_copy.append(cls)
-            packages.append(pkg_copy)
-    
-    tree = ET.ElementTree(combined_root)
-    ET.indent(tree, space='  ')
-    tree.write('coverage/coverage.xml', encoding='utf-8', xml_declaration=True)
-    
-    print('✅ Combined coverage: {:.1f}% (lines), {:.1f}% (branches)'.format(combined_line_rate*100, combined_branch_rate*100))
-    
-except Exception as e:
-    print('❌ Error combining coverage: {}'.format(e))
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
-SCRIPT_END
-              python3 /tmp/combine_coverage.py
+              # Create Python script to combine coverage XML files
+              python3 << 'PY'
+          import xml.etree.ElementTree as ET
+          import time
+          import sys
+          
+          try:
+              rag_tree = ET.parse('src/rag/coverage/coverage.xml')
+              rag_root = rag_tree.getroot()
+              quant_tree = ET.parse('src/quantamental/coverage/coverage.xml')
+              quant_root = quant_tree.getroot()
+              
+              combined_root = ET.Element('coverage')
+              combined_root.set('version', rag_root.get('version', '1.0'))
+              
+              rag_lines_covered = int(rag_root.get('lines-covered', 0))
+              rag_lines_valid = int(rag_root.get('lines-valid', 0))
+              rag_branches_covered = int(rag_root.get('branches-covered', 0))
+              rag_branches_valid = int(rag_root.get('branches-valid', 0))
+              
+              quant_lines_covered = int(quant_root.get('lines-covered', 0))
+              quant_lines_valid = int(quant_root.get('lines-valid', 0))
+              quant_branches_covered = int(quant_root.get('branches-covered', 0))
+              quant_branches_valid = int(quant_root.get('branches-valid', 0))
+              
+              total_lines_covered = rag_lines_covered + quant_lines_covered
+              total_lines_valid = rag_lines_valid + quant_lines_valid
+              total_branches_covered = rag_branches_covered + quant_branches_covered
+              total_branches_valid = rag_branches_valid + quant_branches_valid
+              
+              combined_line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0.0
+              combined_branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0.0
+              
+              combined_root.set('line-rate', str(combined_line_rate))
+              combined_root.set('branch-rate', str(combined_branch_rate))
+              combined_root.set('lines-covered', str(total_lines_covered))
+              combined_root.set('lines-valid', str(total_lines_valid))
+              combined_root.set('branches-covered', str(total_branches_covered))
+              combined_root.set('branches-valid', str(total_branches_valid))
+              combined_root.set('timestamp', str(int(time.time() * 1000)))
+              
+              sources = ET.SubElement(combined_root, 'sources')
+              ET.SubElement(sources, 'source').text = 'src/rag'
+              ET.SubElement(sources, 'source').text = 'src/quantamental'
+              
+              packages = ET.SubElement(combined_root, 'packages')
+              
+              rag_packages = rag_root.find('packages')
+              if rag_packages is not None:
+                  for pkg in rag_packages.findall('package'):
+                      pkg_copy = ET.Element('package')
+                      pkg_copy.set('name', 'rag/' + pkg.get('name', ''))
+                      pkg_copy.set('line-rate', pkg.get('line-rate', '0'))
+                      pkg_copy.set('branch-rate', pkg.get('branch-rate', '0'))
+                      pkg_copy.set('complexity', pkg.get('complexity', '0'))
+                      for cls in pkg.findall('class'):
+                          pkg_copy.append(cls)
+                      packages.append(pkg_copy)
+              
+              quant_packages = quant_root.find('packages')
+              if quant_packages is not None:
+                  for pkg in quant_packages.findall('package'):
+                      pkg_copy = ET.Element('package')
+                      pkg_copy.set('name', 'quantamental/' + pkg.get('name', ''))
+                      pkg_copy.set('line-rate', pkg.get('line-rate', '0'))
+                      pkg_copy.set('branch-rate', pkg.get('branch-rate', '0'))
+                      pkg_copy.set('complexity', pkg.get('complexity', '0'))
+                      for cls in pkg.findall('class'):
+                          pkg_copy.append(cls)
+                      packages.append(pkg_copy)
+              
+              tree = ET.ElementTree(combined_root)
+              ET.indent(tree, space='  ')
+              tree.write('coverage/coverage.xml', encoding='utf-8', xml_declaration=True)
+              
+              print('✅ Combined coverage: {:.1f}% (lines), {:.1f}% (branches)'.format(combined_line_rate*100, combined_branch_rate*100))
+              
+          except Exception as e:
+              print('❌ Error combining coverage: {}'.format(e))
+              import traceback
+              traceback.print_exc()
+              sys.exit(1)
+          PY
               
             elif [ "$HAS_RAG" = true ]; then
               # Only RAG coverage
