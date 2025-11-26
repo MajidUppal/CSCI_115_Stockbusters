@@ -1,0 +1,472 @@
+# Unified CI/CD Pipeline for RAG and Quantamental Components
+# Optimized with unified matrix strategy, path-based conditionals, and reusable actions
+# Coverage reports committed to coverage/rag/ and coverage/quantamental/
+
+name: Unified CI Pipeline
+
+# Prevent multiple workflows from running simultaneously for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    paths:
+      - 'src/rag/**'
+      - 'src/quantamental/**'
+      - '.github/workflows/ci.yml'
+    branches: [main, develop, Milestone4]
+  pull_request:
+    paths:
+      - 'src/rag/**'
+      - 'src/quantamental/**'
+      - '.github/workflows/ci.yml'
+    branches: [main, develop, Milestone4]
+  workflow_dispatch:  # Allow manual triggering
+
+# Set default permissions
+permissions:
+  contents: write  # Required for committing coverage reports
+  pull-requests: write  # Required for posting PR comments
+  packages: write  # Required for pushing to GHCR
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Detect which components changed (optimization: skip unchanged components)
+  detect-changes:
+    name: Detect Changed Components
+    runs-on: ubuntu-latest
+    outputs:
+      rag: ${{ steps.filter.outputs.rag }}
+      quantamental: ${{ steps.filter.outputs.quantamental }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better change detection
+
+      - name: Check changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            rag:
+              - 'src/rag/**'
+            quantamental:
+              - 'src/quantamental/**'
+
+  # Unified build job with matrix strategy
+  build:
+    name: Build ${{ matrix.component }} Docker Image
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [rag, quantamental]
+        include:
+          - component: rag
+            dockerfile: ./src/rag/Dockerfile
+            context: .
+            image-name: rag-service
+            test-path: src/rag
+          - component: quantamental
+            dockerfile: src/quantamental/Dockerfile
+            context: src/quantamental
+            image-name: quantamental-service
+            test-path: src/quantamental
+    # Skip if component didn't change (unless manual trigger)
+    if: |
+      (matrix.component == 'rag' && (needs.detect-changes.outputs.rag == 'true' || github.event_name == 'workflow_dispatch')) ||
+      (matrix.component == 'quantamental' && (needs.detect-changes.outputs.quantamental == 'true' || github.event_name == 'workflow_dispatch'))
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase image name
+        id: image-name
+        run: |
+          IMAGE_NAME=$(echo "${{ github.repository }}/${{ matrix.image-name }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create dummy secrets (RAG only)
+        if: matrix.component == 'rag'
+        run: |
+          mkdir -p secrets
+          if [ ! -f secrets/gcs-key.json ]; then
+            echo '{}' > secrets/gcs-key.json
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        id: build
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        env:
+          DOCKER_BUILDKIT: 1
+        timeout-minutes: 10
+
+  # Unified test job with matrix strategy (component + test-type)
+  tests:
+    name: ${{ matrix.component }} Tests - ${{ matrix.test-type }}
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [rag, quantamental]
+        test-type: [lint-unit, integration, system]
+        include:
+          # RAG configuration
+          - component: rag
+            test-type: lint-unit
+            image-name: rag-service
+            dockerfile: ./src/rag/Dockerfile
+            context: .
+            test-path: tests/unit/
+            coverage-path: src/rag/coverage
+            python-version: 3.12
+            venv-path: /.venv/lib/python3.12/site-packages
+          - component: rag
+            test-type: integration
+            image-name: rag-service
+            test-path: tests/integration/
+            python-version: 3.12
+            venv-path: /.venv/lib/python3.12/site-packages
+          - component: rag
+            test-type: system
+            image-name: rag-service
+            test-path: tests/system/
+            python-version: 3.12
+            venv-path: /.venv/lib/python3.12/site-packages
+          # Quantamental configuration
+          - component: quantamental
+            test-type: lint-unit
+            image-name: quantamental-service
+            dockerfile: src/quantamental/Dockerfile
+            context: src/quantamental
+            test-path: tests/unit/
+            coverage-path: src/quantamental/coverage
+            python-version: 3.11
+            venv-path: /root/.local/lib/python3.11/site-packages
+          - component: quantamental
+            test-type: integration
+            image-name: quantamental-service
+            test-path: tests/integration/
+            python-version: 3.11
+            venv-path: /root/.local/lib/python3.11/site-packages
+          - component: quantamental
+            test-type: system
+            image-name: quantamental-service
+            test-path: tests/system/
+            python-version: 3.11
+            venv-path: /root/.local/lib/python3.11/site-packages
+    # Skip if component didn't change (unless manual trigger)
+    # Skip system tests on feature branches (optimization)
+    if: |
+      ((matrix.component == 'rag' && (needs.detect-changes.outputs.rag == 'true' || github.event_name == 'workflow_dispatch')) ||
+       (matrix.component == 'quantamental' && (needs.detect-changes.outputs.quantamental == 'true' || github.event_name == 'workflow_dispatch'))) &&
+      (matrix.test-type != 'system' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Milestone4' || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 10
+    outputs:
+      coverage_percentage: ${{ steps.extract-coverage.outputs.coverage }}
+      branch_coverage: ${{ steps.extract-coverage.outputs.branch_coverage }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase image name
+        id: image-name
+        run: |
+          IMAGE_NAME=$(echo "${{ github.repository }}/${{ matrix.image-name }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Pull Docker image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:${{ github.sha }} || echo "Image not found, will be built"
+          docker tag ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:${{ github.sha }} ${{ matrix.image-name }}:${{ github.sha }} || true
+
+      - name: Run lint and unit tests
+        if: matrix.test-type == 'lint-unit'
+        run: |
+          mkdir -p ${{ matrix.coverage-path }}
+          docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+            ${{ matrix.image-name }}:${{ github.sha }} \
+            mkdir -p /workspace/coverage/htmlcov
+          
+          # Run linting
+          if [ "${{ matrix.component }}" = "rag" ]; then
+            docker run --rm ${{ matrix.image-name }}:${{ github.sha }} sh -c \
+              "black --check --line-length 120 rag.py && flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 rag.py"
+            # Run unit tests with coverage
+            docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+              -e PYTHONPATH="${{ matrix.venv-path }}:$PYTHONPATH" \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              pytest ${{ matrix.test-path }} --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q
+          else
+            docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
+              "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            # Run unit tests with coverage
+            docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+              -w /app \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov --cov-fail-under=50 -m unit --maxfail=2 -x --tb=line -q
+          fi
+        env:
+          CHROMADB_HOST: localhost
+          CHROMADB_PORT: "8000"
+          VECTOR_COLLECTION: test_collection
+          GCS_BUCKET_NAME: ""
+          EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+          ENABLE_CACHE: "0"
+          AUTO_START_CHROMADB: "0"
+          GOOGLE_APPLICATION_CREDENTIALS: ""
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+
+      - name: Run integration tests
+        if: matrix.test-type == 'integration'
+        run: |
+          if [ "${{ matrix.component }}" = "rag" ]; then
+            docker run --rm -e PYTHONPATH="${{ matrix.venv-path }}:$PYTHONPATH" \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q
+          else
+            docker run --rm -w /app \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q
+          fi
+        env:
+          CHROMADB_HOST: localhost
+          CHROMADB_PORT: "8000"
+          VECTOR_COLLECTION: test_collection
+          GCS_BUCKET_NAME: ""
+          EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+          ENABLE_CACHE: "0"
+          AUTO_START_CHROMADB: "0"
+          GOOGLE_APPLICATION_CREDENTIALS: ""
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+
+      - name: Run system tests
+        if: matrix.test-type == 'system'
+        run: |
+          if [ "${{ matrix.component }}" = "rag" ]; then
+            # Start server
+            docker run -d --name rag-server -p 9000:9000 -p 8000:8000 \
+              -e DEV=1 \
+              -e AUTO_START_CHROMADB=0 \
+              -e GCS_BUCKET_NAME="" \
+              -e VECTOR_COLLECTION=test_collection \
+              -e EMBEDDING_MODEL=BAAI/bge-small-en-v1.5 \
+              -e ENABLE_CACHE=0 \
+              ${{ matrix.image-name }}:${{ github.sha }}
+            # Wait for server
+            for i in {1..10}; do
+              if curl -f -s --max-time 2 http://localhost:9000/health > /dev/null 2>&1; then
+                echo "✅ Server ready"
+                break
+              fi
+              sleep 2
+            done
+            # Run tests
+            docker run --rm --network host -e PYTHONPATH="${{ matrix.venv-path }}:$PYTHONPATH" \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q
+            # Cleanup
+            docker stop rag-server || true
+            docker rm rag-server || true
+          else
+            docker run --rm -w /app \
+              ${{ matrix.image-name }}:${{ github.sha }} \
+              pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q
+          fi
+        env:
+          API_BASE_URL: http://localhost:9000
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+
+      - name: Extract coverage percentage
+        if: matrix.test-type == 'lint-unit' && always()
+        id: extract-coverage
+        run: |
+          COVERAGE_XML="${{ matrix.coverage-path }}/coverage.xml"
+          if [ -f "$COVERAGE_XML" ]; then
+            COVERAGE=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
+            BRANCH_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('$COVERAGE_XML'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "branch_coverage=$BRANCH_COV" >> $GITHUB_OUTPUT
+          else
+            echo "coverage=N/A" >> $GITHUB_OUTPUT
+            echo "branch_coverage=N/A" >> $GITHUB_OUTPUT
+          fi
+
+  # Test Summary and Coverage Commit
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build, tests]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get RAG coverage
+        id: rag-coverage
+        run: |
+          # Extract coverage from lint-unit matrix job for RAG
+          RAG_COV="N/A"
+          RAG_BRANCH="N/A"
+          # Try to get from job outputs (matrix jobs need special handling)
+          echo "rag_coverage=$RAG_COV" >> $GITHUB_OUTPUT
+          echo "rag_branch=$RAG_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Get Quantamental coverage
+        id: quant-coverage
+        run: |
+          # Extract coverage from lint-unit matrix job for quantamental
+          QUANT_COV="N/A"
+          QUANT_BRANCH="N/A"
+          echo "quant_coverage=$QUANT_COV" >> $GITHUB_OUTPUT
+          echo "quant_branch=$QUANT_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Extract coverage from files
+        id: extract-coverage
+        run: |
+          # Extract RAG coverage
+          if [ -f "src/rag/coverage/coverage.xml" ]; then
+            RAG_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('src/rag/coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
+            RAG_BRANCH=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('src/rag/coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
+            echo "rag_coverage=$RAG_COV" >> $GITHUB_OUTPUT
+            echo "rag_branch=$RAG_BRANCH" >> $GITHUB_OUTPUT
+          fi
+          
+          # Extract Quantamental coverage
+          if [ -f "src/quantamental/coverage/coverage.xml" ]; then
+            QUANT_COV=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('src/quantamental/coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('line-rate', 0)) * 100)}%\")" 2>/dev/null || echo "N/A")
+            QUANT_BRANCH=$(python3 -c "import xml.etree.ElementTree as ET; tree = ET.parse('src/quantamental/coverage/coverage.xml'); root = tree.getroot(); print(f\"{int(float(root.get('branch-rate', 0)) * 100)}\")" 2>/dev/null || echo "N/A")
+            echo "quant_coverage=$QUANT_COV" >> $GITHUB_OUTPUT
+            echo "quant_branch=$QUANT_BRANCH" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit coverage reports
+        if: always() && github.event_name == 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          mkdir -p coverage/rag coverage/quantamental
+          
+          # Copy RAG coverage
+          if [ -f "src/rag/coverage/coverage.xml" ]; then
+            cp src/rag/coverage/coverage.xml coverage/rag/
+            echo "✅ Copied RAG coverage.xml"
+          fi
+          if [ -d "src/rag/coverage/htmlcov" ]; then
+            sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+            cp -r src/rag/coverage/htmlcov coverage/rag/
+            echo "✅ Copied RAG HTML coverage"
+          fi
+          
+          # Copy Quantamental coverage
+          if [ -f "src/quantamental/coverage/coverage.xml" ]; then
+            cp src/quantamental/coverage/coverage.xml coverage/quantamental/
+            echo "✅ Copied Quantamental coverage.xml"
+          fi
+          if [ -d "src/quantamental/coverage/htmlcov" ]; then
+            sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+            cp -r src/quantamental/coverage/htmlcov coverage/quantamental/
+            echo "✅ Copied Quantamental HTML coverage"
+          fi
+          
+          # Commit if there are changes
+          if [ -n "$(git status --porcelain coverage/)" ]; then
+            git add coverage/
+            git commit -m "Update coverage reports [skip ci]" || exit 0
+            git push || echo "⚠️ Failed to push coverage files"
+            echo "✅ Coverage reports committed"
+          else
+            echo "ℹ️ No coverage changes to commit"
+          fi
+
+      - name: Print summary
+        if: always()
+        run: |
+          echo "## 📊 Unified CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # RAG Section
+          echo "### 🔍 RAG Component" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.extract-coverage.outputs.rag_coverage }}" != "N/A" ] && [ -n "${{ steps.extract-coverage.outputs.rag_coverage }}" ]; then
+            echo "**Coverage: ${{ steps.extract-coverage.outputs.rag_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.extract-coverage.outputs.rag_branch }}" != "N/A" ]; then
+              echo "**Branch Coverage: ${{ steps.extract-coverage.outputs.rag_branch }}%**" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo "**Status**: ${{ needs.tests.result == 'success' && '✅ All tests passed' || needs.tests.result == 'skipped' && '⏭️ Skipped (no changes)' || '❌ Some tests failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Quantamental Section
+          echo "### 📈 Quantamental Component" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.extract-coverage.outputs.quant_coverage }}" != "N/A" ] && [ -n "${{ steps.extract-coverage.outputs.quant_coverage }}" ]; then
+            echo "**Coverage: ${{ steps.extract-coverage.outputs.quant_coverage }}**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.extract-coverage.outputs.quant_branch }}" != "N/A" ]; then
+              echo "**Branch Coverage: ${{ steps.extract-coverage.outputs.quant_branch }}%**" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo "**Status**: ${{ needs.tests.result == 'success' && '✅ All tests passed' || needs.tests.result == 'skipped' && '⏭️ Skipped (no changes)' || '❌ Some tests failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall Status
+          if [ "${{ needs.tests.result }}" = "success" ]; then
+            echo "🎉 **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Some tests failed.** Check individual test jobs for details." >> $GITHUB_STEP_SUMMARY
+          fi

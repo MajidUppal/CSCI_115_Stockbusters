@@ -11,6 +11,7 @@ import numpy as np
 class TestModelTrainCoverage:
     """Tests for model_train.py"""
     
+    @pytest.mark.unit
     def test_trainer_init(self):
         """Test QuantamentalTrainer initialization"""
         from model_train import QuantamentalTrainer
@@ -38,6 +39,7 @@ class TestModelTrainCoverage:
         assert trainer.config == config
         assert trainer.data_dir == './data'
     
+    @pytest.mark.unit
     def test_trainer_feature_names(self):
         """Test trainer has feature names"""
         from model_train import QuantamentalTrainer
@@ -69,6 +71,7 @@ class TestModelTrainCoverage:
 class TestModelPredictCoverage:
     """Tests for model_predict.py"""
     
+    @pytest.mark.unit
     def test_predictor_init(self):
         """Test QuantamentalPredictor initialization"""
         from model_predict import QuantamentalPredictor
@@ -89,6 +92,7 @@ class TestModelPredictCoverage:
         predictor = QuantamentalPredictor(config)
         assert predictor is not None
     
+    @pytest.mark.unit
     def test_predictor_has_config(self):
         """Test predictor stores config"""
         from model_predict import QuantamentalPredictor
@@ -113,6 +117,7 @@ class TestModelPredictCoverage:
 class TestDataCollectCoverage:
     """Tests for data_collect.py"""
     
+    @pytest.mark.unit
     def test_collector_init(self):
         """Test FMPDataCollector initialization"""
         from data_collect import FMPDataCollector
@@ -137,6 +142,7 @@ class TestDataCollectCoverage:
         assert collector.api_key == 'test_key'
         assert collector.base_url == 'https://test.com'
     
+    @pytest.mark.unit
     def test_collector_dates(self):
         """Test collector stores dates"""
         from data_collect import FMPDataCollector
@@ -164,6 +170,7 @@ class TestDataCollectCoverage:
 class TestDataVersioningCoverage:
     """Tests for data_versioning.py"""
     
+    @pytest.mark.unit
     @patch('data_versioning.wandb')
     def test_version_manager_init(self, mock_wandb):
         """Test DataVersionManager initialization"""
@@ -183,12 +190,14 @@ class TestDataVersioningCoverage:
 class TestUtilsCoverage:
     """Tests for utils.py"""
     
+    @pytest.mark.unit
     def test_load_config_returns_dict(self):
         """Test config loading returns dict"""
         from utils import load_config
         config = load_config()
         assert isinstance(config, dict)
     
+    @pytest.mark.unit
     def test_load_config_has_keys(self):
         """Test config has expected keys"""
         from utils import load_config
@@ -196,6 +205,7 @@ class TestUtilsCoverage:
         possible_keys = ['api', 'data', 'model', 'wandb', 'gcs', 'features']
         assert any(key in config for key in possible_keys)
     
+    @pytest.mark.unit
     def test_get_feature_list_returns_list(self):
         """Test feature list is a list"""
         from utils import get_feature_list, load_config
@@ -208,6 +218,7 @@ class TestUtilsCoverage:
 class TestBacktestCoverage:
     """Tests for backtest.py - with mocked GCS"""
     
+    @pytest.mark.unit
     @patch('backtest.GCSHandler')
     def test_backtester_init(self, mock_gcs_class):
         """Test QuantamentalBacktester initialization"""
@@ -235,6 +246,7 @@ class TestBacktestCoverage:
         assert backtester is not None
         assert backtester.data_dir == './data'
     
+    @pytest.mark.unit
     @patch('backtest.GCSHandler')
     def test_backtester_output_folder(self, mock_gcs_class):
         """Test backtester stores output folder"""
@@ -264,6 +276,7 @@ class TestBacktestCoverage:
 class TestDataProcessCoverage:
     """Tests for data_process.py"""
     
+    @pytest.mark.unit
     def test_processor_init(self):
         """Test DataProcessor initialization"""
         from data_process import DataProcessor
@@ -284,6 +297,7 @@ class TestDataProcessCoverage:
         processor = DataProcessor(config)
         assert processor is not None
     
+    @pytest.mark.unit
     def test_processor_has_config(self):
         """Test processor stores config"""
         from data_process import DataProcessor

@@ -39,6 +39,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 # Coverage reports are now committed to show MS4 evidence
+# Root-level coverage/ directory is tracked (contains rag/ and quantamental/ subdirectories)
 # htmlcov/
 #.tox/
 #.nox/
