@@ -1077,8 +1077,17 @@ jobs:
           except:
               pass
           
+          try:
+              if os.path.exists('src/api-service/coverage/coverage.xml'):
+                  tree = ET.parse('src/api-service/coverage/coverage.xml')
+                  root = tree.getroot()
+                  API_COV = f"{int(float(root.get('line-rate', 0)) * 100)}%"
+                  API_BRANCH = str(int(float(root.get('branch-rate', 0)) * 100))
+          except:
+              pass
+          
           # If not found, extract from unified coverage.xml (now it exists after combine step)
-          if RAG_COV == "N/A" or QUANT_COV == "N/A":
+          if RAG_COV == "N/A" or QUANT_COV == "N/A" or API_COV == "N/A":
               try:
                   if os.path.exists('coverage/coverage.xml'):
                       tree = ET.parse('coverage/coverage.xml')
