@@ -317,9 +317,6 @@ jobs:
         if: steps.check-run.outputs.skip != 'true' && matrix.test-type == 'lint-unit'
         run: |
           mkdir -p ${{ matrix.coverage-path }}
-          docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
-            ${{ matrix.image-name }}:${{ github.sha }} \
-            mkdir -p /workspace/coverage/htmlcov
           
           # Run linting
           if [ "${{ matrix.component }}" = "rag" ]; then
@@ -331,16 +328,24 @@ jobs:
               ${{ matrix.image-name }}:${{ github.sha }} \
               pytest ${{ matrix.test-path }} --cov=rag --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
           else
-            docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
-              "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            # Run linting - override entrypoint for api-service to prevent server from starting
+            # Run as root (like RAG) to avoid permission issues with mounted volumes
+            if [ "${{ matrix.component }}" = "api-service" ]; then
+              docker run --rm --entrypoint="" --user root -w /app ${{ matrix.image-name }}:${{ github.sha }} \
+                /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m black --check . && python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && python -m flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            else
+              docker run --rm -w /app ${{ matrix.image-name }}:${{ github.sha }} sh -c \
+                "black --check . && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics"
+            fi
             # Run unit tests with coverage
             # For api-service, use --cov=api (source is in /app/api/), for others use --cov=.
             # For api-service, override entrypoint to prevent server from starting
+            # Run as root (like RAG) to avoid permission issues with mounted volumes
             if [ "${{ matrix.component }}" = "api-service" ]; then
-              docker run --rm --entrypoint="" -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
+              docker run --rm --entrypoint="" --user root -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
                 ${{ matrix.image-name }}:${{ github.sha }} \
-                /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
+                /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
             else
               docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
@@ -372,11 +377,19 @@ jobs:
           
           echo "✅ Coverage XML file verified: ${{ matrix.coverage-path }}/coverage.xml"
           
-          # Verify HTML coverage directory exists (optional, but log if missing)
+          # Verify HTML coverage directory exists and has files
           if [ ! -d "${{ matrix.coverage-path }}/htmlcov" ]; then
             echo "⚠️  WARNING: HTML coverage directory not found at ${{ matrix.coverage-path }}/htmlcov"
+            echo "Checking if directory exists at all:"
+            ls -la "${{ matrix.coverage-path }}/" || echo "Coverage path does not exist"
           else
-            echo "✅ HTML coverage directory verified: ${{ matrix.coverage-path }}/htmlcov"
+            HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
+            echo "✅ HTML coverage directory verified: ${{ matrix.coverage-path }}/htmlcov ($HTML_FILE_COUNT files)"
+            if [ "$HTML_FILE_COUNT" -eq 0 ]; then
+              echo "⚠️  WARNING: HTML coverage directory exists but is empty"
+              echo "Directory contents:"
+              ls -la "${{ matrix.coverage-path }}/htmlcov/" || true
+            fi
           fi
         env:
           CHROMADB_HOST: localhost
@@ -423,9 +436,10 @@ jobs:
               pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q
           elif [ "${{ matrix.component }}" = "api-service" ]; then
             # Override entrypoint to prevent server from starting
-            docker run --rm --entrypoint="" -w /app \
+            # Run as root (like RAG) to avoid permission issues
+            docker run --rm --entrypoint="" --user root -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
+              /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
           else
             docker run --rm -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
@@ -477,7 +491,7 @@ jobs:
             docker run -d --name api-server -p 9000:9000 \
               -e DEV=1 \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && uvicorn api.service:app --host 0.0.0.0 --port 9000"
+              /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m uvicorn api.service:app --host 0.0.0.0 --port 9000"
             # Wait for server
             for i in {1..10}; do
               if curl -f -s --max-time 2 http://localhost:9000/ > /dev/null 2>&1; then
@@ -487,9 +501,10 @@ jobs:
               sleep 2
             done
             # Run tests
-            docker run --rm --network host --entrypoint="" -w /app \
+            # Run as root (like RAG) to avoid permission issues
+            docker run --rm --network host --entrypoint="" --user root -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
+              /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
             # Cleanup
             docker stop api-server && docker rm api-server || true
           else
@@ -600,29 +615,67 @@ jobs:
           fi
           
           if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
-            # Try to add htmlcov, but don't fail if it's ignored by .gitignore
-            # HTML coverage reports are often in .gitignore, which is fine
-            GIT_ADD_OUTPUT=$(git add "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
-            if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
-              echo "ℹ️  htmlcov directory is ignored by .gitignore (this is expected and OK)"
+            HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
+            echo "📁 Found $HTML_FILE_COUNT HTML coverage files in ${{ matrix.coverage-path }}/htmlcov"
+            if [ "$HTML_FILE_COUNT" -gt 0 ]; then
+              # Force add htmlcov to override any ignore rules
+              GIT_ADD_OUTPUT=$(git add -f "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
+              if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
+                echo "⚠️  WARNING: htmlcov directory is still ignored despite -f flag"
+                echo "Trying to add individual files..."
+                find "${{ matrix.coverage-path }}/htmlcov" -type f -exec git add -f {} \; 2>/dev/null || true
+              else
+                echo "✅ Added htmlcov directory to git ($HTML_FILE_COUNT files)"
+              fi
             else
-              echo "✅ Added htmlcov directory to git"
+              echo "⚠️  WARNING: htmlcov directory exists but is empty"
             fi
+          else
+            echo "⚠️  WARNING: htmlcov directory not found at ${{ matrix.coverage-path }}/htmlcov"
           fi
           
           # Verify files are staged
           if [ -z "$(git status --porcelain ${{ matrix.coverage-path }}/)" ]; then
             echo "ℹ️ No coverage changes to commit for ${{ matrix.component }} (files may already be committed)"
           else
-            # Pull latest changes before committing (handle concurrent commits)
-            git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            # Fix permissions on HTML files before pulling (Docker creates them as root)
+            if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+              sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+              chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+            fi
             
-            # Re-stage files in case pull changed anything
+            # Ensure we're on the correct branch
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+              # We're in detached HEAD state, checkout the branch
+              BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+              git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME" 2>/dev/null || true
+            fi
+            
+            # Stash current changes before pulling
+            git stash push -m "temp coverage files" "${{ matrix.coverage-path }}/" 2>/dev/null || true
+            
+            # Pull latest changes (use merge instead of rebase to avoid permission issues)
+            git pull --no-edit --no-rebase || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            
+            # Restore stashed changes
+            git stash pop 2>/dev/null || true
+            
+            # Re-stage files
             git add "${{ matrix.coverage-path }}/coverage.xml" || true
             if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
-              GIT_ADD_OUTPUT=$(git add "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
-              if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
-                echo "ℹ️  htmlcov directory is ignored by .gitignore (this is expected and OK)"
+              HTML_FILE_COUNT=$(find "${{ matrix.coverage-path }}/htmlcov" -type f 2>/dev/null | wc -l || echo "0")
+              if [ "$HTML_FILE_COUNT" -gt 0 ]; then
+                # Fix permissions again after pull
+                sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                GIT_ADD_OUTPUT=$(git add -f "${{ matrix.coverage-path }}/htmlcov" 2>&1) || true
+                if echo "$GIT_ADD_OUTPUT" | grep -q "ignored by one of your .gitignore files"; then
+                  echo "⚠️  WARNING: htmlcov still ignored, trying individual files..."
+                  find "${{ matrix.coverage-path }}/htmlcov" -type f -exec git add -f {} \; 2>/dev/null || true
+                else
+                  echo "✅ Re-added htmlcov directory ($HTML_FILE_COUNT files)"
+                fi
               fi
             fi
             
@@ -635,8 +688,31 @@ jobs:
             # Push and verify success (retry once if it fails due to remote changes)
             if ! git push; then
               echo "⚠️  Push failed, pulling latest changes and retrying..."
-              git pull --rebase --no-edit || git pull --no-edit || true
+              
+              # Fix permissions before pulling
+              if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+                sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+              fi
+              
+              # Ensure we're on the correct branch
+              CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+              if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+                git checkout "$BRANCH_NAME" 2>/dev/null || true
+              fi
+              
+              # Use merge instead of rebase to avoid permission issues
+              git pull --no-edit --no-rebase || git pull --no-edit || true
+              
+              # Re-add files
               git add "${{ matrix.coverage-path }}/coverage.xml" || true
+              if [ -d "${{ matrix.coverage-path }}/htmlcov" ]; then
+                sudo chown -R runner:runner "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                chmod -R u+w "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+                git add -f "${{ matrix.coverage-path }}/htmlcov" 2>/dev/null || true
+              fi
+              
               git commit -m "Update ${{ matrix.component }} coverage report [skip ci]" || true
               if ! git push; then
                 echo "❌ ERROR: Failed to push coverage files for ${{ matrix.component }} after retry"
@@ -689,6 +765,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # Pull latest changes to get HTML coverage files committed by test jobs
+          echo "📥 Pulling latest changes to get HTML coverage files..."
+          git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  Could not pull latest changes (may be first commit)"
           
           mkdir -p coverage
           
@@ -858,7 +938,8 @@ jobs:
           SCRIPT_END
               
               # Strip leading spaces from Python script (heredoc preserves YAML indentation)
-              sed -i '' 's/^          //' /tmp/combine_coverage.py || sed -i 's/^          //' /tmp/combine_coverage.py
+              # Find minimum indentation and strip it (handles any number of leading spaces)
+              python3 -c "lines=open('/tmp/combine_coverage.py').readlines(); non_empty=[l for l in lines if l.strip()]; min_indent=min(len(l)-len(l.lstrip(' ')) for l in non_empty) if non_empty else 0; fixed=[l[min_indent:] if l.strip() else l for l in lines]; open('/tmp/combine_coverage.py','w').writelines(fixed)"
               
               # Run the combination script
               if ! python3 /tmp/combine_coverage.py "$HAS_RAG" "$HAS_QUANT" "$HAS_API"; then
@@ -886,89 +967,90 @@ jobs:
             
             echo "✅ Unified coverage.xml verified"
             
-            # Copy HTML coverage reports (combine if both exist)
-            if [ "$HAS_RAG" = true ] && [ "$HAS_QUANT" = true ]; then
-              # Copy both HTML reports to separate subdirectories
-              if [ -d "src/rag/coverage/htmlcov" ]; then
+            # Debug: Check what HTML coverage directories exist before copying
+            echo "🔍 Checking for component HTML coverage directories:"
+            if [ -d "src/rag/coverage/htmlcov" ]; then
+              RAG_HTML_COUNT=$(find src/rag/coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+              echo "  ✅ src/rag/coverage/htmlcov/ exists ($RAG_HTML_COUNT files)"
+            else
+              echo "  ❌ src/rag/coverage/htmlcov/ does not exist"
+            fi
+            if [ -d "src/quantamental/coverage/htmlcov" ]; then
+              QUANT_HTML_COUNT=$(find src/quantamental/coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+              echo "  ✅ src/quantamental/coverage/htmlcov/ exists ($QUANT_HTML_COUNT files)"
+            else
+              echo "  ❌ src/quantamental/coverage/htmlcov/ does not exist"
+            fi
+            if [ -d "src/api-service/coverage/htmlcov" ]; then
+              API_HTML_COUNT=$(find src/api-service/coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+              echo "  ✅ src/api-service/coverage/htmlcov/ exists ($API_HTML_COUNT files)"
+            else
+              echo "  ❌ src/api-service/coverage/htmlcov/ does not exist"
+            fi
+            
+            # Copy HTML coverage reports based on component count
+            # For multiple components: copy to separate subdirectories
+            # For single component: copy to unified htmlcov directory
+            if [ $COMPONENT_COUNT -gt 1 ]; then
+              # Multiple components: copy to component-specific subdirectories
+              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                rm -rf coverage/htmlcov_rag  # Remove existing to avoid nesting
                 if ! cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag; then
                   echo "❌ ERROR: Failed to copy RAG HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov_rag" ]; then
-                  echo "❌ ERROR: RAG HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied RAG HTML coverage"
+                echo "✅ Copied RAG HTML coverage to coverage/htmlcov_rag/"
               fi
-              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+              if [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                rm -rf coverage/htmlcov_quantamental  # Remove existing to avoid nesting
                 if ! cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental; then
                   echo "❌ ERROR: Failed to copy Quantamental HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov_quantamental" ]; then
-                  echo "❌ ERROR: Quantamental HTML coverage directory was not created"
+                echo "✅ Copied Quantamental HTML coverage to coverage/htmlcov_quantamental/"
+              fi
+              if [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
+                sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
+                rm -rf coverage/htmlcov_api  # Remove existing to avoid nesting
+                if ! cp -r src/api-service/coverage/htmlcov coverage/htmlcov_api; then
+                  echo "❌ ERROR: Failed to copy API-service HTML coverage"
                   exit 1
                 fi
-                echo "✅ Copied Quantamental HTML coverage"
+                echo "✅ Copied API-service HTML coverage to coverage/htmlcov_api/"
               fi
-            elif [ "$HAS_RAG" = true ]; then
-              if [ -d "src/rag/coverage/htmlcov" ]; then
+            else
+              # Single component: copy to unified htmlcov directory
+              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/rag/coverage/htmlcov || true
+                rm -rf coverage/htmlcov  # Remove existing to avoid nesting
                 if ! cp -r src/rag/coverage/htmlcov coverage/htmlcov; then
                   echo "❌ ERROR: Failed to copy RAG HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov" ]; then
-                  echo "❌ ERROR: HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied RAG HTML coverage"
-              fi
-            elif [ "$HAS_QUANT" = true ]; then
-              if [ -d "src/quantamental/coverage/htmlcov" ]; then
+                echo "✅ Copied RAG HTML coverage to coverage/htmlcov/"
+              elif [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
+                rm -rf coverage/htmlcov  # Remove existing to avoid nesting
                 if ! cp -r src/quantamental/coverage/htmlcov coverage/htmlcov; then
                   echo "❌ ERROR: Failed to copy Quantamental HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov" ]; then
-                  echo "❌ ERROR: HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied Quantamental HTML coverage"
-              fi
-            elif [ "$HAS_API" = true ]; then
-              if [ -d "src/api-service/coverage/htmlcov" ]; then
+                echo "✅ Copied Quantamental HTML coverage to coverage/htmlcov/"
+              elif [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
                 sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
+                rm -rf coverage/htmlcov  # Remove existing to avoid nesting
                 if ! cp -r src/api-service/coverage/htmlcov coverage/htmlcov; then
                   echo "❌ ERROR: Failed to copy API-service HTML coverage"
                   exit 1
                 fi
-                if [ ! -d "coverage/htmlcov" ]; then
-                  echo "❌ ERROR: HTML coverage directory was not created"
-                  exit 1
-                fi
-                echo "✅ Copied API-service HTML coverage"
+                echo "✅ Copied API-service HTML coverage to coverage/htmlcov/"
               fi
             fi
             
-            # Copy HTML reports for multiple components
-            if [ $COMPONENT_COUNT -gt 1 ]; then
-              if [ "$HAS_RAG" = true ] && [ -d "src/rag/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/rag/coverage/htmlcov || true
-                cp -r src/rag/coverage/htmlcov coverage/htmlcov_rag || true
-              fi
-              if [ "$HAS_QUANT" = true ] && [ -d "src/quantamental/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/quantamental/coverage/htmlcov || true
-                cp -r src/quantamental/coverage/htmlcov coverage/htmlcov_quantamental || true
-              fi
-              if [ "$HAS_API" = true ] && [ -d "src/api-service/coverage/htmlcov" ]; then
-                sudo chown -R runner:runner src/api-service/coverage/htmlcov || true
-                cp -r src/api-service/coverage/htmlcov coverage/htmlcov_api || true
-              fi
-            fi
+            # Note: HTML files are already copied above based on component count
+            # No need to copy again here to avoid duplicates
             
             echo "✅ Unified coverage report created"
           else
@@ -981,15 +1063,112 @@ jobs:
             exit 1
           fi
           
+          # List HTML coverage directories that exist
+          echo "📁 Checking for HTML coverage directories:"
+          HTML_FOUND=false
+          if [ -d "coverage/htmlcov" ]; then
+            HTML_COUNT=$(find coverage/htmlcov -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov/ exists ($HTML_COUNT files)"
+            if [ "$HTML_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
+          else
+            echo "  ⚠️  coverage/htmlcov/ does not exist"
+          fi
+          if [ -d "coverage/htmlcov_rag" ]; then
+            RAG_COUNT=$(find coverage/htmlcov_rag -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov_rag/ exists ($RAG_COUNT files)"
+            if [ "$RAG_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
+          fi
+          if [ -d "coverage/htmlcov_quantamental" ]; then
+            QUANT_COUNT=$(find coverage/htmlcov_quantamental -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov_quantamental/ exists ($QUANT_COUNT files)"
+            if [ "$QUANT_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
+          fi
+          if [ -d "coverage/htmlcov_api" ]; then
+            API_COUNT=$(find coverage/htmlcov_api -type f 2>/dev/null | wc -l || echo "0")
+            echo "  ✅ coverage/htmlcov_api/ exists ($API_COUNT files)"
+            if [ "$API_COUNT" -gt 0 ]; then
+              HTML_FOUND=true
+            fi
+          fi
+          
+          # If no HTML files found, generate from unified XML as fallback
+          if [ "$HTML_FOUND" = false ]; then
+            echo "⚠️  No HTML coverage files found. Generating from unified XML..."
+            if command -v coverage &> /dev/null || pip install coverage --quiet; then
+              if coverage html -d coverage/htmlcov --data-file coverage/coverage.xml 2>/dev/null; then
+                echo "✅ Generated HTML coverage from unified XML"
+                HTML_FOUND=true
+              else
+                echo "⚠️  Could not generate HTML coverage (coverage tool may not support this)"
+              fi
+            fi
+          fi
+          
           # Commit if there are changes
           if [ -n "$(git status --porcelain coverage/)" ]; then
-            # Pull latest changes before committing (handle concurrent commits)
-            git pull --rebase --no-edit || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            # Fix permissions on HTML files before pulling (Docker creates them as root)
+            find coverage/ -type d -name "htmlcov*" -exec sudo chown -R runner:runner {} \; 2>/dev/null || true
+            find coverage/ -type d -name "htmlcov*" -exec chmod -R u+w {} \; 2>/dev/null || true
             
-            if ! git add coverage/; then
-              echo "❌ ERROR: Failed to add coverage files to git"
+            # Ensure we're on the correct branch
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+              BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+              git checkout "$BRANCH_NAME" 2>/dev/null || true
+            fi
+            
+            # Pull latest changes (use merge instead of rebase to avoid permission issues)
+            git pull --no-edit --no-rebase || git pull --no-edit || echo "⚠️  WARNING: Could not pull latest changes"
+            
+            # Add coverage.xml first
+            if ! git add coverage/coverage.xml; then
+              echo "❌ ERROR: Failed to add coverage.xml to git"
               exit 1
             fi
+            echo "✅ Added coverage.xml"
+            
+            # Explicitly add HTML coverage directories if they exist
+            if [ -d "coverage/htmlcov" ]; then
+              if ! git add -f coverage/htmlcov/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov/ (may be ignored)"
+              else
+                echo "✅ Added coverage/htmlcov/"
+              fi
+            fi
+            
+            if [ -d "coverage/htmlcov_rag" ]; then
+              if ! git add -f coverage/htmlcov_rag/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov_rag/"
+              else
+                echo "✅ Added coverage/htmlcov_rag/"
+              fi
+            fi
+            
+            if [ -d "coverage/htmlcov_quantamental" ]; then
+              if ! git add -f coverage/htmlcov_quantamental/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov_quantamental/"
+              else
+                echo "✅ Added coverage/htmlcov_quantamental/"
+              fi
+            fi
+            
+            if [ -d "coverage/htmlcov_api" ]; then
+              if ! git add -f coverage/htmlcov_api/; then
+                echo "⚠️  WARNING: Failed to add coverage/htmlcov_api/"
+              else
+                echo "✅ Added coverage/htmlcov_api/"
+              fi
+            fi
+            
+            # Verify what's staged
+            echo "📋 Files staged for commit:"
+            git status --short coverage/ || true
             
             if ! git commit -m "Update unified coverage report [skip ci]"; then
               echo "❌ ERROR: Failed to commit unified coverage report"
@@ -999,8 +1178,27 @@ jobs:
             # Push and verify success (retry once if it fails due to remote changes)
             if ! git push; then
               echo "⚠️  Push failed, pulling latest changes and retrying..."
-              git pull --rebase --no-edit || git pull --no-edit || true
-              git add coverage/ || true
+              
+              # Fix permissions on HTML files before pulling
+              find coverage/ -type d -name "htmlcov*" -exec sudo chown -R runner:runner {} \; 2>/dev/null || true
+              find coverage/ -type d -name "htmlcov*" -exec chmod -R u+w {} \; 2>/dev/null || true
+              
+              # Ensure we're on the correct branch
+              CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+              if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+                git checkout "$BRANCH_NAME" 2>/dev/null || true
+              fi
+              
+              # Use merge instead of rebase to avoid permission issues
+              git pull --no-edit --no-rebase || git pull --no-edit || true
+              
+              # Re-add files
+              git add -f coverage/coverage.xml || true
+              git add -f coverage/htmlcov/ 2>/dev/null || true
+              git add -f coverage/htmlcov_rag/ 2>/dev/null || true
+              git add -f coverage/htmlcov_quantamental/ 2>/dev/null || true
+              git add -f coverage/htmlcov_api/ 2>/dev/null || true
               git commit -m "Update unified coverage report [skip ci]" || true
               if ! git push; then
                 echo "❌ ERROR: Failed to push unified coverage report after retry"
@@ -1069,8 +1267,17 @@ jobs:
           except:
               pass
           
+          try:
+              if os.path.exists('src/api-service/coverage/coverage.xml'):
+                  tree = ET.parse('src/api-service/coverage/coverage.xml')
+                  root = tree.getroot()
+                  API_COV = f"{int(float(root.get('line-rate', 0)) * 100)}%"
+                  API_BRANCH = str(int(float(root.get('branch-rate', 0)) * 100))
+          except:
+              pass
+          
           # If not found, extract from unified coverage.xml (now it exists after combine step)
-          if RAG_COV == "N/A" or QUANT_COV == "N/A":
+          if RAG_COV == "N/A" or QUANT_COV == "N/A" or API_COV == "N/A":
               try:
                   if os.path.exists('coverage/coverage.xml'):
                       tree = ET.parse('coverage/coverage.xml')

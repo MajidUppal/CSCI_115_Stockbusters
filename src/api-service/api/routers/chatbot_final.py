@@ -48,6 +48,7 @@ load_dotenv(override=True)
 # Load credentials with error handling (for CI/testing environments)
 # This will fail gracefully if credentials file doesn't exist
 import os
+
 credentials = None
 llm = None
 
@@ -97,6 +98,7 @@ if llm is not None:
 else:
     # Create a placeholder - will be replaced by patches in conftest.py
     from unittest.mock import MagicMock
+
     abot = MagicMock()
 
 # In-memory storage for demo (replace with database in production)
@@ -123,9 +125,7 @@ async def get_chats(
             messages = session.get("messages", [])
             title = "New Chat"
             if messages:
-                first_user_msg = next(
-                    (msg for msg in messages if msg.get("role") == "user"), None
-                )
+                first_user_msg = next((msg for msg in messages if msg.get("role") == "user"), None)
                 if first_user_msg:
                     # Use first 50 characters of first user message as title
                     content = first_user_msg.get("content", "")
@@ -147,9 +147,7 @@ async def get_chats(
 
 
 @router.get("/{model}/chats/{chat_id}")
-async def get_chat(
-    model: str, chat_id: str, x_session_id: str = Header(None, alias="X-Session-ID")
-):
+async def get_chat(model: str, chat_id: str, x_session_id: str = Header(None, alias="X-Session-ID")):
     """
     Get a specific chat session by ID
     Returns full chat history
@@ -219,17 +217,13 @@ async def start_chat(
     }
 
     # Get AI response
-    response = abot.graph.invoke(
-        {"messages": [{"role": "user", "content": message_content}]}, config=config
-    )
+    response = abot.graph.invoke({"messages": [{"role": "user", "content": message_content}]}, config=config)
 
     ai_message = response["messages"][-1].content
     user_pref = response.get("user_pref", {})
 
     # Update session
-    chat_sessions[chat_id]["messages"].append(
-        {"role": "assistant", "content": ai_message}
-    )
+    chat_sessions[chat_id]["messages"].append({"role": "assistant", "content": ai_message})
 
     if user_pref:
         chat_sessions[chat_id]["user_preferences"] = user_pref
@@ -275,9 +269,7 @@ async def continue_chat(
     config = {"configurable": {"thread_id": chat_id}}
 
     # Get AI response
-    response = abot.graph.invoke(
-        {"messages": [{"role": "user", "content": message_content}]}, config=config
-    )
+    response = abot.graph.invoke({"messages": [{"role": "user", "content": message_content}]}, config=config)
 
     ai_message = response["messages"][-1].content
     user_pref = response.get("user_pref", {})

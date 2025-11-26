@@ -31,9 +31,7 @@ _mock_storage_blob.download_as_bytes.return_value = b"test,data\n1,2\n3,4"
 _mock_storage_blob.exists.return_value = True
 
 # Patch storage.Client globally before any imports
-_storage_patcher = patch(
-    "google.cloud.storage.Client", return_value=_mock_storage_client
-)
+_storage_patcher = patch("google.cloud.storage.Client", return_value=_mock_storage_client)
 _storage_patcher.start()
 
 _storage_sa_patcher = patch(

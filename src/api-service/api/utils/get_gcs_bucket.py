@@ -5,6 +5,7 @@ from io import BytesIO
 
 credentials_path = "../secrets/stock-busters-service-account.json"
 import os
+
 storage_client = None
 
 try:
@@ -22,9 +23,7 @@ except Exception as e:
 bucket_name = "fin-data-bucket-115"
 
 
-def get_gcs_data(
-    file_name, file_type="csv", storage_client=storage_client, bucket_name=bucket_name
-):
+def get_gcs_data(file_name, file_type="csv", storage_client=storage_client, bucket_name=bucket_name):
 
     # Check if client initialization was successful
     if storage_client is None:

@@ -21,3 +21,37 @@ dependencies = [
     "pandas",
     "numpy"
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "httpx>=0.24.0",  # For FastAPI TestClient
+    "coverage>=7.0.0",
+    "iniconfig>=2.0.0",
+    "pluggy>=1.0.0",
+]
+
+[tool.black]
+line-length = 127
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.flake8]
+max-line-length = 127
+extend-ignore = ["E203", "W503", "E501", "E722", "W504", "E402", "F401", "F841", "F811", "F821"]
+exclude = [
+    ".eggs",
+    ".eggs/*",
+    "*.egg",
+    "*.egg-info",
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+]

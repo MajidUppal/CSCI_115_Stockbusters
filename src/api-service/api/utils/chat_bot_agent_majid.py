@@ -41,12 +41,8 @@ class user_preference(BaseModel):
     high_risk: bool = Field(description="High risk appetite check.")
     low_risk: bool = Field(description="Low risk appetite check.")
     sectors: list = Field(description="Preferred investment sectors.")
-    completed: bool = Field(
-        description="Indicates if all information has been collected."
-    )
-    confirmation: bool = Field(
-        description="Indicates if the user has confimed the populated user preferences"
-    )
+    completed: bool = Field(description="Indicates if all information has been collected.")
+    confirmation: bool = Field(description="Indicates if the user has confimed the populated user preferences")
 
     # name: str = Field(description="The full name of the recipe.")
     # servings: int = Field(description="The number of people the recipe serves.")
@@ -94,9 +90,7 @@ class ChatAgent:
         # print("entred validate_llm")
         last_message = state["messages"][-1]
         # print(last_message.content)
-        validate_resp = self.model.with_structured_output(user_preference).invoke(
-            [last_message]
-        )
+        validate_resp = self.model.with_structured_output(user_preference).invoke([last_message])
         # print("printing dictionary")
         val_dict = validate_resp.model_dump()
         if val_dict.get("completed"):

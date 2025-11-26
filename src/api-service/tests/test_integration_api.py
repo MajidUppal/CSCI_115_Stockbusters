@@ -15,32 +15,23 @@ class TestChatbotEndpoints:
     """Integration tests for chatbot router endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_client(
-        self, sample_quant_data, sample_company_profile, sample_stocks_data
-    ):
+    def setup_client(self, sample_quant_data, sample_company_profile, sample_stocks_data):
         """Set up test client with mocked dependencies."""
         self.sample_quant = sample_quant_data
         self.sample_company = sample_company_profile
         self.sample_stocks = sample_stocks_data
 
-        with patch("api.utils.get_gcs_bucket.storage"), patch(
-            "api.utils.get_gcs_bucket.get_gcs_data"
-        ) as mock_gcs, patch(
-            "api.routers.chatbot_final.service_account"
-        ) as mock_sa, patch(
-            "api.routers.chatbot_final.ChatVertexAI"
-        ) as mock_llm_class, patch(
-            "api.routers.chatbot_final.ChatAgent"
-        ) as mock_agent_class, patch(
-            "api.routers.chatbot_final.memory"
-        ), patch(
-            "api.routers.stock_details.get_gcs_data"
-        ) as mock_gcs_details, patch(
-            "api.routers.stock_details.df_quant_model", sample_quant_data
-        ), patch(
-            "api.routers.stock_details.df_company_profile", sample_company_profile
-        ), patch(
-            "api.routers.stock_details.df_stocks", sample_stocks_data
+        with (
+            patch("api.utils.get_gcs_bucket.storage"),
+            patch("api.utils.get_gcs_bucket.get_gcs_data") as mock_gcs,
+            patch("api.routers.chatbot_final.service_account") as mock_sa,
+            patch("api.routers.chatbot_final.ChatVertexAI") as mock_llm_class,
+            patch("api.routers.chatbot_final.ChatAgent") as mock_agent_class,
+            patch("api.routers.chatbot_final.memory"),
+            patch("api.routers.stock_details.get_gcs_data") as mock_gcs_details,
+            patch("api.routers.stock_details.df_quant_model", sample_quant_data),
+            patch("api.routers.stock_details.df_company_profile", sample_company_profile),
+            patch("api.routers.stock_details.df_stocks", sample_stocks_data),
         ):
 
             mock_sa.Credentials.from_service_account_file.return_value = MagicMock()
@@ -72,17 +63,13 @@ class TestChatbotEndpoints:
 
     def test_get_chats_empty_for_new_session(self):
         """Test empty chats list for new session."""
-        response = self.client.get(
-            "/gemini/chats", headers={"X-Session-ID": "new-session-123"}
-        )
+        response = self.client.get("/gemini/chats", headers={"X-Session-ID": "new-session-123"})
         assert response.status_code == 200
         assert response.json() == {"chats": []}
 
     def test_get_chats_with_limit(self):
         """Test chats list respects limit parameter."""
-        response = self.client.get(
-            "/gemini/chats?limit=5", headers={"X-Session-ID": "test-session"}
-        )
+        response = self.client.get("/gemini/chats?limit=5", headers={"X-Session-ID": "test-session"})
         assert response.status_code == 200
 
     # POST /chats (start chat) tests
@@ -93,9 +80,7 @@ class TestChatbotEndpoints:
 
     def test_start_chat_requires_message(self):
         """Test that starting chat requires message content."""
-        response = self.client.post(
-            "/gemini/chats", json={}, headers={"X-Session-ID": "test-session"}
-        )
+        response = self.client.post("/gemini/chats", json={}, headers={"X-Session-ID": "test-session"})
         assert response.status_code == 400
 
     def test_start_chat_success(self):
@@ -125,9 +110,7 @@ class TestChatbotEndpoints:
     # GET /chats/{chat_id} tests
     def test_get_specific_chat_not_found(self):
         """Test 404 for non-existent chat."""
-        response = self.client.get(
-            "/gemini/chats/non-existent-id", headers={"X-Session-ID": "test-session"}
-        )
+        response = self.client.get("/gemini/chats/non-existent-id", headers={"X-Session-ID": "test-session"})
         assert response.status_code == 404
 
     def test_get_specific_chat_requires_session(self):
@@ -147,9 +130,7 @@ class TestChatbotEndpoints:
 
     def test_continue_chat_requires_session(self):
         """Test continuing chat requires session header."""
-        response = self.client.post(
-            "/gemini/chats/some-id", json={"message": "Continue"}
-        )
+        response = self.client.post("/gemini/chats/some-id", json={"message": "Continue"})
         assert response.status_code == 400
 
 
@@ -157,24 +138,18 @@ class TestStockDetailsEndpoints:
     """Integration tests for stock details router endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_client(
-        self, sample_quant_data, sample_company_profile, sample_stocks_data
-    ):
+    def setup_client(self, sample_quant_data, sample_company_profile, sample_stocks_data):
         """Set up test client with mocked dependencies."""
-        with patch("api.utils.get_gcs_bucket.storage"), patch(
-            "api.utils.get_gcs_bucket.get_gcs_data"
-        ), patch("api.routers.chatbot_final.service_account") as mock_sa, patch(
-            "api.routers.chatbot_final.ChatVertexAI"
-        ), patch(
-            "api.routers.chatbot_final.ChatAgent"
-        ) as mock_agent_class, patch(
-            "api.routers.chatbot_final.memory"
-        ), patch(
-            "api.routers.stock_details.df_quant_model", sample_quant_data
-        ), patch(
-            "api.routers.stock_details.df_company_profile", sample_company_profile
-        ), patch(
-            "api.routers.stock_details.df_stocks", sample_stocks_data
+        with (
+            patch("api.utils.get_gcs_bucket.storage"),
+            patch("api.utils.get_gcs_bucket.get_gcs_data"),
+            patch("api.routers.chatbot_final.service_account") as mock_sa,
+            patch("api.routers.chatbot_final.ChatVertexAI"),
+            patch("api.routers.chatbot_final.ChatAgent") as mock_agent_class,
+            patch("api.routers.chatbot_final.memory"),
+            patch("api.routers.stock_details.df_quant_model", sample_quant_data),
+            patch("api.routers.stock_details.df_company_profile", sample_company_profile),
+            patch("api.routers.stock_details.df_stocks", sample_stocks_data),
         ):
 
             mock_sa.Credentials.from_service_account_file.return_value = MagicMock()
@@ -231,9 +206,7 @@ class TestStockDetailsEndpoints:
     # GET /reports tests
     def test_get_reports_empty_for_new_session(self):
         """Test get reports returns empty for new session."""
-        response = self.client.get(
-            "/gemini/reports", headers={"X-Session-ID": "new-session"}
-        )
+        response = self.client.get("/gemini/reports", headers={"X-Session-ID": "new-session"})
         assert response.status_code == 200
         assert response.json() == []
 
@@ -242,24 +215,18 @@ class TestReportGenerationEndpoints:
     """Integration tests for report generation endpoint."""
 
     @pytest.fixture(autouse=True)
-    def setup_client(
-        self, sample_quant_data, sample_company_profile, sample_stocks_data
-    ):
+    def setup_client(self, sample_quant_data, sample_company_profile, sample_stocks_data):
         """Set up test client with mocked dependencies."""
-        with patch("api.utils.get_gcs_bucket.storage"), patch(
-            "api.utils.get_gcs_bucket.get_gcs_data"
-        ), patch("api.routers.chatbot_final.service_account") as mock_sa, patch(
-            "api.routers.chatbot_final.ChatVertexAI"
-        ), patch(
-            "api.routers.chatbot_final.ChatAgent"
-        ) as mock_agent_class, patch(
-            "api.routers.chatbot_final.memory"
-        ), patch(
-            "api.routers.stock_details.df_quant_model", sample_quant_data
-        ), patch(
-            "api.routers.stock_details.df_company_profile", sample_company_profile
-        ), patch(
-            "api.routers.stock_details.df_stocks", sample_stocks_data
+        with (
+            patch("api.utils.get_gcs_bucket.storage"),
+            patch("api.utils.get_gcs_bucket.get_gcs_data"),
+            patch("api.routers.chatbot_final.service_account") as mock_sa,
+            patch("api.routers.chatbot_final.ChatVertexAI"),
+            patch("api.routers.chatbot_final.ChatAgent") as mock_agent_class,
+            patch("api.routers.chatbot_final.memory"),
+            patch("api.routers.stock_details.df_quant_model", sample_quant_data),
+            patch("api.routers.stock_details.df_company_profile", sample_company_profile),
+            patch("api.routers.stock_details.df_stocks", sample_stocks_data),
         ):
 
             mock_sa.Credentials.from_service_account_file.return_value = MagicMock()
@@ -368,9 +335,7 @@ class TestReportGenerationEndpoints:
             headers={"X-Session-ID": session_id},
         )
 
-        response = self.client.get(
-            "/gemini/reports", headers={"X-Session-ID": session_id}
-        )
+        response = self.client.get("/gemini/reports", headers={"X-Session-ID": session_id})
         assert response.status_code == 200
         reports = response.json()
         assert len(reports) == 1
@@ -407,9 +372,7 @@ class TestReportGenerationEndpoints:
             headers={"X-Session-ID": session_id},
         )
 
-        response = self.client.get(
-            "/gemini/reports", headers={"X-Session-ID": session_id}
-        )
+        response = self.client.get("/gemini/reports", headers={"X-Session-ID": session_id})
         assert len(response.json()) == 2
 
     def test_reports_sorted_by_date(self):
@@ -431,9 +394,7 @@ class TestReportGenerationEndpoints:
                 headers={"X-Session-ID": session_id},
             )
 
-        response = self.client.get(
-            "/gemini/reports", headers={"X-Session-ID": session_id}
-        )
+        response = self.client.get("/gemini/reports", headers={"X-Session-ID": session_id})
         reports = response.json()
 
         # Verify sorted by date descending

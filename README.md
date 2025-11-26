@@ -56,10 +56,19 @@ AC215_StockBusters/
 │   │   ├── llm_client.py
 │   │   └── Dockerfile
 │   │
-│   ├── rag-vector-db/                ← Chroma / PGVector
-│   │   ├── build_index.py
-│   │   ├── query_index.py
-│   │   └── Dockerfile
+│   ├── rag/                          ← RAG service with ChromaDB
+│   │   ├── rag.py                    ← Main RAG module
+│   │   ├── Dockerfile
+│   │   ├── docker-entrypoint.sh
+│   │   ├── pyproject.toml
+│   │   ├── pytest.ini
+│   │   ├── tests/
+│   │   │   ├── unit/                 ← Unit tests
+│   │   │   ├── integration/          ← Integration tests
+│   │   │   └── system/               ← System/E2E tests
+│   │   ├── data/                     ← PDF documents for RAG
+│   │   ├── docs/                     ← Documentation
+│   │   └── README.md
 │   │
 │   ├── model-deploy/                 ← Vertex AI or Cloud Run infra
 │   │   ├── deploy_model.py
@@ -196,56 +205,64 @@ PORT=3000
 **Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](frontend/README.md) for more details
 
 
-### Continuous Integration and Testing  ###   (Siri/Seraphim/Majid/Mahmood - please add example of CI of your own section) 
+### Continuous Integration and Testing
 
-## Model CI Pipeline ##  (Siri)
-    Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
-    The pipeline must:
-    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
-    Run Tests: Execute all test suites (unit, integration, and end-to-end).
-    Report Coverage: Generate and display code coverage reports (minimum 50%).
+We have implemented a **Unified CI Pipeline** that automatically builds, tests, and validates all three main components of the Stock Busters application:
 
+- **RAG (Retrieval-Augmented Generation)**: Document processing, embedding, and retrieval
+- **Quantamental**: Quantitative analysis and stock prediction models  
+- **API-service**: FastAPI-based service for chatbot and stock details
 
+#### Pipeline Features
 
-## RAG CI Pipeline & Evidence ##  (Seraphim)
-    < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
-    The pipeline must:
-    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
-    Run Tests: Execute all test suites (unit, integration, and end-to-end).
-    Report Coverage: Generate and display code coverage reports (minimum 50%).  >
+The unified CI pipeline runs on every push and pull request and includes:
 
-    CI Evidence:
-    Screenshot(s) of a passing CI run showing:
-    Successful build and linting
-    All tests passing
-    Code coverage report (minimum 50%)
+ **Build and Lint**: Automated Docker image builds and code-quality checks (Black, Flake8)  
+ **Run Tests**: Executes all test suites (unit, integration, and system tests)  
+ **Report Coverage**: Generates and displays unified code coverage reports (minimum 50% combined threshold)  
+ **Optimized Execution**: Skips unchanged components to save execution time  
+ **Parallel Execution**: Matrix strategy for parallel test runs across components  
 
-## Front End CI Pipeline & Evidence ## (Mahmood)--- Not needed for Front end, please remove this section.
-    < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
-    The pipeline must:
-    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
-    Run Tests: Execute all test suites (unit, integration, and end-to-end).
-    Report Coverage: Generate and display code coverage reports (minimum 50%).  >
+#### CI Evidence
 
-    CI Evidence:
-    Screenshot(s) of a passing CI run showing:
-    Successful build and linting
-    All tests passing
-    Code coverage report (minimum 50%)
+**Successful CI Pipeline Execution:**
 
+![Successful Automated Unified CI run on push](docs/Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
 
-## API CI pipeline ## (Majid)
-    < from MS4-Set up a CI pipeline (e.g., GitHub Actions) that runs on every push and pull request.
-    The pipeline must:
-    Build and Lint: Perform automated build and code-quality checks (e.g., Flake8, ESLint).
-    Run Tests: Execute all test suites (unit, integration, and end-to-end).
-    Report Coverage: Generate and display code coverage reports (minimum 50%).  >
+*Complete CI pipeline run showing all jobs passing*
 
-    CI Evidence:
-    Screenshot(s) of a passing CI run showing:
-    Successful build and linting
-    All tests passing
-    Code coverage report (minimum 50%)
+**CI Test Summary with Coverage:**
+
+![Unified CI Test Summary](docs/Unified%20CI%20Test%20Summary.png)
+
+*Test summary showing combined coverage (62%) and individual component breakdown*
+
+#### Coverage Results
+
+The pipeline enforces a **minimum 50% combined coverage** threshold across all components. Current coverage:
+
+- **Combined Coverage**: 62% ✅ (exceeds 50% threshold)
+- **RAG Component**: 72% line coverage, 66% branch coverage
+- **Quantamental Component**: 45% line coverage, 35% branch coverage
+- **API-service Component**: 68% line coverage, 63% branch coverage
+
+#### Coverage Reports Location
+
+Coverage reports are automatically generated and committed to the repository:
+
+- **Unified Coverage Report**: `coverage/coverage.xml` (Cobertura format) and `coverage/htmlcov/` (browseable HTML)
+- **Component-Specific Reports**:
+  - RAG: `src/rag/coverage/coverage.xml` and `src/rag/coverage/htmlcov/`
+  - Quantamental: `src/quantamental/coverage/coverage.xml` and `src/quantamental/coverage/htmlcov/`
+  - API-service: `src/api-service/coverage/coverage.xml` and `src/api-service/coverage/htmlcov/`
+
+The unified coverage report combines metrics from all components and is updated on every CI run.
+
+#### Documentation
+
+For detailed information about the CI pipeline, including architecture, job descriptions, test types, coverage calculation methodology, and troubleshooting, see:
+
+📖 **[Complete CI Pipeline Documentation](docs/CI_PIPELINE.md)**
 
 
 ## Data Versioning and Reproducibility##   (Siri)
