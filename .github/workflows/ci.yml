@@ -340,7 +340,7 @@ jobs:
               docker run --rm --entrypoint="" -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
                 ${{ matrix.image-name }}:${{ github.sha }} \
-                /bin/bash -c "source /home/app/.venv/bin/activate && pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
+                /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
             else
               docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
@@ -425,7 +425,7 @@ jobs:
             # Override entrypoint to prevent server from starting
             docker run --rm --entrypoint="" -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
+              /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
           else
             docker run --rm -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
@@ -489,7 +489,7 @@ jobs:
             # Run tests
             docker run --rm --network host --entrypoint="" -w /app \
               ${{ matrix.image-name }}:${{ github.sha }} \
-              /bin/bash -c "source /home/app/.venv/bin/activate && pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
+              /bin/bash -c "source /home/app/.venv/bin/activate && /home/app/.venv/bin/pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q"
             # Cleanup
             docker stop api-server && docker rm api-server || true
           else
