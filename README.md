@@ -304,14 +304,15 @@ For detailed information about the CI pipeline, including architecture, job desc
 ##  Quantamental ML Model pipeline
 
 The quantamental pipeline is orchestrated through `main.py`, which executes a 7-step 
-workflow: 
-(1) data collection from the FMP API 
-(2) feature engineering with 30+ technical and fundamental indicators
-(3) model training using Random Forest classification
-(4) model validation against quality thresholds (35% minimum, 80% production)
-(5) prediction and backtesting with hybrid scoring
-(6) optional RAG reasoning via ChromaDB and Vertex AI
-(7) data versioning through W&B Artifacts. 
+workflow:
+
+ (1) data collection from the FMP API
+ (2) feature engineering with 30+ technical and fundamental indicators
+ (3) model training using Random Forest classification
+ (4) model validation against quality thresholds (35% minimum, 80% production)
+ (5) prediction and backtesting with hybrid scoring
+ (6) optional RAG reasoning via ChromaDB and Vertex AI
+ (7) data versioning through W&B Artifacts. 
 
 Currently, the pipeline is executed manually via `python main.py`, while GitHub 
 Actions handles continuous integration (automated testing and linting on each push). 
