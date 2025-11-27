@@ -9,105 +9,134 @@
 This repository contains the development-ready version of the LLM-Powered Quantamental Stock Screener application for AC215/E115 Milestone 4.
 Milestone 4 focuses on:
 
-    - End-to-end local functionality
+- End-to-end local functionality
 
-    - Clean code organization
+- Code organization
 
-    - Fully working backend APIs, agents, model, and frontend
+- Fully working backend APIs, agents, model, and frontend
 
-    - Continuous Integration with automated tests
+- Continuous Integration with automated tests
 
-    - Data versioning and reproducibility
+- Data versioning and reproducibility
 
-    - A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
+- A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
 
 ### Project Milestone 4 - Code Organization
 
-## please review your own section. it is mocked up structure - Seraphim /Majid/Mahmood/Siri ##
+
 
 ```
 AC215_StockBusters/
 │
-├── src/
-│   ├── quant-pipeline/              ← Data pipeline, quantamental model, hybrid score calculation , backtest
-│   │   ├── data_fetch.py
-│   │   ├── data_preprocess.py
-│   │   ├── feature_engineering.py
-│   │   ├── model_train.py
-│   │   ├── hybrid_score.py
-│   │   ├── backtest.py
-│   │   ├── export_outputs.py
-│   │   ├── config.py
-│   │   └── run_pipeline.py          
-│   │
-│   ├── api-service/                 ← FastAPI backend   
-│   │   ├── main.py
-│   │   ├── routers/
-│   │   ├── services/
-│   │   ├── gcs_client.py
-│   │   ├── model_loader.py
-│   │   └── Dockerfile
-│   │
-│   ├── agent-orchestrator/           ← LLM multi-agent brain
-│   │   ├── agent_controller.py
-│   │   ├── planner_agent.py
-│   │   ├── quant_agent.py
-│   │   ├── rag_agent.py
-│   │   ├── llm_client.py
-│   │   └── Dockerfile
-│   │
-│   ├── rag/                          ← RAG service with ChromaDB
-│   │   ├── rag.py                    ← Main RAG module
-│   │   ├── Dockerfile
-│   │   ├── docker-entrypoint.sh
-│   │   ├── pyproject.toml
-│   │   ├── pytest.ini
-│   │   ├── tests/
-│   │   │   ├── unit/                 ← Unit tests
-│   │   │   ├── integration/          ← Integration tests
-│   │   │   └── system/               ← System/E2E tests
-│   │   ├── data/                     ← PDF documents for RAG
-│   │   ├── docs/                     ← Documentation
-│   │   └── README.md
-│   │
-│   ├── model-deploy/                 ← Vertex AI or Cloud Run infra
-│   │   ├── deploy_model.py
-│   │   ├── deploy_api.py
-│   │   └── cloudbuild.yaml
-│   │
-│   ├── ml-workflow/                  ← Vertex AI pipelines (optional)
-│   │   ├── pipeline.yaml
-│   │   └── components/
-│   │
-│   ├── frontend/
-│   │   ├── app/
-│   │   │   ├── chat/              # Chat interface
-│   │   │   ├── report/            # Stock reports
-│   │   │   ├── stock-detail/      # Stock detail pages
-│   │   │   ├── settings/          # User settings
-│   │   │   ├── page               # Home page
-│   │   │   └── layout             # Header, Footer, Theme
-│   │   │
-│   │   ├── components             # components for corresponding app pages plus share ui component
-│   │   ├── lib/
-│   │   │   ├── DataService.js     # API integration
-│   │   │   ├── Common.js
-│   │   │   └── utils.js
-│   │   └── .env.development
-│   │
-│   │
-│   └── notebooks/                    ← Your raw development notebooks
-│       ├── Quantamental_MS4.ipynb
-│       ├── RAG_Processing.ipynb
-│       └── Agent_Prototype.ipynb
+├──  README.md                    # Project documentation
+├──  compose.yml                  # Docker Compose configuration
+├──  .pre-commit-config.yaml      # Pre-commit hooks
 │
-├── secrets/
-│   └── service-account.json          ← for GCS
+├── .github/
+│   └── workflows/
+│       ├── quantamental-ci.yml     # Quantamental CI pipeline
+│       └── ci-rag.yml              # RAG CI pipeline
 │
-├── dvc.yaml                           ← data versioning
-├── requirements.txt
-├── README.md
-└── .env.example
+├── 📁 docs/
+│   └── CI_PIPELINE.md              # CI/CD documentation
+│
+├── 📁 coverage/                    # Test coverage reports
+│
+└── 📁 src/
+    │
+    ├── 📁 quantamental/            # ML Pipeline (Main Component)
+    │   ├── Dockerfile
+    │   ├── README.md
+    │   ├── config.yaml             # Pipeline configuration
+    │   ├── requirements.txt
+    │   │
+    │   ├── # Core Pipeline Scripts
+    │   ├── main.py                 # Quantamental Main Pipeline orchestration (7 steps)
+    │   ├── data_collect.py         # FMP API data collection
+    │   ├── data_process.py         # Feature engineering
+    │   ├── model_train.py          # Random Forest training
+    │   ├── model_predict.py        # Prediction generation
+    │   ├── model_validation.py     # Model Quality gates
+    │   ├── hybrid_scoring.py       # Technical + fundamental scoring calculation 
+    │   ├── backtest.py             # Backtesting & output
+    │   ├── data_versioning.py      # W&B artifact versioning
+    │   ├── generate_stock_reasoning.py  # RAG reasoning integration
+    │   └── utils.py                # Utility functions
+    │   │
+    │   ├── 📁 tests/               # Test suite (130+ tests)
+    │   │   ├── conftest.py         # Pytest fixtures
+    │   │   ├── test_unit_*.py      # Unit tests
+    │   │   ├── test_integration_*.py   # Integration tests
+    │   │   ├── test_system_*.py    # System tests
+    │   │   └── test_model_performance.py  # Validation tests
+    │   │
+    │   └── 📁 data/                # Local data directory
+    │       └── version_info_*.json # Version metadata
+    │
+    ├── 📁 rag/                     # RAG Service
+    │   ├── Dockerfile
+    │   ├── docker-entrypoint.sh
+    │   ├── pyproject.toml
+    │   ├── pytest.ini
+    │   ├── README.md
+    │   ├── rag.py                  # RAG core functionality
+    │   ├── generate_stock_reasoning.py
+    │   │
+    │   ├── 📁 data/
+    │   │   └── LLM-Quant_Expanded_RAG_with_context.md
+    │   │
+    │   ├── 📁 docs/
+    │   │   ├── APPLICATION_DESIGN.md
+    │   │   ├── CONTINUOUS_INTEGRATION_PIPELINE.md
+    │   │   └── DATA_VERSIONING.md
+    │   │
+    │   └── 📁 tests/
+    │       ├── unit/               # Unit tests
+    │       ├── integration/        # Integration tests
+    │       └── system/             # System tests
+    │
+    ├── 📁 api-service/             # FastAPI Backend
+    │   ├── Dockerfile
+    │   │
+    │   ├── 📁 api/
+    │   │   ├── service.py          # Main FastAPI app
+    │   │   ├── utils.py
+    │   │   │
+    │   │   ├── 📁 routers/
+    │   │   │   ├── chatbot_final.py
+    │   │   │   └── stock_details.py
+    │   │   │
+    │   │   └── 📁 utils/
+    │   │       ├── chat_bot_agent.py
+    │   │       ├── detailed_page_funcs.py
+    │   │       └── get_gcs_bucket.py
+    │   │
+    │   └── 📁 tests/               # API tests
+    │
+    ├── 📁 frontend/                # ⚛️ React Frontend
+    │   │   ├── app/
+    │   │   │   ├── chat/           # Chat interface
+    │   │   │   ├── report/         # Stock reports
+    │   │   │   ├── stock-detail/   # Stock detail pages
+    │   │   │   ├── settings/       # User settings
+    │   │   │   ├── page            # Home page
+    │   │   │   └── layout          # Header, Footer, Theme
+    │   │   │
+    │   │   ├── components          # components for corresponding app pages plus share ui component
+    │   │   ├── lib/
+    │   │       ├── DataService.js  # API integration
+    │   │       ├── Common.js
+    │   │       └── utils.js
+    │   ├── .env.development│   
+    │   ├── Dockerfile
+    │   ├── docker-shell.sh 
+    │   └── README.md
+    │
+    ├── dvc.yaml                           ← data versioning
+    ├── requirements.txt
+    ├── README.md
+    └── .env.example
+
 ```
 
 
@@ -121,17 +150,48 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 
 
-### Application Design Document ###              (Mahmood/Majid/Seraphim)
+### Application Design Document ###              
 
-## Solution Architecture ## (Mahmood/Majid/Seraphim)
-  ** from MS4 requirement, please add   High-level overview of system components and their interactions (e.g., data flow, APIs, frontend, model). >  <-- delete this line once completed **
 
-## Technical Architecture ##  (Mahmood/Majid/Seraphim)
+[Architecture Design Document](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone4/docs/Architecture_Design_Document_MS4.pdf)
 
-<from MS4 requirement please add Technologies, frameworks, and design patterns used, and how they support your overall system design.> <-- delete this line once completed
 
-### APIs and Frontend Implementation ###  (Mahmood/Majid)
+## Solution Architecture ## 
 
+Below is the solution architecture for Stockbusters. For details refer to the design document below
+
+<img width="1095" height="603" alt="image" src="https://github.com/user-attachments/assets/a2b19430-681e-4aa9-947e-65ac0d9d5e79" />
+ 
+
+## Technical Architecture ##  
+
+The technical architecture for Stockbusters is shown below. For details refer to the design document below
+
+<img width="1094" height="600" alt="image" src="https://github.com/user-attachments/assets/920ed09f-781c-4ced-b5f1-cca1f4b9c4a1" />
+
+
+
+### APIs and Frontend Implementation ###  
+
+# API Web Server
+
+The application is built using Python/FastAPI and is configured for containerization via Docker.
+
+It utilizes Google Cloud Storage (GCS) to retrieve three critical data files: Quant model scores, company profiles, and historical stock prices.
+
+Development uses uv for dependency management.
+
+Webserver is deplyed using Uvicorn.
+
+The project maintains code quality and stability via a GitHub Actions CI pipeline that runs linting, unit/integration testing, and coverage checks on every push.
+
+## Tech Stack
+ - **FAST API**: API End-points & router functions
+ - **Langgraph**: Agents deployment
+ - **Langchain**: LLM + RAG retreival
+ - **Gemini**: LLM
+ - **Uvicorn**: API Web Server
+   
 # Frontend - Stock Busters
 
 Modern Next.js 15 web application providing an AI-powered conversational interface for personalized stock recommendations and investment analysis.
@@ -200,10 +260,10 @@ PORT=3000
 - Responsive design with Tailwind CSS
 - Accessible UI components from shadcn/ui
 
----
 
 **Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](frontend/README.md) for more details
 
+---
 
 ### Continuous Integration and Testing
 
@@ -265,22 +325,79 @@ For detailed information about the CI pipeline, including architecture, job desc
 📖 **[Complete CI Pipeline Documentation](docs/CI_PIPELINE.md)**
 
 
-## Data Versioning and Reproducibility##   (Siri)
+##  Quantamental ML Model pipeline
 
-    <MS4 : Implement and document your data versioning workflow (e.g., using DVC or an equivalent approach).
-    Should include:
-    The chosen method and a short justification for it. Version history for datasets or large artifacts (commits, tags, or snapshots).
-    Instructions for data retrieval (dvc pull, push, or equivalent). If applicable, include LLM prompts and outputs for generated data. >
+The quantamental pipeline is orchestrated through `main.py`, which executes a 7-step 
+workflow:
 
-    
+ - (1) Data collection from the FMP API
+ - (2) Feature engineering with 30+ technical and fundamental indicators
+ - (3) Model training using Random Forest classification
+ - (4) Model validation against quality thresholds (35% minimum, 80% production)
+ - (5) Prediction and backtesting with hybrid scoring
+ - (6) Optional RAG reasoning via ChromaDB and Vertex AI
+ - (7) Data versioning through W&B Artifacts. 
 
-## Model Fine-Tuning## (Siri)
-    Should include:
-    Training scripts/config files, dataset references (versioned), and experiment logs.
-    A concise summary of key results and how the fine-tuned model affects your deployment strategy.
+Currently, the pipeline is executed manually via `python main.py`, while GitHub 
+Actions handles continuous integration (automated testing and linting on each push). 
+All training runs, metrics, and model artifacts are logged to Weights & Biases for 
+experiment tracking and reproducibility.
 
-    Data Versioning documentation (methodology, justification, and usage instructions)
-    Model Training/Fine-Tuning summary (training process, results, and deployment implications)
+<img width="800" height="765" alt="image" src="https://github.com/user-attachments/assets/11959926-5295-4746-a462-b2c0dcf68b8f" />
+
+### Data and Model Artifact in Weight & Bias ###
+
+<img width="1914" height="897" alt="image" src="https://github.com/user-attachments/assets/d3d0d924-c6eb-4cfe-ae17-65326d934bd2" />
+
+<img width="818" height="513" alt="image" src="https://github.com/user-attachments/assets/7f175574-95a7-4c08-959c-9806dafbf480" />
+
+### Artifact Lineage Tracking & Reproducibility
+
+<img width="1305" height="882" alt="image" src="https://github.com/user-attachments/assets/1b5123c0-78c5-455b-83ec-579b19c3736b" />
+
+The W&B Artifacts Lineage view provides a visual representation of data flow through our ML pipeline, 
+enabling full reproducibility and traceability. The graph shows how training runs connect to their 
+input and output artifacts.
+
+**What the graph shows:**
+- **Training Runs**: `fine-firefly-24` and `giddy-firefly-27` represent pipeline executions
+- **Input Artifacts**: `training-data:v1` (processed dataset used for training)
+- **Output Artifacts**: `quantamental-model:v3` (trained model), feature importance tables, and run history
+
+**Versioned Artifacts:**
+| Type | Artifact | Versions |
+|------|----------|----------|
+| Raw Data | `input_fundamentals`, `input_sp500_index` | v0, v1 |
+| Dataset | `training-data` | v0, v1 |
+| Model | `quantamental-model` | v0, v1, v2, v3 |
+| Output | `backtest_output`, `output_combined_quantamental` | v0-v3 |
+
+This lineage tracking ensures that any prediction can be traced back through the model, training data, 
+and raw inputs—providing complete reproducibility for our ML pipeline.
+
+For example, the run `fine-firefly-24` consumed `training-data:v1` as input and produced `quantamental-model:v3`, feature importance tables, and run history logs as outputs. 
+This lineage tracking ensures that for any model version, we can trace back to the exact dataset, hyperparameters, and code that produced it. 
+
+Our versioned artifacts include: raw input data 
+(`input_fundamentals`, `input_sp500_index`), processed training data (`training-data`), trained models 
+(`quantamental-model` with versions v0-v3), and pipeline outputs (`backtest_output`, `output_combined_quantamental`). 
+This comprehensive versioning strategy satisfies the MS4 requirement for data versioning and reproducibility.
+
+### Experiment Tracking & Model Performance
+
+The W&B Workspace provides a comprehensive view of model performance across all training runs. 
+The dashboard displays key metrics including ROC-AUC, precision, recall, and probability 
+distributions for each experiment. The confusion matrices compare predictions between runs 
+(e.g., `giddy-firefly-27` vs `fine-firefly-24`), showing the model correctly identifies 
+approximately 125 true negatives and 52 true positives, with 71 false positives and 165 
+false negatives. This visualization enables quick comparison across 27 tracked runs, helping 
+identify which configurations produce the best results and supporting iterative model improvement.
+
+<img width="1840" height="791" alt="image" src="https://github.com/user-attachments/assets/88bc93a2-4e57-4fea-a465-53a4a39d80f2" />
+
+<img width="841" height="420" alt="image" src="https://github.com/user-attachments/assets/accfbf78-a1ad-4a8b-a414-9f90148c028c" />
+
+<img width="897" height="746" alt="image" src="https://github.com/user-attachments/assets/9f71f04d-9e1d-448f-b9d3-f83061786d14" />
 
 
 
@@ -288,82 +405,96 @@ For detailed information about the CI pipeline, including architecture, job desc
 
 
 
+## Data Versioning Implementation
+
+Our pipeline implements data versioning at multiple levels to ensure full reproducibility:
+
+### W&B Artifacts (Primary Versioning)
+
+Weights & Biases Artifacts serves as our primary data versioning system, tracking all datasets 
+and models with automatic version increments:
+
+| Artifact Type | Name | Description | Versions |
+|---------------|------|-------------|----------|
+| **Raw Data** | `input_fundamentals` | Quarterly financial metrics from FMP API | v0, v1 |
+| **Raw Data** | `input_sp500_index` | S&P 500 index prices | v0, v1 |
+| **Dataset** | `training-data` | Processed features for model training | v0, v1 |
+| **Model** | `quantamental-model` | Trained Random Forest classifier | v0, v1, v2, v3 |
+| **Output** | `backtest_output` | Prediction results with rankings | v0, v1, v2, v3 |
+
+Each artifact version includes:
+- **Metadata**: Accuracy, validation status, training date
+- **Lineage**: Links to the run that created it
+- **Files**: Actual data files (parquet, pkl, csv)
+
+<img width="1024" height="656" alt="image" src="https://github.com/user-attachments/assets/8f8739b1-a103-4fa3-be6a-45ee3de7a713" />
+
+
+### GCS Bucket (Timestamped Outputs)
+
+Pipeline outputs are also stored in Google Cloud Storage with timestamps for additional versioning:
+```
+gs://fin-data-bucket-115/model_output/
+├── combined_quantamental_20241120_143558.csv
+├── combined_quantamental_20241124_173024.csv
+└── backtest_results_20241125_162002.csv
+```
+Example from GCS bucket
+<img width="1198" height="931" alt="image" src="https://github.com/user-attachments/assets/3db6f2e8-56d7-468e-ae42-5e71108e7ebb" />
+
+
+
+The timestamp format `YYYYMMDD_HHMMSS` allows chronological tracking of all pipeline runs.
+
+### Version Metadata Files
+
+Each pipeline run generates a version info file (`version_info_ms4.json`) containing:
+```json
+{
+  "timestamp": "2024-11-25T16:20:02",
+  "model_version": "v3",
+  "accuracy": 0.39,
+  "validation_status": "degraded",
+  "data_version": "training-data:v1",
+  "git_commit": "abc123..."
+}
+```
+
+### Why This Approach?
+
+We chose W&B Artifacts over DVC because:
+1. **Unified Platform**: Experiment tracking and versioning in one place
+2. **Automatic Lineage**: Visual graph connecting data → runs → models
+3. **Metadata Support**: Store accuracy, status alongside artifacts
+4. **No Extra Infrastructure**: Built-in cloud storage (vs. DVC requiring remote setup)
+
+
+### Model Validation & Evaluation
+
+The pipeline implements automated quality gates with three validation tiers:
+
+| Status | Threshold | Action |
+|--------|-----------|--------|
+| 🟢 Production | ≥ 80% | Full deployment |
+| 🟡 Degraded | ≥ 35% | Deploy with warnings |
+| 🔴 Rejected | < 35% | Block deployment |
+
+**Current Model Performance**: 43.62% accuracy, 44.60% precision (status: degraded). The model uses a time-based train/test split (12 months training, 1 month test) and logs all metrics to W&B.
+
+**How Validation Works**:
+After each training run, the pipeline automatically evaluates model accuracy against the thresholds. If accuracy falls below 35%, the CI pipeline fails and blocks deployment. Models between 35-80% are flagged as "degraded" and deployed with warnings, while models above 80% are approved for full production deployment.
+
+**CI Model Selection**:
+Each model version is stored in W&B Artifacts with its accuracy and validation status. The CI pipeline queries all available versions, filters out rejected models, and automatically selects the highest-accuracy version for deployment. This ensures the best performing model is always in production, with full version history maintained for rollback if needed.
+```
+Push → Test → Train → Validate → Select Best Model → Deploy
+                         │              │
+                    Log to W&B    Compare versions
+                                  (v0: 35% → v3: 44%)
+```
+
+📄 *See [docs/Quantamental_Model_Pipeline.md](docs/Quantamental_Model_Pipeline.md) for detailed analysis.*
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----
-
-** Below is from MS3 **
----
-**6. Solution Architecture:**
-
-<img width="1111" height="618" alt="image" src="https://github.com/user-attachments/assets/a762852b-40cd-4835-b4be-20dda83105e9" />
-
-The architecture is designed to support application development, AI/ML tasks, and a Chat Bot feature, heavily leveraging Large Language Models (LLMs) like Gemini.
-
-**1. Process Layer**
-
-This is the user and high-level function layer, representing the main areas of interaction and functionality supported by the system:
-
-**Develop App:** Standard application development activities, interacting with the Execution and State layers.
-
-**AI/ML Tasks:** Functions related to the core AI/ML capabilities, such as model development and training.
-
-**Chat Bot:** The conversational interface for users, likely a key feature of the Stock Busters app, which involves "Human Interactions."
-
-**2. Execution Layer**
-
-This layer contains the runtime components and services that handle the application's logic, processing, and user interaction:
-
-**Interactive Notebooks (Notebooks):** Used for human interaction, likely by data scientists or developers, for experimentation and development of AI/ML models. These connect to LLMs and the State layer.
-
-**ML Pipeline:** An automated process for managing the entire machine learning lifecycle:
-
-**Data Collector:** Gathers necessary data.
-
-**Model Training:** The core process of generating the AI/ML model.
-
-**Data Processor:** Prepares data for training or inference.
-
-**Model Deploy:** Puts the trained model into a production environment.
-
-It's driven by CLI + Automation and interacts with LLMs.
-
-**LLMs (as a Service) - Gemini:** A central service providing Large Language Model capabilities (like Gemini) via HTTP/HTTPS. It acts as a bridge between the Notebooks, ML Pipeline, and the Backend.
-
-**Frontend (StockBusters):** The user-facing component of the main application, supporting "Human Interactions" and communicating with the Backend via HTTP/HTTPS.
-
-**Backend:** The core application logic and data-handling services, accessible via HTTPS.
-
-**API Service:** Handles business logic and serves the Frontend and LLMs.
-
-**Vector DB Service:** Provides a vector database, essential for modern AI applications, particularly those utilizing LLMs (like for retrieval-augmented generation in the Chat Bot).
-
-**3. State Layer**
-
-This is the data and infrastructure layer that stores, manages, and tracks all persistent assets and data:
-
-**Source Control:** Stores all application code, configuration, and potentially pipeline definitions.
-
-**Artifact Registry:** Stores built artifacts, such as trained models from the ML Pipeline and other reusable components.
-
-**Data Store:** Stores raw, processed, and training data utilized by the ML Pipeline and LLMs.
-
-**Knowledge Base:** Stores structured and unstructured information (likely financial or market data) that the Backend, particularly the Vector DB Service, and LLMs can query to inform the application and Chat Bot responses.
