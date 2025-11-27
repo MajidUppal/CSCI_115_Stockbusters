@@ -469,11 +469,32 @@ We chose W&B Artifacts over DVC because:
 4. **No Extra Infrastructure**: Built-in cloud storage (vs. DVC requiring remote setup)
 
 
+### Model Validation & Evaluation
 
-## Model Evaluation ## 
-    Should include:
-    Training scripts/config files, dataset references (versioned), and experiment logs.
-    A concise summary of key results and how the fine-tuned model affects your deployment strategy.
+The pipeline implements automated quality gates with three validation tiers:
 
-    Data Versioning documentation (methodology, justification, and usage instructions)
-    Model Training/Fine-Tuning summary (training process, results, and deployment implications)
+| Status | Threshold | Action |
+|--------|-----------|--------|
+| 🟢 Production | ≥ 80% | Full deployment |
+| 🟡 Degraded | ≥ 35% | Deploy with warnings |
+| 🔴 Rejected | < 35% | Block deployment |
+
+**Current Model Performance**: 43.62% accuracy, 44.60% precision (status: degraded). The model uses a time-based train/test split (12 months training, 1 month test) and logs all metrics to W&B.
+
+**How Validation Works**:
+After each training run, the pipeline automatically evaluates model accuracy against the thresholds. If accuracy falls below 35%, the CI pipeline fails and blocks deployment. Models between 35-80% are flagged as "degraded" and deployed with warnings, while models above 80% are approved for full production deployment.
+
+**CI Model Selection**:
+Each model version is stored in W&B Artifacts with its accuracy and validation status. The CI pipeline queries all available versions, filters out rejected models, and automatically selects the highest-accuracy version for deployment. This ensures the best performing model is always in production, with full version history maintained for rollback if needed.
+```
+Push → Test → Train → Validate → Select Best Model → Deploy
+                         │              │
+                    Log to W&B    Compare versions
+                                  (v0: 35% → v3: 44%)
+```
+
+📄 *See [docs/MODEL_VALIDATION_EVALUATION.md](docs/MODEL_VALIDATION_EVALUATION.md) for detailed analysis.*
+
+
+
+
