@@ -493,7 +493,7 @@ Push → Test → Train → Validate → Select Best Model → Deploy
                                   (v0: 35% → v3: 44%)
 ```
 
-📄 *See [docs/MODEL_VALIDATION_EVALUATION.md](docs/MODEL_VALIDATION_EVALUATION.md) for detailed analysis.*
+📄 *See [docs/Quantamental_Model_Pipeline.md](docs/Quantamental_Model_Pipeline.md) for detailed analysis.*
 
 
 
