@@ -56,7 +56,7 @@ get_changed_files() {
     if [ "$CHANGED_ONLY" = true ] && command -v git &> /dev/null; then
         case "$component" in
             rag)
-                git diff --name-only --diff-filter=ACMR HEAD | grep -E "^src/rag/rag\.py$" || true
+                git diff --name-only --diff-filter=ACMR HEAD | grep -E "^src/rag/.*\.py$" || true
                 ;;
             quantamental)
                 git diff --name-only --diff-filter=ACMR HEAD | grep -E "^src/quantamental/.*\.py$" || true
@@ -92,15 +92,15 @@ format_lint_rag() {
     fi
     
     echo "[INFO] Formatting with black..."
-    # Only format rag.py (matching CI behavior, excludes tests)
-    if ! $BLACK_CMD --line-length 120 src/rag/rag.py 2>/dev/null; then
+    # Match CI: format entire directory (including tests), exclude archived files
+    if ! $BLACK_CMD --line-length 120 --exclude '/(__pycache__|\.venv|venv|_archived)/' src/rag/ 2>/dev/null; then
         echo -e "${RED}[FAIL] RAG formatting failed${NC}"
         return 1
     fi
     
     echo "[INFO] Running flake8 linting..."
-    # Only lint rag.py (matching CI behavior, excludes tests)
-    if $FLAKE8_CMD --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 src/rag/rag.py 2>/dev/null; then
+    # Match CI: lint entire directory (including tests), exclude archived files
+    if $FLAKE8_CMD --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821,F541,E231 --exclude=_archived src/rag/ 2>/dev/null; then
         local elapsed=$(( $(date +%s) - start_time ))
         echo -e "${GREEN}[OK] RAG passed (${elapsed}s)${NC}"
         return 0

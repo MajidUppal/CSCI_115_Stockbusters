@@ -30,6 +30,7 @@ from rag import (
 # CLI Functions
 # ============================================================================
 
+
 class TestMainFunction:
     """Tests for main() CLI function."""
 
@@ -39,12 +40,18 @@ class TestMainFunction:
     @patch.dict(os.environ, {"GCS_BUCKET_NAME": "test-bucket", "AUTO_START_CHROMADB": "1"})
     def test_main_ingest_only(self, mock_serve, mock_run_ingest, mock_start_server):
         """Test main() with --ingest flag only."""
-        mock_run_ingest.return_value = {"added": 10, "n_chunks": 10, "avg_tokens": 100, "num_input_docs": 1, "elapsed_sec": 1.0}
-        
+        mock_run_ingest.return_value = {
+            "added": 10,
+            "n_chunks": 10,
+            "avg_tokens": 100,
+            "num_input_docs": 1,
+            "elapsed_sec": 1.0,
+        }
+
         with patch("sys.argv", ["rag.py", "--ingest"]):
             with patch("builtins.print"):  # Suppress print output
                 main()
-        
+
         mock_start_server.assert_called_once()
         mock_run_ingest.assert_called_once()
         mock_serve.assert_not_called()
@@ -57,12 +64,12 @@ class TestMainFunction:
         """Test main() with --serve flag only."""
         # serve() runs indefinitely, so we need to mock it to return
         mock_serve.side_effect = KeyboardInterrupt()
-        
+
         with patch("sys.argv", ["rag.py", "--serve"]):
             with patch("builtins.print"):  # Suppress print output
                 with pytest.raises(KeyboardInterrupt):
                     main()
-        
+
         mock_start_server.assert_called_once()
         mock_run_ingest.assert_not_called()
         mock_serve.assert_called_once()
@@ -74,19 +81,24 @@ class TestMainFunction:
     @patch.dict(os.environ, {"GCS_BUCKET_NAME": "test-bucket", "AUTO_START_CHROMADB": "1"})
     def test_main_ingest_and_serve(self, mock_sleep, mock_serve, mock_run_ingest, mock_start_server):
         """Test main() with both --ingest and --serve flags."""
-        mock_run_ingest.return_value = {"added": 10, "n_chunks": 10, "avg_tokens": 100, "num_input_docs": 1, "elapsed_sec": 1.0}
+        mock_run_ingest.return_value = {
+            "added": 10,
+            "n_chunks": 10,
+            "avg_tokens": 100,
+            "num_input_docs": 1,
+            "elapsed_sec": 1.0,
+        }
         mock_serve.side_effect = KeyboardInterrupt()
-        
+
         with patch("sys.argv", ["rag.py", "--ingest", "--serve"]):
             with patch("builtins.print"):  # Suppress print output
                 with pytest.raises(KeyboardInterrupt):
                     main()
-        
+
         mock_start_server.assert_called_once()
         mock_run_ingest.assert_called_once()
         mock_sleep.assert_called_once_with(2)  # Should sleep before serving
         mock_serve.assert_called_once()
-
 
     @patch("rag._start_chromadb_server")
     @patch("rag.run_ingest")
@@ -94,28 +106,38 @@ class TestMainFunction:
     @patch.dict(os.environ, {"GCS_BUCKET_NAME": "test-bucket", "AUTO_START_CHROMADB": "1"})
     def test_main_with_semantic_chunking_params(self, mock_serve, mock_run_ingest, mock_start_server):
         """Test main() passes semantic chunking parameters correctly."""
-        mock_run_ingest.return_value = {"added": 10, "n_chunks": 10, "avg_tokens": 100, "num_input_docs": 1, "elapsed_sec": 1.0}
-        
-        with patch("sys.argv", [
-            "rag.py", 
-            "--ingest",
-            "--target-tokens", "800",
-            "--max-tokens", "1200",
-            "--overlap-sentences", "3",
-            "--buffer-size", "2",
-            "--sim-percentile", "90.0",
-            "--max-depth", "4"
-        ]):
+        mock_run_ingest.return_value = {
+            "added": 10,
+            "n_chunks": 10,
+            "avg_tokens": 100,
+            "num_input_docs": 1,
+            "elapsed_sec": 1.0,
+        }
+
+        with patch(
+            "sys.argv",
+            [
+                "rag.py",
+                "--ingest",
+                "--target-tokens",
+                "800",
+                "--max-tokens",
+                "1200",
+                "--overlap-sentences",
+                "3",
+                "--buffer-size",
+                "2",
+                "--sim-percentile",
+                "90.0",
+                "--max-depth",
+                "4",
+            ],
+        ):
             with patch("builtins.print"):  # Suppress print output
                 main()
-        
+
         mock_run_ingest.assert_called_once_with(
-            target_tokens=800,
-            max_tokens=1200,
-            overlap_sentences=3,
-            buffer_size=2,
-            sim_percentile=90.0,
-            max_depth=4
+            target_tokens=800, max_tokens=1200, overlap_sentences=3, buffer_size=2, sim_percentile=90.0, max_depth=4
         )
 
     @patch("rag._start_chromadb_server")
@@ -124,12 +146,12 @@ class TestMainFunction:
     def test_main_chromadb_server_startup_failure(self, mock_run_ingest, mock_start_server):
         """Test main() handles ChromaDB server startup failure."""
         mock_start_server.side_effect = Exception("Server startup failed")
-        
+
         with patch("sys.argv", ["rag.py", "--ingest"]):
             with patch("builtins.print"):  # Suppress print output
                 with pytest.raises(Exception, match="Server startup failed"):
                     main()
-        
+
         mock_start_server.assert_called_once()
         mock_run_ingest.assert_not_called()
 
@@ -139,15 +161,20 @@ class TestMainFunction:
     @patch.dict(os.environ, {"GCS_BUCKET_NAME": "test-bucket", "AUTO_START_CHROMADB": "0"})
     def test_main_auto_start_chromadb_disabled(self, mock_serve, mock_run_ingest, mock_start_server):
         """Test main() skips ChromaDB server startup when AUTO_START_CHROMADB=0."""
-        mock_run_ingest.return_value = {"added": 10, "n_chunks": 10, "avg_tokens": 100, "num_input_docs": 1, "elapsed_sec": 1.0}
-        
+        mock_run_ingest.return_value = {
+            "added": 10,
+            "n_chunks": 10,
+            "avg_tokens": 100,
+            "num_input_docs": 1,
+            "elapsed_sec": 1.0,
+        }
+
         with patch("sys.argv", ["rag.py", "--ingest"]):
             with patch("builtins.print"):  # Suppress print output
                 main()
-        
+
         mock_start_server.assert_not_called()
         mock_run_ingest.assert_called_once()
-
 
     @patch("rag._start_chromadb_server")
     @patch("rag.run_ingest")
@@ -156,12 +183,12 @@ class TestMainFunction:
     def test_main_ingest_failure(self, mock_serve, mock_run_ingest, mock_start_server):
         """Test main() handles ingestion failure."""
         mock_run_ingest.side_effect = Exception("Ingestion failed")
-        
+
         with patch("sys.argv", ["rag.py", "--ingest"]):
             with patch("builtins.print"):  # Suppress print output
                 with pytest.raises(Exception, match="Ingestion failed"):
                     main()
-        
+
         mock_run_ingest.assert_called_once()
         mock_serve.assert_not_called()
 
@@ -172,12 +199,12 @@ class TestMainFunction:
     def test_main_keyboard_interrupt(self, mock_serve, mock_run_ingest, mock_start_server):
         """Test main() handles KeyboardInterrupt gracefully."""
         mock_run_ingest.side_effect = KeyboardInterrupt()
-        
+
         with patch("sys.argv", ["rag.py", "--ingest"]):
             with patch("builtins.print"):  # Suppress print output
                 with pytest.raises(KeyboardInterrupt):
                     main()
-        
+
         mock_run_ingest.assert_called_once()
 
 
@@ -190,7 +217,7 @@ class TestServeFunction:
         """Test serve() starts server successfully."""
         mock_app = MagicMock()
         mock_make_app.return_value = mock_app
-        
+
         with patch("rag.API_HOST", "0.0.0.0"):
             with patch("rag.API_PORT", 9000):
                 with patch("builtins.print"):  # Suppress print output
@@ -198,7 +225,7 @@ class TestServeFunction:
                     mock_uvicorn_run.side_effect = KeyboardInterrupt()
                     with pytest.raises(KeyboardInterrupt):
                         serve()
-        
+
         mock_make_app.assert_called_once()
         mock_uvicorn_run.assert_called_once_with(mock_app, host="0.0.0.0", port=9000, reload=False)
 
@@ -207,11 +234,11 @@ class TestServeFunction:
     def test_serve_app_creation_failure(self, mock_make_app, mock_uvicorn_run):
         """Test serve() handles app creation failure."""
         mock_make_app.side_effect = Exception("App creation failed")
-        
+
         with patch("builtins.print"):  # Suppress print output
             with pytest.raises(Exception, match="App creation failed"):
                 serve()
-        
+
         mock_make_app.assert_called_once()
         mock_uvicorn_run.assert_not_called()
 
@@ -222,13 +249,13 @@ class TestServeFunction:
         mock_app = MagicMock()
         mock_make_app.return_value = mock_app
         mock_uvicorn_run.side_effect = Exception("Uvicorn failed")
-        
+
         with patch("rag.API_HOST", "0.0.0.0"):
             with patch("rag.API_PORT", 9000):
                 with patch("builtins.print"):  # Suppress print output
                     with pytest.raises(Exception, match="Uvicorn failed"):
                         serve()
-        
+
         mock_make_app.assert_called_once()
         mock_uvicorn_run.assert_called_once()
 
@@ -239,13 +266,13 @@ class TestServeFunction:
         mock_app = MagicMock()
         mock_make_app.return_value = mock_app
         mock_uvicorn_run.side_effect = KeyboardInterrupt()
-        
+
         with patch("rag.API_HOST", "localhost"):
             with patch("rag.API_PORT", 8080):
                 with patch("builtins.print") as mock_print:
                     with pytest.raises(KeyboardInterrupt):
                         serve()
-        
+
         # Check that info message was printed
         mock_print.assert_any_call("[INFO] Starting server on localhost:8080")
 
@@ -253,6 +280,7 @@ class TestServeFunction:
 # ============================================================================
 # GCS Sync Functions
 # ============================================================================
+
 
 class TestGetGCSClient:
     """Tests for _get_gcs_client function."""
@@ -271,9 +299,9 @@ class TestGetGCSClient:
         # Use spec to limit mock attributes and reduce memory
         mock_getenv.return_value = "/path/to/key.json"
         mock_exists.return_value = True
-        mock_creds = Mock(spec=['__class__'])  # Minimal spec
+        mock_creds = Mock(spec=["__class__"])  # Minimal spec
         mock_sa.Credentials.from_service_account_file.return_value = mock_creds
-        mock_client = Mock(spec=['bucket', '__class__'])  # Only needed methods
+        mock_client = Mock(spec=["bucket", "__class__"])  # Only needed methods
         mock_storage.Client.return_value = mock_client
 
         result = _get_gcs_client()
@@ -290,7 +318,7 @@ class TestGetGCSClient:
         """Test GCS client creation without key file (default credentials)."""
         mock_getenv.return_value = "/path/to/key.json"
         mock_exists.return_value = False
-        mock_client = Mock(spec=['bucket', '__class__'])  # Minimal spec
+        mock_client = Mock(spec=["bucket", "__class__"])  # Minimal spec
         mock_storage.Client.return_value = mock_client
 
         result = _get_gcs_client()
@@ -322,8 +350,8 @@ class TestDownloadChromaDBFromGCS:
     def test_download_chromadb_bucket_not_exists(self, mock_touch, mock_dirname, mock_makedirs, mock_get_client):
         """Test download when bucket doesn't exist."""
         # Use minimal mocks with spec to reduce memory
-        mock_client = Mock(spec=['bucket'])
-        mock_bucket = Mock(spec=['exists', 'list_blobs'])
+        mock_client = Mock(spec=["bucket"])
+        mock_bucket = Mock(spec=["exists", "list_blobs"])
         mock_bucket.exists.return_value = False
         mock_client.bucket.return_value = mock_bucket
         mock_get_client.return_value = mock_client
@@ -342,12 +370,12 @@ class TestDownloadChromaDBFromGCS:
     def test_download_chromadb_with_blobs(self, mock_touch, mock_dirname, mock_join, mock_makedirs, mock_get_client):
         """Test download with actual blobs - use minimal mocks."""
         # Use spec to limit mock attributes and reduce memory
-        mock_client = Mock(spec=['bucket'])
-        mock_bucket = Mock(spec=['exists', 'list_blobs'])
+        mock_client = Mock(spec=["bucket"])
+        mock_bucket = Mock(spec=["exists", "list_blobs"])
         mock_bucket.exists.return_value = True
 
         # Create minimal mock blob - only needed attributes
-        mock_blob = Mock(spec=['name', 'size', 'download_to_filename'])
+        mock_blob = Mock(spec=["name", "size", "download_to_filename"])
         mock_blob.name = "chromadb/test_file.txt"
         mock_blob.size = 100  # Small size for memory efficiency
         mock_blob.download_to_filename = Mock()
@@ -410,10 +438,10 @@ class TestUploadChromaDBToGCS:
         mock_walk.return_value = [("/local/path", [], ["file1.txt"])]
 
         # Use spec to limit mock attributes
-        mock_client = Mock(spec=['bucket'])
-        mock_bucket = Mock(spec=['exists', 'blob'])
+        mock_client = Mock(spec=["bucket"])
+        mock_bucket = Mock(spec=["exists", "blob"])
         mock_bucket.exists.return_value = True
-        mock_blob = Mock(spec=['exists', 'reload', 'md5_hash', 'upload_from_filename'])
+        mock_blob = Mock(spec=["exists", "reload", "md5_hash", "upload_from_filename"])
         mock_blob.exists.return_value = False
         mock_blob.reload = Mock()
         mock_blob.md5_hash = None
@@ -423,7 +451,7 @@ class TestUploadChromaDBToGCS:
         mock_get_client.return_value = mock_client
 
         mock_getsize.return_value = 10  # Smaller size for memory efficiency
-        mock_md5_obj = Mock(spec=['hexdigest'])
+        mock_md5_obj = Mock(spec=["hexdigest"])
         mock_md5_obj.hexdigest.return_value = "abc123"
         mock_md5.return_value = mock_md5_obj
 
@@ -454,16 +482,18 @@ class TestStartChromaDBServer:
     @patch("os.getenv")
     @patch("os.environ.copy")
     @patch("threading.Thread")  # Mock threading to prevent background threads
-    def test_start_chromadb_server_success(self, mock_thread, mock_env_copy, mock_getenv, mock_download, mock_socket, mock_popen):
+    def test_start_chromadb_server_success(
+        self, mock_thread, mock_env_copy, mock_getenv, mock_download, mock_socket, mock_popen
+    ):
         """Test successful ChromaDB server start."""
         mock_getenv.return_value = "test-bucket"
         mock_env_copy.return_value = {"CHROMA_TELEMETRY_DISABLED": "1"}
         # Use spec to limit mock attributes
-        mock_sock = Mock(spec=['connect_ex', 'close'])
+        mock_sock = Mock(spec=["connect_ex", "close"])
         mock_sock.connect_ex.return_value = 1  # Port not in use
         mock_sock.close = Mock()
         mock_socket.return_value = mock_sock
-        
+
         # Mock process with attributes needed by background threads
         mock_process = Mock()
         mock_process.poll.return_value = None  # Process still running
@@ -472,7 +502,7 @@ class TestStartChromaDBServer:
         mock_process.stdout.readline = Mock(return_value="")  # Empty line to stop iteration
         mock_process.stdout.read = Mock(return_value="")
         mock_popen.return_value = mock_process
-        
+
         # Mock threading to prevent actual background threads from starting
         mock_thread.return_value.start = Mock()
 
@@ -487,7 +517,7 @@ class TestStartChromaDBServer:
         """Test ChromaDB server already running."""
         mock_getenv.return_value = "test-bucket"
         # Use spec to limit mock attributes
-        mock_sock = Mock(spec=['connect_ex', 'close'])
+        mock_sock = Mock(spec=["connect_ex", "close"])
         mock_sock.connect_ex.return_value = 0  # Port in use
         mock_sock.close = Mock()
         mock_socket.return_value = mock_sock
@@ -496,13 +526,13 @@ class TestStartChromaDBServer:
         _start_chromadb_server()
 
 
-
 class TestCleanupChromaDBServer:
     """Tests for _cleanup_chromadb_server function."""
 
     def teardown_method(self):
         """Clear mocks after each test."""
         import rag
+
         rag._chromadb_server_process = None
 
     @patch("os.getenv")
@@ -511,10 +541,11 @@ class TestCleanupChromaDBServer:
     def test_cleanup_with_no_server_process(self, mock_getenv):
         """Test cleanup when no server process exists."""
         import rag
+
         rag._chromadb_server_process = None
-        
+
         _cleanup_chromadb_server()
-        
+
         # Should complete without errors
         assert True
 
@@ -525,17 +556,17 @@ class TestCleanupChromaDBServer:
         """Test cleanup terminates server process."""
         import rag
         import subprocess
-        
+
         # Mock process that terminates successfully
         mock_process = Mock()
         mock_process.terminate = Mock()
         mock_process.wait = Mock()
         mock_process.kill = Mock()
-        
+
         rag._chromadb_server_process = mock_process
-        
+
         _cleanup_chromadb_server()
-        
+
         mock_process.terminate.assert_called_once()
         mock_process.wait.assert_called_once_with(timeout=10)
         assert rag._chromadb_server_process is None
@@ -547,27 +578,27 @@ class TestCleanupChromaDBServer:
         """Test cleanup kills process on timeout."""
         import rag
         import subprocess
-        
+
         # Mock process that times out
         mock_process = Mock()
         mock_process.terminate = Mock()
         mock_process.wait = Mock(side_effect=subprocess.TimeoutExpired("cmd", 10))
         mock_process.kill = Mock()
-        
+
         rag._chromadb_server_process = mock_process
-        
+
         _cleanup_chromadb_server()
-        
+
         mock_process.terminate.assert_called_once()
         mock_process.wait.assert_called_once_with(timeout=10)
         mock_process.kill.assert_called_once()
         assert rag._chromadb_server_process is None
 
 
-
 # ============================================================================
 # Retriever Class
 # ============================================================================
+
 
 @pytest.fixture
 def mock_chromadb_collection():
@@ -685,6 +716,7 @@ class TestRetrieverQuery:
     def test_retriever_query_empty_or_invalid(self, mock_norm, mock_get_client, mock_chromadb_client, query_input):
         """Test Retriever query with empty/invalid input."""
         from rag import Retriever
+
         mock_get_client.return_value = mock_chromadb_client
         mock_norm.return_value = ""
         retriever = Retriever()
@@ -757,4 +789,3 @@ class TestRetrieverQuery:
         results = retriever.query("test", k=100)
         # Should not raise exception
         assert isinstance(results, list)
-

@@ -50,7 +50,7 @@ function Get-ChangedFiles {
     if ($ChangedOnly -and (Get-Command git -ErrorAction SilentlyContinue)) {
         $changed = git diff --name-only --diff-filter=ACMR HEAD 2>&1
         switch ($Component) {
-            "rag" { return $changed | Select-String "^src/rag/rag\.py$" }
+            "rag" { return $changed | Select-String "^src/rag/.*\.py$" }
             "quantamental" { return $changed | Select-String "^src/quantamental/.*\.py$" }
             "api-service" { return $changed | Select-String "^src/api-service/.*\.py$" }
         }
@@ -82,9 +82,9 @@ function Format-Lint-RAG {
     }
     
     Write-Host "[INFO] Formatting with black..."
-    # Only format rag.py (matching CI behavior, excludes tests)
+    # Match CI: format entire directory (including tests), exclude archived files
     $ErrorActionPreference = 'SilentlyContinue'
-    $formatResult = python -m black --line-length 120 src/rag/rag.py 2>&1 | Out-Null
+    $formatResult = python -m black --line-length 120 --exclude '/(__pycache__|\.venv|venv|_archived)/' src/rag/ 2>&1 | Out-Null
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[FAIL] RAG formatting failed" -ForegroundColor Red
@@ -92,9 +92,9 @@ function Format-Lint-RAG {
     }
     
     Write-Host "[INFO] Running flake8 linting..."
-    # Only lint rag.py (matching CI behavior, excludes tests)
+    # Match CI: lint entire directory (including tests), exclude archived files
     $ErrorActionPreference = 'SilentlyContinue'
-    $lintResult = python -m flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 src/rag/rag.py 2>&1 | Out-Null
+    $lintResult = python -m flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821,F541,E231 --exclude=_archived src/rag/ 2>&1 | Out-Null
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -eq 0) {
         $elapsed = [math]::Round(($(Get-Date) - $StartTime).TotalSeconds, 1)

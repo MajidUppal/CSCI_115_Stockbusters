@@ -55,10 +55,10 @@ def app_client(mock_retriever):
     ):
         # Import rag module inside patch context
         import rag
-        
+
         # Directly set _retriever_instance to mock (bypasses get_retriever entirely)
         rag._retriever_instance = mock_retriever
-        
+
         # Now import make_app - it will use the mocked instance
         from rag import make_app
 

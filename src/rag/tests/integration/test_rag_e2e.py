@@ -122,4 +122,3 @@ class TestRAGE2EPipeline:
         # Verify query results
         assert len(query_result) > 0
         assert "text" in query_result[0] or "document" in query_result[0]
-

@@ -31,28 +31,29 @@ import traceback
 _original_print = builtins.print
 _original_print_exc = traceback.print_exc
 
+
 def _filtered_print(*args, **kwargs):
     """Filter out GCS error messages from print output."""
     if args and len(args) > 0 and isinstance(args[0], str):
         msg = args[0]
-        if any(keyword in msg for keyword in [
-            "[ERROR] Failed to upload ChromaDB",
-            "Failed to initialize GCS client"
-        ]):
+        if any(keyword in msg for keyword in ["[ERROR] Failed to upload ChromaDB", "Failed to initialize GCS client"]):
             return  # Suppress this message
     _original_print(*args, **kwargs)
+
 
 def _filtered_print_exc(*args, **kwargs):
     """Filter out GCS-related tracebacks."""
     import sys
+
     exc_type, exc_value, exc_tb = sys.exc_info()
     if exc_value:
         exc_str = str(exc_value)
-        if any(keyword in exc_str for keyword in [
-            "GCS", "google.auth", "DefaultCredentialsError", "File  was not found"
-        ]):
+        if any(
+            keyword in exc_str for keyword in ["GCS", "google.auth", "DefaultCredentialsError", "File  was not found"]
+        ):
             return  # Suppress GCS-related tracebacks
     _original_print_exc(*args, **kwargs)
+
 
 # Apply patches immediately when conftest is imported
 builtins.print = _filtered_print
@@ -124,14 +125,11 @@ def sample_text():
     return "This is a sample document for testing. It contains multiple sentences. Each sentence has some content."
 
 
-
-
-
-
 @pytest.fixture(autouse=True)
 def mock_time_sleep(monkeypatch):
     """Mock time.sleep to speed up tests by removing waits."""
     import time
+
     monkeypatch.setattr(time, "sleep", lambda x: None)  # No-op sleep for speed
 
 
@@ -142,9 +140,10 @@ def clear_caches_after_test():
     # Clear caches after test
     try:
         import rag
-        if hasattr(rag, '_splitter_cache'):
+
+        if hasattr(rag, "_splitter_cache"):
             rag._splitter_cache.clear()
-        if hasattr(rag, '_embedding_cache'):
+        if hasattr(rag, "_embedding_cache"):
             rag._embedding_cache.clear()
     except (ImportError, AttributeError):
         pass

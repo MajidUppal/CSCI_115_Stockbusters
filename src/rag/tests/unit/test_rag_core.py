@@ -49,15 +49,19 @@ from rag import (
 # Core RAG Functions
 # ============================================================================
 
+
 class TestNormalizeQuery:
     """Tests for normalize_query function."""
 
-    @pytest.mark.parametrize("input_query,expected", [
-        ("What is ROE?", "what is roe?"),
-        ("  What   is   ROE?  ", "what is roe?"),
-        ("", ""),
-        ("   ", ""),
-    ])
+    @pytest.mark.parametrize(
+        "input_query,expected",
+        [
+            ("What is ROE?", "what is roe?"),
+            ("  What   is   ROE?  ", "what is roe?"),
+            ("", ""),
+            ("   ", ""),
+        ],
+    )
     def test_normalize_query_strings(self, input_query, expected):
         """Test query normalization for string inputs."""
         result = normalize_query(input_query)
@@ -72,11 +76,14 @@ class TestNormalizeQuery:
 class TestNorm:
     """Tests for _norm text normalization function."""
 
-    @pytest.mark.parametrize("text,expected_contains", [
-        ("  Hello   World  ", "Hello World"),
-        ("Hello\u2014World", ["Hello", "World"]),  # Em dash
-        ("Line 1\n\n\nLine 2", ["Line 1", "Line 2", "\n\n"]),  # Preserves paragraph breaks
-    ])
+    @pytest.mark.parametrize(
+        "text,expected_contains",
+        [
+            ("  Hello   World  ", "Hello World"),
+            ("Hello\u2014World", ["Hello", "World"]),  # Em dash
+            ("Line 1\n\n\nLine 2", ["Line 1", "Line 2", "\n\n"]),  # Preserves paragraph breaks
+        ],
+    )
     def test_norm_various_inputs(self, text, expected_contains):
         """Test text normalization for various inputs."""
         result = _norm(text)
@@ -150,7 +157,7 @@ class TestLoadFunctions:
         # Test with different markdown filename (should return empty)
         test_file = tmp_path / "other_file.md"
         test_file.write_text("## Some Feature\nContent here")
-        
+
         result = _load_md_feature_file(str(test_file))
         # Should return empty list for non-matching filename
         assert result == []
@@ -167,7 +174,7 @@ class TestLoadFunctions:
 **Meaning:** Meaning 2
 """
         test_file.write_text(md_content)
-        
+
         result = _load_full_md_file(str(test_file))
         # Should return single document with full content
         assert len(result) == 1
@@ -187,7 +194,7 @@ class TestLoadFunctions:
         """Test loading empty markdown file."""
         test_file = tmp_path / "empty.md"
         test_file.write_text("")
-        
+
         result = _load_full_md_file(str(test_file))
         # Should return single document with empty content (normalized)
         assert len(result) == 1
@@ -200,7 +207,7 @@ class TestLoadFunctions:
         # Content with extra whitespace that should be normalized
         md_content = "  Feature  \n\n  Content  \n  "
         test_file.write_text(md_content)
-        
+
         result = _load_full_md_file(str(test_file))
         # Should normalize whitespace
         assert len(result) == 1
@@ -273,10 +280,13 @@ class TestSemanticChunking:
         # First chunk should have overlap from second
         assert len(result[0]) >= len(chunks[0])
 
-    @pytest.mark.parametrize("overlap_sentences,should_change", [
-        (0, False),
-        (1, True),
-    ])
+    @pytest.mark.parametrize(
+        "overlap_sentences,should_change",
+        [
+            (0, False),
+            (1, True),
+        ],
+    )
     def test_apply_sentence_overlap(self, overlap_sentences, should_change):
         """Test sentence overlap with different overlap values."""
         chunks = ["Chunk 1", "Chunk 2"]
@@ -296,7 +306,6 @@ class TestSemanticChunking:
         assert len(result[1]) >= len(chunks[1])
 
 
-
 class TestEmbeddingFunctions:
     """Tests for embedding functions."""
 
@@ -308,6 +317,7 @@ class TestEmbeddingFunctions:
 
         # Reset global cache
         import rag
+
         rag._EMBEDDER = None
 
         result = get_embedder()
@@ -331,11 +341,14 @@ class TestEmbeddingFunctions:
 class TestUtilityFunctions:
     """Tests for utility functions."""
 
-    @pytest.mark.parametrize("text,expected_min", [
-        ("This is a test sentence with multiple words.", 1),
-        ("Hi", 1),
-        ("", 1),
-    ])
+    @pytest.mark.parametrize(
+        "text,expected_min",
+        [
+            ("This is a test sentence with multiple words.", 1),
+            ("Hi", 1),
+            ("", 1),
+        ],
+    )
     def test_approx_token_len(self, text, expected_min):
         """Test token length approximation for various inputs."""
         result = _approx_token_len(text)
@@ -365,6 +378,7 @@ class TestSemanticChunker:
 # ============================================================================
 # Internal Helper Functions
 # ============================================================================
+
 
 class TestCombineSentences:
     """Tests for _combine_sentences function."""
@@ -419,10 +433,13 @@ class TestCombineSentences:
             assert "Second." in item["combined_sentence"]
             assert "Third." in item["combined_sentence"]
 
-    @pytest.mark.parametrize("sentences,buffer_size,expected_len", [
-        ([{"sentence": "Only sentence."}], 1, 1),
-        ([], 1, 0),
-    ])
+    @pytest.mark.parametrize(
+        "sentences,buffer_size,expected_len",
+        [
+            ([{"sentence": "Only sentence."}], 1, 1),
+            ([], 1, 0),
+        ],
+    )
     def test_combine_sentences_edge_cases(self, sentences, buffer_size, expected_len):
         """Test combining single/empty sentence lists."""
         result = _combine_sentences(sentences, buffer_size=buffer_size)
@@ -434,10 +451,13 @@ class TestCombineSentences:
 class TestCalcCosineDistances:
     """Tests for _calc_cosine_distances function."""
 
-    @pytest.mark.parametrize("sentences,expected_dist_len,expected_sent_len", [
-        ([], 0, 0),
-        ([{"combined_sentence_embedding": np.array([1.0, 0.0, 0.0])}], 0, 1),
-    ])
+    @pytest.mark.parametrize(
+        "sentences,expected_dist_len,expected_sent_len",
+        [
+            ([], 0, 0),
+            ([{"combined_sentence_embedding": np.array([1.0, 0.0, 0.0])}], 0, 1),
+        ],
+    )
     def test_calc_cosine_distances_edge_cases(self, sentences, expected_dist_len, expected_sent_len):
         """Test with empty/single sentence lists."""
         distances, result = _calc_cosine_distances(sentences)
@@ -541,10 +561,13 @@ class TestSplitSentencesCached:
 class TestPackSentencesToTokenCap:
     """Tests for _pack_sentences_to_token_cap function."""
 
-    @pytest.mark.parametrize("text,max_tokens,expected_min_chunks", [
-        ("", 100, 0),
-        ("Short text that fits.", 100, 1),
-    ])
+    @pytest.mark.parametrize(
+        "text,max_tokens,expected_min_chunks",
+        [
+            ("", 100, 0),
+            ("Short text that fits.", 100, 1),
+        ],
+    )
     def test_pack_sentences_edge_cases(self, text, max_tokens, expected_min_chunks):
         """Test with empty/small text."""
         result = _pack_sentences_to_token_cap(text, max_tokens=max_tokens)
@@ -564,7 +587,6 @@ class TestPackSentencesToTokenCap:
         assert len(result) > 1
         # All chunks should be non-empty
         assert all(chunk.strip() for chunk in result)
-
 
     def test_pack_sentences_custom_regex(self):
         """Test with custom sentence split regex."""
@@ -586,11 +608,12 @@ class TestPackSentencesToTokenCap:
 def clear_splitter_cache():
     """Auto-clear splitter cache before and after each test."""
     import rag
+
     # Create fresh cache instance before test
     rag._splitter_cache = rag.SemanticSplitterCache()
     yield
     # Clear cache after test
-    if hasattr(rag, '_splitter_cache'):
+    if hasattr(rag, "_splitter_cache"):
         rag._splitter_cache.clear()
         rag._splitter_cache = rag.SemanticSplitterCache()
 
@@ -603,9 +626,10 @@ class TestGetSemanticSplitter:
     def test_get_semantic_splitter_creates_new(self, mock_chunker_class, mock_embed):
         """Test that splitter is created on first call."""
         import rag
+
         # Fixture already creates fresh cache, just reset mock
         mock_chunker_class.reset_mock()
-        
+
         mock_chunker_instance = Mock()
         mock_chunker_class.return_value = mock_chunker_instance
 
@@ -620,9 +644,10 @@ class TestGetSemanticSplitter:
     def test_get_semantic_splitter_caching(self, mock_chunker_class, mock_embed):
         """Test that splitter is cached for same parameters."""
         import rag
+
         # setup_method already creates fresh cache, just reset mock
         mock_chunker_class.reset_mock()
-        
+
         mock_chunker_instance = Mock()
         mock_chunker_class.return_value = mock_chunker_instance
 
@@ -630,8 +655,10 @@ class TestGetSemanticSplitter:
         # First call - should create new instance
         result1 = _get_semantic_splitter(sim_percentile=98.0, buffer_size=3)
         # Verify SemanticChunker was called
-        assert mock_chunker_class.call_count == 1, f"Expected 1 call, got {mock_chunker_class.call_count}. Cache size: {rag._splitter_cache.size()}"
-        
+        assert (
+            mock_chunker_class.call_count == 1
+        ), f"Expected 1 call, got {mock_chunker_class.call_count}. Cache size: {rag._splitter_cache.size()}"
+
         # Second call with same params - should use cache
         result2 = _get_semantic_splitter(sim_percentile=98.0, buffer_size=3)
 
@@ -645,14 +672,15 @@ class TestGetSemanticSplitter:
     def test_get_semantic_splitter_different_params(self, mock_chunker_class, mock_embed):
         """Test that different parameters create different splitters."""
         import rag
+
         # setup_method already creates fresh cache
         assert rag._splitter_cache.size() == 0, "Cache should be empty at start"
         mock_chunker_class.reset_mock()
-        
+
         # Create mock instances - use a list that we can index
         instances = [Mock(name=f"instance_{i}") for i in range(3)]
         call_count = [0]  # Use list for mutable closure
-        
+
         # Use callable for side_effect to return different instances
         def side_effect(*args, **kwargs):
             idx = call_count[0]
@@ -660,26 +688,34 @@ class TestGetSemanticSplitter:
             if idx < len(instances):
                 return instances[idx]
             return Mock()
-        
+
         mock_chunker_class.side_effect = side_effect
 
         # Use unique parameters to avoid collisions with other tests
         # Call with different parameters - each should create a new instance
         # Cache keys will be: "97.0_4", "96.0_4", "97.0_5" - all different
         result1 = _get_semantic_splitter(sim_percentile=97.0, buffer_size=4)
-        assert mock_chunker_class.call_count >= 1, f"First call should trigger SemanticChunker, got {mock_chunker_class.call_count}"
+        assert (
+            mock_chunker_class.call_count >= 1
+        ), f"First call should trigger SemanticChunker, got {mock_chunker_class.call_count}"
         assert rag._splitter_cache.size() == 1, "Cache should have 1 entry after first call"
-        
+
         result2 = _get_semantic_splitter(sim_percentile=96.0, buffer_size=4)
-        assert mock_chunker_class.call_count >= 2, f"Second call should trigger SemanticChunker, got {mock_chunker_class.call_count}"
+        assert (
+            mock_chunker_class.call_count >= 2
+        ), f"Second call should trigger SemanticChunker, got {mock_chunker_class.call_count}"
         assert rag._splitter_cache.size() == 2, "Cache should have 2 entries after second call"
-        
+
         result3 = _get_semantic_splitter(sim_percentile=97.0, buffer_size=5)
-        assert mock_chunker_class.call_count >= 3, f"Third call should trigger SemanticChunker, got {mock_chunker_class.call_count}"
+        assert (
+            mock_chunker_class.call_count >= 3
+        ), f"Third call should trigger SemanticChunker, got {mock_chunker_class.call_count}"
         assert rag._splitter_cache.size() == 3, "Cache should have 3 entries after third call"
 
         # Should create separate instances for different params (3 different cache keys)
-        assert mock_chunker_class.call_count == 3, f"Expected 3 calls, got {mock_chunker_class.call_count}. Cache size: {rag._splitter_cache.size()}"
+        assert (
+            mock_chunker_class.call_count == 3
+        ), f"Expected 3 calls, got {mock_chunker_class.call_count}. Cache size: {rag._splitter_cache.size()}"
         # Results should be different instances
         assert result1 != result2, "result1 and result2 should be different"
         assert result2 != result3, "result2 and result3 should be different"
@@ -690,13 +726,14 @@ class TestGetSemanticSplitter:
     def test_get_semantic_splitter_different_buffer_sizes(self, mock_chunker, mock_embed):
         """Test with different buffer sizes."""
         import rag
+
         rag._splitter_cache = SemanticSplitterCache()
-        
+
         mock_chunker.return_value = Mock()
-        
+
         result1 = _get_semantic_splitter(sim_percentile=95.0, buffer_size=1)
         result2 = _get_semantic_splitter(sim_percentile=95.0, buffer_size=2)
-        
+
         # Different buffer sizes should create different instances
         assert mock_chunker.call_count == 2
 
@@ -713,10 +750,13 @@ class TestRemoveHeadersFooters:
         assert "Chapter 1" not in result or "Main content" in result
         assert "Main content here" in result
 
-    @pytest.mark.parametrize("input_text,expected", [
-        ("", ""),
-        (None, None),  # None or "" both acceptable
-    ])
+    @pytest.mark.parametrize(
+        "input_text,expected",
+        [
+            ("", ""),
+            (None, None),  # None or "" both acceptable
+        ],
+    )
     def test_remove_headers_footers_edge_cases(self, input_text, expected):
         """Test with empty/None inputs."""
         result = _remove_headers_footers(input_text)
@@ -743,7 +783,6 @@ class TestRemoveHeadersFooters:
         assert "Content line" in result
 
 
-
 class TestFinalizeAndOutputChapter:
     """Tests for _finalize_and_output_chapter function."""
 
@@ -767,10 +806,13 @@ class TestFinalizeAndOutputChapter:
         assert "Page 2 content" in text
         assert "Test Book" in text
 
-    @pytest.mark.parametrize("chapter_title,has_title", [
-        ("Introduction", True),
-        ("", False),
-    ])
+    @pytest.mark.parametrize(
+        "chapter_title,has_title",
+        [
+            ("Introduction", True),
+            ("", False),
+        ],
+    )
     def test_finalize_and_output_chapter_variations(self, chapter_title, has_title):
         """Test chapter finalization with/without title."""
         items = []
@@ -808,6 +850,7 @@ class TestFinalizeAndOutputChapter:
 def clear_embedding_cache():
     """Auto-clear embedding cache before and after each test."""
     import rag
+
     rag._embedding_cache = {}
     yield
     rag._embedding_cache = {}
@@ -832,9 +875,10 @@ class TestCachedEmbed:
     def test_cached_embed_caching(self, mock_get_embedder):
         """Test that cached_embed uses cache on second call."""
         import rag
+
         # Ensure cache is empty (fixture should handle this)
         rag._embedding_cache = {}
-        
+
         mock_embedder = Mock()
         # Return a new iterator each time to avoid iterator exhaustion
         mock_embedder.query_embed.side_effect = [
@@ -915,7 +959,9 @@ class TestSemanticChunkerMethods:
     @patch("rag.semantic_embed")
     @patch("rag._split_sentences_cached")
     @patch("rag._approx_token_len")
-    def test_semantic_chunker_split_text_small(self, mock_approx_token_len, mock_split_sentences_cached, mock_semantic_embed):
+    def test_semantic_chunker_split_text_small(
+        self, mock_approx_token_len, mock_split_sentences_cached, mock_semantic_embed
+    ):
         """Test SemanticChunker.split_text with small text."""
         from rag import SemanticChunker
 
@@ -928,7 +974,6 @@ class TestSemanticChunkerMethods:
         # Should return chunks
         assert isinstance(result, list)
         assert len(result) >= 1
-
 
     @patch("rag.semantic_embed")
     def test_semantic_chunker_create_documents(self, mock_embed):
@@ -1021,28 +1066,29 @@ class TestApproxTokenLen:
 
     def test_approx_token_len_with_tiktoken_mock(self):
         """Test with mocked tiktoken."""
-        with patch("rag.USE_TIKTOKEN", True), \
-             patch("rag._TOK") as mock_tok:
+        with patch("rag.USE_TIKTOKEN", True), patch("rag._TOK") as mock_tok:
             mock_tok.encode.return_value = [1, 2, 3, 4, 5]
-            
+
             result = _approx_token_len("test text")
             assert result == 5
 
     def test_approx_token_len_tiktoken_exception(self):
         """Test fallback when tiktoken raises exception."""
-        with patch("rag.USE_TIKTOKEN", True), \
-             patch("rag._TOK") as mock_tok:
+        with patch("rag.USE_TIKTOKEN", True), patch("rag._TOK") as mock_tok:
             mock_tok.encode.side_effect = Exception("Encoding failed")
-            
+
             # Should fall back to heuristic
             result = _approx_token_len("test text")
             assert result >= 1
 
-    @pytest.mark.parametrize("text", [
-        "   \n\t  ",  # Whitespace only
-        "!!!@@@###$$$",  # Special characters
-        "Hello, world! How are you? I'm fine.",  # Mixed content
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "   \n\t  ",  # Whitespace only
+            "!!!@@@###$$$",  # Special characters
+            "Hello, world! How are you? I'm fine.",  # Mixed content
+        ],
+    )
     def test_approx_token_len_various_inputs(self, text):
         """Test with various text inputs."""
         result = _approx_token_len(text)
@@ -1055,6 +1101,7 @@ class TestApproxTokenLen:
 # Utility Functions
 # ============================================================================
 
+
 class TestLoadEnvFile:
     """Tests for _load_env_file function - simple and fast."""
 
@@ -1063,16 +1110,16 @@ class TestLoadEnvFile:
         # Create .env file
         env_file = tmp_path / ".env"
         env_file.write_text("TEST_VAR=test_value\nANOTHER_VAR=123\n")
-        
+
         # Clear any existing env vars
         monkeypatch.delenv("TEST_VAR", raising=False)
         monkeypatch.delenv("ANOTHER_VAR", raising=False)
-        
+
         # Mock Path(__file__).parent to point to tmp_path
         mock_path_instance = MagicMock()
         mock_path_instance.parent = tmp_path
         mock_path_instance.__truediv__ = lambda self, other: tmp_path / other
-        
+
         with patch("rag.Path", return_value=mock_path_instance):
             _load_env_file()
             # Function uses setdefault, so it won't override existing values
@@ -1083,21 +1130,24 @@ class TestLoadEnvFile:
         """Test .env file with comments."""
         env_file = tmp_path / ".env"
         env_file.write_text("# This is a comment\nTEST_VAR=value#inline comment\n# Another comment\n")
-        
+
         monkeypatch.delenv("TEST_VAR", raising=False)
-        
+
         mock_path_instance = MagicMock()
         mock_path_instance.parent = tmp_path
         mock_path_instance.__truediv__ = lambda self, other: tmp_path / other
-        
+
         with patch("rag.Path", return_value=mock_path_instance):
             _load_env_file()
             assert True  # Function executed
 
-    @pytest.mark.parametrize("file_exists,content", [
-        (False, None),  # No file
-        (True, "\n\nTEST_VAR=value\n\n"),  # Empty lines
-    ])
+    @pytest.mark.parametrize(
+        "file_exists,content",
+        [
+            (False, None),  # No file
+            (True, "\n\nTEST_VAR=value\n\n"),  # Empty lines
+        ],
+    )
     def test_load_env_file_edge_cases(self, tmp_path, monkeypatch, file_exists, content):
         """Test .env file edge cases."""
         if file_exists and content:
@@ -1117,10 +1167,12 @@ class TestTouchChromaDBFiles:
         """Test touching chroma.sqlite3 file."""
         sqlite_file = tmp_path / "chroma.sqlite3"
         sqlite_file.write_text("fake sqlite content")
-        
-        with patch("os.utime") as mock_utime, \
-             patch("os.path.exists", return_value=True), \
-             patch("os.path.getsize", return_value=100):
+
+        with (
+            patch("os.utime") as mock_utime,
+            patch("os.path.exists", return_value=True),
+            patch("os.path.getsize", return_value=100),
+        ):
             _touch_chromadb_files(str(tmp_path))
             # Should call utime on sqlite file
             assert mock_utime.called
@@ -1132,19 +1184,18 @@ class TestTouchChromaDBFiles:
         collection_dir.mkdir()
         (collection_dir / "file1.txt").write_text("content")
         (collection_dir / "file2.txt").write_text("content")
-        
-        with patch("os.utime") as mock_utime, \
-             patch("os.path.exists", return_value=True), \
-             patch("os.listdir", return_value=["collection1"]), \
-             patch("os.path.isdir", return_value=True), \
-             patch("os.walk") as mock_walk:
-            mock_walk.return_value = [
-                (str(collection_dir), [], ["file1.txt", "file2.txt"])
-            ]
+
+        with (
+            patch("os.utime") as mock_utime,
+            patch("os.path.exists", return_value=True),
+            patch("os.listdir", return_value=["collection1"]),
+            patch("os.path.isdir", return_value=True),
+            patch("os.walk") as mock_walk,
+        ):
+            mock_walk.return_value = [(str(collection_dir), [], ["file1.txt", "file2.txt"])]
             _touch_chromadb_files(str(tmp_path))
             # Should attempt to touch files
             assert True  # Function executed
-
 
 
 class TestGetChromaDBClient:
@@ -1156,9 +1207,9 @@ class TestGetChromaDBClient:
         """Test client creation without auth token."""
         mock_client = Mock()
         mock_http_client.return_value = mock_client
-        
+
         result = get_chromadb_client()
-        
+
         assert result == mock_client
         mock_http_client.assert_called_once_with(host="localhost", port=8000)
 
@@ -1171,13 +1222,12 @@ class TestGetChromaDBClient:
         mock_http_client.return_value = mock_client
         mock_settings_instance = Mock()
         mock_settings.return_value = mock_settings_instance
-        
+
         result = get_chromadb_client()
-        
+
         assert result == mock_client
         mock_settings.assert_called_once()
         mock_http_client.assert_called_once()
-
 
 
 class TestSemanticSplitterCache:
@@ -1196,7 +1246,7 @@ class TestSemanticSplitterCache:
             mock_chunker.return_value = Mock()
             cache.get_splitter(sim_percentile=95.0, buffer_size=1)
             assert cache.size() > 0
-            
+
             cache.clear()
             assert cache.size() == 0
 
@@ -1204,12 +1254,12 @@ class TestSemanticSplitterCache:
         """Test cache size tracking."""
         cache = SemanticSplitterCache()
         assert cache.size() == 0
-        
+
         with patch("rag.SemanticChunker") as mock_chunker:
             mock_chunker.return_value = Mock()
             cache.get_splitter(sim_percentile=95.0, buffer_size=1)
             assert cache.size() == 1
-            
+
             # Different params = new entry
             cache.get_splitter(sim_percentile=96.0, buffer_size=1)
             assert cache.size() == 2
@@ -1217,18 +1267,18 @@ class TestSemanticSplitterCache:
     def test_semantic_splitter_cache_get_splitter_caching(self):
         """Test that get_splitter caches instances."""
         cache = SemanticSplitterCache()
-        
+
         with patch("rag.SemanticChunker") as mock_chunker:
             mock_instance = Mock()
             mock_chunker.return_value = mock_instance
-            
+
             # First call
             result1 = cache.get_splitter(sim_percentile=95.0, buffer_size=1)
             assert mock_chunker.call_count == 1
-            
+
             # Second call with same params
             result2 = cache.get_splitter(sim_percentile=95.0, buffer_size=1)
-            
+
             # Should return same instance, not create new one
             assert result1 == result2
             assert mock_chunker.call_count == 1  # Still only 1 call
@@ -1242,7 +1292,7 @@ class TestSignalHandler:
     def test_signal_handler_calls_cleanup_and_exits(self, mock_exit, mock_cleanup):
         """Test that _signal_handler calls cleanup and exits."""
         _signal_handler(15, None)  # SIGTERM = 15
-        
+
         mock_cleanup.assert_called_once()
         mock_exit.assert_called_once_with(0)
 
@@ -1251,7 +1301,6 @@ class TestSignalHandler:
     def test_signal_handler_with_different_signal(self, mock_exit, mock_cleanup):
         """Test _signal_handler with different signal number."""
         _signal_handler(2, None)  # SIGINT = 2
-        
+
         mock_cleanup.assert_called_once()
         mock_exit.assert_called_once_with(0)
-

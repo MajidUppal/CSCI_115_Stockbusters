@@ -55,24 +55,32 @@ def sample_data():
     """Sample data dictionary."""
     return {
         "sp500_tickers": ["AAPL", "MSFT"],
-        "ohlcv": pd.DataFrame({
-            "symbol": ["AAPL"],
-            "date": pd.to_datetime(["2023-01-01"]),
-            "close": [150.0],
-        }),
-        "fundamentals": pd.DataFrame({
-            "symbol": ["AAPL"],
-            "date": pd.to_datetime(["2023-01-01"]),
-            "roe": [0.25],
-        }),
-        "sp500_index": pd.DataFrame({
-            "date": pd.to_datetime(["2023-01-01"]),
-            "close": [4000.0],
-        }),
-        "company_profiles": pd.DataFrame({
-            "symbol": ["AAPL"],
-            "companyName": ["Apple Inc"],
-        }),
+        "ohlcv": pd.DataFrame(
+            {
+                "symbol": ["AAPL"],
+                "date": pd.to_datetime(["2023-01-01"]),
+                "close": [150.0],
+            }
+        ),
+        "fundamentals": pd.DataFrame(
+            {
+                "symbol": ["AAPL"],
+                "date": pd.to_datetime(["2023-01-01"]),
+                "roe": [0.25],
+            }
+        ),
+        "sp500_index": pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2023-01-01"]),
+                "close": [4000.0],
+            }
+        ),
+        "company_profiles": pd.DataFrame(
+            {
+                "symbol": ["AAPL"],
+                "companyName": ["Apple Inc"],
+            }
+        ),
     }
 
 
@@ -81,7 +89,9 @@ class TestRunDataCollection:
 
     @pytest.mark.unit
     @patch("main.FMPDataCollector")
-    def test_run_data_collection_calls_collector(self, mock_collector_class, sample_config):
+    def test_run_data_collection_calls_collector(
+        self, mock_collector_class, sample_config
+    ):
         """Test that run_data_collection calls collector."""
         mock_collector = MagicMock()
         mock_collector.collect_all = AsyncMock(return_value={"sp500_tickers": ["AAPL"]})
@@ -94,10 +104,12 @@ class TestRunDataCollection:
 
     @pytest.mark.unit
     @patch("main.FMPDataCollector")
-    def test_run_data_collection_force_refresh(self, mock_collector_class, sample_config, tmp_path):
+    def test_run_data_collection_force_refresh(
+        self, mock_collector_class, sample_config, tmp_path
+    ):
         """Test that force_refresh removes cache files."""
         sample_config["data"]["data_dir"] = str(tmp_path)
-        
+
         # Create cache files
         cache_dir = tmp_path
         (cache_dir / "ohlcv_raw.parquet").touch()
@@ -122,7 +134,9 @@ class TestRunDataProcessing:
     @pytest.mark.unit
     @patch("main.DataProcessor")
     @patch("main.pd.read_parquet")
-    def test_run_data_processing_with_data(self, mock_read, mock_processor_class, sample_config, sample_data):
+    def test_run_data_processing_with_data(
+        self, mock_read, mock_processor_class, sample_config, sample_data
+    ):
         """Test run_data_processing with provided data."""
         mock_processor = MagicMock()
         mock_processor.process_all.return_value = pd.DataFrame({"symbol": ["AAPL"]})
@@ -136,7 +150,9 @@ class TestRunDataProcessing:
     @pytest.mark.unit
     @patch("main.DataProcessor")
     @patch("main.pd.read_parquet")
-    def test_run_data_processing_loads_from_cache(self, mock_read, mock_processor_class, sample_config):
+    def test_run_data_processing_loads_from_cache(
+        self, mock_read, mock_processor_class, sample_config
+    ):
         """Test run_data_processing loads from cache when data not provided."""
         mock_read.return_value = pd.DataFrame({"symbol": ["AAPL"]})
         mock_processor = MagicMock()
@@ -156,7 +172,9 @@ class TestRunModelTraining:
     @patch("main.QuantamentalTrainer")
     @patch("main.validate_metrics")
     @patch("main.pd.read_parquet")
-    def test_run_model_training_with_validation(self, mock_read, mock_validate, mock_trainer_class, sample_config):
+    def test_run_model_training_with_validation(
+        self, mock_read, mock_validate, mock_trainer_class, sample_config
+    ):
         """Test run_model_training with validation."""
         mock_trainer = MagicMock()
         mock_trainer.train_with_wandb.return_value = (
@@ -165,14 +183,18 @@ class TestRunModelTraining:
             {"accuracy": 0.85, "f1_score": 0.80},  # metrics
         )
         mock_trainer_class.return_value = mock_trainer
-        mock_read.return_value = pd.DataFrame({
-            "symbol": ["AAPL"] * 100,
-            "date": pd.date_range("2023-01-01", periods=100),
-            "close": np.random.uniform(100, 200, 100),
-        })
+        mock_read.return_value = pd.DataFrame(
+            {
+                "symbol": ["AAPL"] * 100,
+                "date": pd.date_range("2023-01-01", periods=100),
+                "close": np.random.uniform(100, 200, 100),
+            }
+        )
         mock_validate.return_value = ("production", "OK")
 
-        model, scaler, metrics = run_model_training(sample_config, df=None, validate=True)
+        model, scaler, metrics = run_model_training(
+            sample_config, df=None, validate=True
+        )
 
         assert model is not None
         assert scaler is not None
@@ -182,7 +204,9 @@ class TestRunModelTraining:
     @pytest.mark.unit
     @patch("main.QuantamentalTrainer")
     @patch("main.HAS_MODEL_VALIDATION", False)
-    def test_run_model_training_without_validation(self, mock_trainer_class, sample_config):
+    def test_run_model_training_without_validation(
+        self, mock_trainer_class, sample_config
+    ):
         """Test run_model_training without validation module."""
         mock_trainer = MagicMock()
         mock_trainer.train_with_wandb.return_value = (
@@ -193,12 +217,16 @@ class TestRunModelTraining:
         mock_trainer_class.return_value = mock_trainer
 
         with patch("main.pd.read_parquet") as mock_read:
-            mock_read.return_value = pd.DataFrame({
-                "symbol": ["AAPL"] * 100,
-                "date": pd.date_range("2023-01-01", periods=100),
-            })
-            
-            model, scaler, metrics = run_model_training(sample_config, df=None, validate=False)
+            mock_read.return_value = pd.DataFrame(
+                {
+                    "symbol": ["AAPL"] * 100,
+                    "date": pd.date_range("2023-01-01", periods=100),
+                }
+            )
+
+            model, scaler, metrics = run_model_training(
+                sample_config, df=None, validate=False
+            )
 
             assert model is not None
             assert scaler is not None
@@ -211,11 +239,13 @@ class TestRunPrediction:
     @patch("main.QuantamentalPredictor")
     @patch("main.get_best_model")
     @patch("main.HAS_MODEL_VALIDATION", True)
-    def test_run_prediction_with_validated_model(self, mock_get_best, mock_predictor_class, sample_config):
+    def test_run_prediction_with_validated_model(
+        self, mock_get_best, mock_predictor_class, sample_config
+    ):
         """Test run_prediction uses validated model."""
         mock_model = MagicMock()
         mock_get_best.return_value = (mock_model, {"accuracy": 0.85}, "production")
-        
+
         mock_predictor = MagicMock()
         mock_predictor.predict_next_month.return_value = (
             pd.DataFrame({"symbol": ["AAPL"]}),
@@ -224,19 +254,25 @@ class TestRunPrediction:
         mock_predictor_class.return_value = mock_predictor
 
         with patch("main.pd.read_parquet") as mock_read:
-            mock_read.return_value = pd.DataFrame({
-                "symbol": ["AAPL"],
-                "date": pd.to_datetime(["2023-01-01"]),
-            })
+            mock_read.return_value = pd.DataFrame(
+                {
+                    "symbol": ["AAPL"],
+                    "date": pd.to_datetime(["2023-01-01"]),
+                }
+            )
 
-            df_predict, top_stocks = run_prediction(sample_config, df=None, use_validated_model=True)
+            df_predict, top_stocks = run_prediction(
+                sample_config, df=None, use_validated_model=True
+            )
 
             assert df_predict is not None
             assert top_stocks is not None
 
     @pytest.mark.unit
     @patch("main.QuantamentalPredictor")
-    def test_run_prediction_without_validated_model(self, mock_predictor_class, sample_config):
+    def test_run_prediction_without_validated_model(
+        self, mock_predictor_class, sample_config
+    ):
         """Test run_prediction without validated model."""
         mock_predictor = MagicMock()
         mock_predictor.predict_next_month.return_value = (
@@ -246,12 +282,16 @@ class TestRunPrediction:
         mock_predictor_class.return_value = mock_predictor
 
         with patch("main.pd.read_parquet") as mock_read:
-            mock_read.return_value = pd.DataFrame({
-                "symbol": ["AAPL"],
-                "date": pd.to_datetime(["2023-01-01"]),
-            })
+            mock_read.return_value = pd.DataFrame(
+                {
+                    "symbol": ["AAPL"],
+                    "date": pd.to_datetime(["2023-01-01"]),
+                }
+            )
 
-            df_predict, top_stocks = run_prediction(sample_config, df=None, use_validated_model=False)
+            df_predict, top_stocks = run_prediction(
+                sample_config, df=None, use_validated_model=False
+            )
 
             assert df_predict is not None
             assert top_stocks is not None
@@ -273,10 +313,12 @@ class TestRunBacktest:
         mock_backtester_class.return_value = mock_backtester
 
         with patch("main.pd.read_parquet") as mock_read:
-            mock_read.return_value = pd.DataFrame({
-                "symbol": ["AAPL"],
-                "date": pd.to_datetime(["2023-01-01"]),
-            })
+            mock_read.return_value = pd.DataFrame(
+                {
+                    "symbol": ["AAPL"],
+                    "date": pd.to_datetime(["2023-01-01"]),
+                }
+            )
 
             result = run_backtest(sample_config, df=None)
 
@@ -291,18 +333,22 @@ class TestRunRagReasoning:
     @patch("main.add_reasoning_to_combined_file")
     @patch("main.HAS_RAG", True)
     @patch("main.Path")
-    def test_run_rag_reasoning_success(self, mock_path, mock_add_reasoning, sample_config, tmp_path):
+    def test_run_rag_reasoning_success(
+        self, mock_path, mock_add_reasoning, sample_config, tmp_path
+    ):
         """Test run_rag_reasoning when RAG is available."""
         sample_config["data"]["data_dir"] = str(tmp_path)
         csv_path = f"{tmp_path}/combined.csv"
-        
+
         # Create CSV file
         pd.DataFrame({"symbol": ["AAPL"]}).to_csv(csv_path, index=False)
-        
+
         mock_path.return_value.exists.return_value = True
         mock_add_reasoning.return_value = f"{tmp_path}/combined_with_reasoning.csv"
 
-        result = run_rag_reasoning(sample_config, combined_csv_path=csv_path, sample_size=None)
+        result = run_rag_reasoning(
+            sample_config, combined_csv_path=csv_path, sample_size=None
+        )
 
         assert result is not None
         mock_add_reasoning.assert_called_once()
@@ -311,7 +357,9 @@ class TestRunRagReasoning:
     @patch("main.HAS_RAG", False)
     def test_run_rag_reasoning_no_rag_module(self, sample_config):
         """Test run_rag_reasoning when RAG module not available."""
-        result = run_rag_reasoning(sample_config, combined_csv_path=None, sample_size=None)
+        result = run_rag_reasoning(
+            sample_config, combined_csv_path=None, sample_size=None
+        )
 
         assert result is None
 
@@ -434,4 +482,3 @@ class TestRunFullPipeline:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

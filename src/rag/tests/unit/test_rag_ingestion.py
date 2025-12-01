@@ -23,18 +23,20 @@ except ImportError:
 @pytest.fixture
 def mock_ingestion_deps():
     """Shared fixture for common ingestion test dependencies."""
-    with patch("rag.get_chromadb_client") as mock_client, \
-         patch("rag.get_embedder") as mock_embedder, \
-         patch("rag.load_all") as mock_load, \
-         patch("rag.semantic_chunks") as mock_chunks, \
-         patch("rag._upload_chromadb_to_gcs") as mock_upload, \
-         patch("rag._approx_token_len") as mock_token_len, \
-         patch("rag.hashlib.md5") as mock_md5, \
-         patch("os.getenv") as mock_getenv, \
-         patch("os.path.join") as mock_join, \
-         patch("builtins.open", create=True) as mock_open, \
-         patch("time.time") as mock_time, \
-         patch("subprocess.check_output") as mock_subprocess:
+    with (
+        patch("rag.get_chromadb_client") as mock_client,
+        patch("rag.get_embedder") as mock_embedder,
+        patch("rag.load_all") as mock_load,
+        patch("rag.semantic_chunks") as mock_chunks,
+        patch("rag._upload_chromadb_to_gcs") as mock_upload,
+        patch("rag._approx_token_len") as mock_token_len,
+        patch("rag.hashlib.md5") as mock_md5,
+        patch("os.getenv") as mock_getenv,
+        patch("os.path.join") as mock_join,
+        patch("builtins.open", create=True) as mock_open,
+        patch("time.time") as mock_time,
+        patch("subprocess.check_output") as mock_subprocess,
+    ):
         yield {
             "client": mock_client,
             "embedder": mock_embedder,
@@ -79,11 +81,13 @@ def mock_embedder_setup(mock_ingestion_deps):
 @pytest.fixture
 def mock_file_loading():
     """Mock file loading operations."""
-    with patch("rag.glob.glob") as mock_glob, \
-         patch("rag.os.path.isfile", return_value=True) as mock_isfile, \
-         patch("rag._load_pdf") as mock_load_pdf, \
-         patch("rag._approx_token_len", return_value=50) as mock_token_len, \
-         patch("rag.hashlib.md5") as mock_md5_hash:
+    with (
+        patch("rag.glob.glob") as mock_glob,
+        patch("rag.os.path.isfile", return_value=True) as mock_isfile,
+        patch("rag._load_pdf") as mock_load_pdf,
+        patch("rag._approx_token_len", return_value=50) as mock_token_len,
+        patch("rag.hashlib.md5") as mock_md5_hash,
+    ):
         mock_glob.return_value = ["/workspace/data/test.pdf"]
         mock_load_pdf.return_value = [("test.pdf", "Sample content")]
         mock_md5_obj = Mock()
@@ -101,9 +105,7 @@ def mock_file_loading():
 class TestRunIngest:
     """Tests for run_ingest function."""
 
-    def test_run_ingest_success(
-        self, mock_ingestion_deps, mock_chromadb_setup, mock_embedder_setup, mock_file_loading
-    ):
+    def test_run_ingest_success(self, mock_ingestion_deps, mock_chromadb_setup, mock_embedder_setup, mock_file_loading):
         """Test successful ingestion."""
         try:
             from rag import run_ingest
@@ -460,7 +462,9 @@ class TestIngestionErrorPaths:
         # Verify the chunk ID pattern was checked
         call_args_list = mock_chromadb_setup["collection"].get.call_args_list
         # Should have a call with chunk ID pattern for PDF
-        chunk_id_calls = [call for call in call_args_list if call[1].get("ids") and "#chapter=1::chunk_0" in str(call[1]["ids"])]
+        chunk_id_calls = [
+            call for call in call_args_list if call[1].get("ids") and "#chapter=1::chunk_0" in str(call[1]["ids"])
+        ]
         assert len(chunk_id_calls) > 0
 
     def test_ingest_skip_existing_feature_file_pattern(
@@ -510,9 +514,7 @@ class TestIngestionErrorPaths:
         # Verify feature file chunk ID pattern was checked
         call_args_list = mock_chromadb_setup["collection"].get.call_args_list
         feature_calls = [
-            call
-            for call in call_args_list
-            if call[1].get("ids") and "#feature=first::chunk_0" in str(call[1]["ids"])
+            call for call in call_args_list if call[1].get("ids") and "#feature=first::chunk_0" in str(call[1]["ids"])
         ]
         assert len(feature_calls) > 0
 
@@ -573,6 +575,7 @@ class TestIngestionErrorPaths:
 # ============================================================================
 
 import builtins
+
 # Save real __import__ for fallback
 _real_import = builtins.__import__
 
@@ -597,23 +600,8 @@ class TestExtractPageText:
         mock_page = Mock()
         mock_page.get_text.return_value = {
             "blocks": [
-                {
-                    "lines": [
-                        {
-                            "spans": [{"text": "Line 1 "}, {"text": "continues"}]
-                        },
-                        {
-                            "spans": [{"text": "Line 2"}]
-                        }
-                    ]
-                },
-                {
-                    "lines": [
-                        {
-                            "spans": [{"text": "Paragraph 2"}]
-                        }
-                    ]
-                }
+                {"lines": [{"spans": [{"text": "Line 1 "}, {"text": "continues"}]}, {"spans": [{"text": "Line 2"}]}]},
+                {"lines": [{"spans": [{"text": "Paragraph 2"}]}]},
             ]
         }
 
@@ -631,20 +619,20 @@ class TestExtractPageText:
         """Test fallback to get_text('text') when dict fails."""
         mock_page = Mock()
         # First call (dict) raises exception
-        mock_page.get_text.side_effect = [
-            Exception("Dict method failed"),
-            "Simple text content"
-        ]
+        mock_page.get_text.side_effect = [Exception("Dict method failed"), "Simple text content"]
 
         result = _extract_page_text(mock_page, page_num=1, base="test.pdf")
 
         assert result == "Simple text content"
         assert mock_page.get_text.call_count == 2
 
-    @pytest.mark.parametrize("mock_behavior,expected", [
-        (Exception("All methods failed"), None),
-        ({"blocks": []}, None),
-    ])
+    @pytest.mark.parametrize(
+        "mock_behavior,expected",
+        [
+            (Exception("All methods failed"), None),
+            ({"blocks": []}, None),
+        ],
+    )
     def test_extract_page_text_failures(self, mock_behavior, expected):
         """Test returns None when extraction fails or blocks are empty."""
         mock_page = Mock()
@@ -659,12 +647,7 @@ class TestExtractPageText:
         """Test that image blocks (without 'lines') are skipped."""
         mock_page = Mock()
         mock_page.get_text.return_value = {
-            "blocks": [
-                {"type": 1},  # Image block, no 'lines' key
-                {
-                    "lines": [{"spans": [{"text": "Text content"}]}]
-                }
-            ]
+            "blocks": [{"type": 1}, {"lines": [{"spans": [{"text": "Text content"}]}]}]  # Image block, no 'lines' key
         }
 
         result = _extract_page_text(mock_page, page_num=1, base="test.pdf")
@@ -792,10 +775,13 @@ class TestExtractNonChapterSectionsFromTOC:
         assert 96 in result  # Glossary
         assert 99 in result  # List of Figures
 
-    @pytest.mark.parametrize("toc_behavior", [
-        ([], "empty"),
-        (Exception("TOC failed"), "exception"),
-    ])
+    @pytest.mark.parametrize(
+        "toc_behavior",
+        [
+            ([], "empty"),
+            (Exception("TOC failed"), "exception"),
+        ],
+    )
     def test_extract_non_chapter_sections_errors(self, toc_behavior):
         """Test handles TOC errors."""
         mock_doc = Mock()
@@ -831,13 +817,10 @@ class TestFinalizeAndOutputChapterPDF:
         chapter_data = {
             "chapter_num": "1",
             "chapter_title": "Introduction",
-            "pages": [(1, "Page 1 text"), (2, "Page 2 text")]
+            "pages": [(1, "Page 1 text"), (2, "Page 2 text")],
         }
 
-        _finalize_and_output_chapter(
-            chapter_data, items, "/path/to/doc.pdf", "doc.pdf",
-            {"title": "Test Book"}, 10
-        )
+        _finalize_and_output_chapter(chapter_data, items, "/path/to/doc.pdf", "doc.pdf", {"title": "Test Book"}, 10)
 
         assert len(items) == 1
         source, text = items[0]
@@ -847,18 +830,17 @@ class TestFinalizeAndOutputChapterPDF:
         assert "Page 2 text" in text
         assert "[Pages 1-2 of 10]" in text
 
-    @pytest.mark.parametrize("chapter_title,pages,expected_items", [
-        ("", [(5, "Content")], 1),  # No title
-        ("Test", [], 0),  # Empty pages
-    ])
+    @pytest.mark.parametrize(
+        "chapter_title,pages,expected_items",
+        [
+            ("", [(5, "Content")], 1),  # No title
+            ("Test", [], 0),  # Empty pages
+        ],
+    )
     def test_finalize_and_output_chapter_edge_cases(self, chapter_title, pages, expected_items):
         """Test chapter finalization edge cases."""
         items = []
-        chapter_data = {
-            "chapter_num": "1",
-            "chapter_title": chapter_title,
-            "pages": pages
-        }
+        chapter_data = {"chapter_num": "1", "chapter_title": chapter_title, "pages": pages}
         _finalize_and_output_chapter(chapter_data, items, "/path/doc.pdf", "doc.pdf", {}, 10)
         assert len(items) == expected_items
         if expected_items > 0:
@@ -870,12 +852,10 @@ class TestFinalizeAndOutputChapterPDF:
         chapter_data = {
             "chapter_num": "3",
             "chapter_title": "Advanced Topics / Special Cases",
-            "pages": [(10, "Content")]
+            "pages": [(10, "Content")],
         }
 
-        _finalize_and_output_chapter(
-            chapter_data, items, "/path/doc.pdf", "doc.pdf", {}, 20
-        )
+        _finalize_and_output_chapter(chapter_data, items, "/path/doc.pdf", "doc.pdf", {}, 20)
 
         source, _ = items[0]
         # Should sanitize special characters
@@ -894,12 +874,14 @@ class TestLoadPDF:
         """Test PDF loading without section filtering."""
         # Mock fitz import
         mock_fitz = MagicMock()
+
         def import_side_effect(name, *args, **kwargs):
-            if name == 'fitz':
+            if name == "fitz":
                 return mock_fitz
             return _real_import(name, *args, **kwargs)
+
         mock_import.side_effect = import_side_effect
-        
+
         # Setup mocks
         mock_doc = Mock()
         mock_doc.metadata = {"title": "Test Book"}
@@ -925,22 +907,25 @@ class TestLoadPDF:
     @patch("rag._extract_page_text")
     @patch("rag._finalize_and_output_chapter")
     @patch("builtins.__import__")
-    def test_load_pdf_with_chapter_filtering(self, mock_import, mock_finalize, mock_extract,
-                                             mock_remove, mock_norm, mock_non_chapter, mock_chapters):
+    def test_load_pdf_with_chapter_filtering(
+        self, mock_import, mock_finalize, mock_extract, mock_remove, mock_norm, mock_non_chapter, mock_chapters
+    ):
         """Test PDF loading with chapter filtering enabled."""
         # Mock fitz import
         mock_fitz = MagicMock()
+
         def import_side_effect(name, *args, **kwargs):
-            if name == 'fitz':
+            if name == "fitz":
                 return mock_fitz
             return _real_import(name, *args, **kwargs)
+
         mock_import.side_effect = import_side_effect
-        
+
         # Setup mocks
         mock_doc = Mock()
         mock_doc.metadata = {"title": "Test Book"}
         mock_doc.__len__ = Mock(return_value=5)
-        
+
         # Create mock pages
         mock_pages = [Mock() for _ in range(5)]
         mock_doc.__iter__ = Mock(return_value=iter(mock_pages))
@@ -949,7 +934,7 @@ class TestLoadPDF:
         # Setup chapter map
         mock_chapters.return_value = {
             2: {"chapter_number": "1", "chapter_title": "Introduction"},
-            4: {"chapter_number": "2", "chapter_title": "Methods"}
+            4: {"chapter_number": "2", "chapter_title": "Methods"},
         }
         mock_non_chapter.return_value = set()
 
@@ -966,12 +951,13 @@ class TestLoadPDF:
     @patch("builtins.__import__")
     def test_load_pdf_import_error(self, mock_import):
         """Test when PyMuPDF is not available."""
+
         # Make import raise ImportError for fitz
         def import_side_effect(name, *args, **kwargs):
-            if name == 'fitz':
+            if name == "fitz":
                 raise ImportError("No module named 'fitz'")
             return __import__(name, *args, **kwargs)
-        
+
         mock_import.side_effect = import_side_effect
 
         result = _load_pdf("/path/test.pdf")
@@ -988,12 +974,14 @@ class TestLoadPDF:
         """Test fallback when TOC is not available."""
         # Mock fitz import
         mock_fitz = MagicMock()
+
         def import_side_effect(name, *args, **kwargs):
-            if name == 'fitz':
+            if name == "fitz":
                 return mock_fitz
             return _real_import(name, *args, **kwargs)
+
         mock_import.side_effect = import_side_effect
-        
+
         mock_doc = Mock()
         mock_doc.metadata = {}
         mock_doc.__len__ = Mock(return_value=2)
@@ -1022,12 +1010,14 @@ class TestLoadPDF:
         """Test with pages that have no text."""
         # Mock fitz import
         mock_fitz = MagicMock()
+
         def import_side_effect(name, *args, **kwargs):
-            if name == 'fitz':
+            if name == "fitz":
                 return mock_fitz
             return _real_import(name, *args, **kwargs)
+
         mock_import.side_effect = import_side_effect
-        
+
         mock_doc = Mock()
         mock_doc.metadata = {}
         mock_doc.__len__ = Mock(return_value=3)
@@ -1054,17 +1044,20 @@ class TestLoadPDF:
     @patch("rag._extract_page_text")
     @patch("rag._finalize_and_output_chapter")
     @patch("builtins.__import__")
-    def test_load_pdf_filters_non_chapter_sections(self, mock_import, mock_finalize, mock_extract,
-                                                   mock_remove, mock_norm, mock_non_chapter, mock_chapters):
+    def test_load_pdf_filters_non_chapter_sections(
+        self, mock_import, mock_finalize, mock_extract, mock_remove, mock_norm, mock_non_chapter, mock_chapters
+    ):
         """Test that non-chapter sections are filtered out."""
         # Mock fitz import
         mock_fitz = MagicMock()
+
         def import_side_effect(name, *args, **kwargs):
-            if name == 'fitz':
+            if name == "fitz":
                 return mock_fitz
             return _real_import(name, *args, **kwargs)
+
         mock_import.side_effect = import_side_effect
-        
+
         mock_doc = Mock()
         mock_doc.metadata = {}
         mock_doc.__len__ = Mock(return_value=10)
@@ -1076,7 +1069,7 @@ class TestLoadPDF:
         mock_chapters.return_value = {
             2: {"chapter_number": "1", "chapter_title": "Ch1"},
             5: {"chapter_number": "2", "chapter_title": "Ch2"},
-            8: {"chapter_number": "3", "chapter_title": "Ch3"}
+            8: {"chapter_number": "3", "chapter_title": "Ch3"},
         }
         # Index at page 9
         mock_non_chapter.return_value = {9, 10}
@@ -1103,11 +1096,11 @@ class TestSaveFeature:
             "full_name_or_formula": "Test Formula",
             "meaning": "Test meaning",
             "interpretation_or_signal": "> 15%",
-            "financial_context": "Test context"
+            "financial_context": "Test context",
         }
-        
+
         _save_feature(items, path, feature, feature_data)
-        
+
         assert len(items) == 1
         # Path includes feature anchor: path#feature=Feature Name
         assert items[0][0] == f"{path}#feature={feature}"
@@ -1123,9 +1116,9 @@ class TestSaveFeature:
         path = "/test/path.md"
         feature = ""
         feature_data = {"meaning": "Test"}
-        
+
         _save_feature(items, path, feature, feature_data)
-        
+
         assert len(items) == 0
 
     def test_save_feature_minimal_data(self):
@@ -1134,9 +1127,9 @@ class TestSaveFeature:
         path = "/test/path.md"
         feature = "Minimal Feature"
         feature_data = {}
-        
+
         _save_feature(items, path, feature, feature_data)
-        
+
         assert len(items) == 1
         assert "Feature: Minimal Feature" in items[0][1]
 
@@ -1145,11 +1138,9 @@ class TestSaveFeature:
         items = []
         path = "/test/path.md"
         feature = "Threshold Feature"
-        feature_data = {
-            "interpretation_or_signal": ">15% and <30"
-        }
-        
+        feature_data = {"interpretation_or_signal": ">15% and <30"}
+
         _save_feature(items, path, feature, feature_data)
-        
+
         assert len(items) == 1
         assert "Thresholds:" in items[0][1]

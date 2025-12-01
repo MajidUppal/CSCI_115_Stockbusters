@@ -321,7 +321,7 @@ jobs:
           # Run linting
           if [ "${{ matrix.component }}" = "rag" ]; then
             docker run --rm ${{ matrix.image-name }}:${{ github.sha }} sh -c \
-              "black --check --line-length 120 rag.py && flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821 rag.py"
+              "black --check --line-length 120 --exclude '/(__pycache__|\.venv|venv|_archived)/' . && flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821,F541,E231 --exclude=_archived ."
             # Run unit tests with coverage
             docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
               -e PYTHONPATH="${{ matrix.venv-path }}:$PYTHONPATH" \

@@ -382,7 +382,7 @@ class TestVersioningMethods:
         """Test version_with_wandb creates W&B artifacts."""
         mock_run = MagicMock()
         mock_wandb.init.return_value = mock_run
-        
+
         mock_artifact = MagicMock()
         mock_artifact.version = 1
         mock_run.log_artifact.return_value = mock_artifact
@@ -393,7 +393,7 @@ class TestVersioningMethods:
         result = manager.version_with_wandb(
             f"{sample_data_files}/ohlcv_raw.parquet",
             f"{sample_data_files}/sp500_index.parquet",
-            version_tag="test_v1"
+            version_tag="test_v1",
         )
 
         assert result == "test_v1"
@@ -406,9 +406,7 @@ class TestVersioningMethods:
             manager = DataVersionManager(sample_config)
 
             result = manager.version_with_gcs(
-                "test_ohlcv.parquet",
-                "test_sp500.parquet",
-                version_tag="test"
+                "test_ohlcv.parquet", "test_sp500.parquet", version_tag="test"
             )
 
             assert "error" in result
@@ -422,7 +420,7 @@ class TestVersioningMethods:
             f"{sample_data_files}/ohlcv_raw.parquet",
             f"{sample_data_files}/sp500_index.parquet",
             fundamentals_path=f"{sample_data_files}/fundamentals_combined.parquet",
-            version_tag="test_v1"
+            version_tag="test_v1",
         )
 
         assert result["version_tag"] == "test_v1"
@@ -431,7 +429,7 @@ class TestVersioningMethods:
         assert "ohlcv_raw" in result["files"]
         assert "sp500_index" in result["files"]
         assert "fundamentals" in result["files"]
-        
+
         # Check metadata structure
         ohlcv_meta = result["files"]["ohlcv_raw"]
         assert "rows" in ohlcv_meta
