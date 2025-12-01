@@ -584,6 +584,7 @@ from rag import (
     _finalize_and_output_chapter,
     _remove_headers_footers,
     _norm,
+    _save_feature,
 )
 
 
@@ -1088,3 +1089,67 @@ class TestLoadPDF:
 
         # Should filter out pages 9 and 10 (Index)
         mock_doc.close.assert_called_once()
+
+
+class TestSaveFeature:
+    """Tests for _save_feature function."""
+
+    def test_save_feature_basic(self):
+        """Test _save_feature with basic feature data."""
+        items = []
+        path = "/test/path.md"
+        feature = "Test Feature"
+        feature_data = {
+            "full_name_or_formula": "Test Formula",
+            "meaning": "Test meaning",
+            "interpretation_or_signal": "> 15%",
+            "financial_context": "Test context"
+        }
+        
+        _save_feature(items, path, feature, feature_data)
+        
+        assert len(items) == 1
+        # Path includes feature anchor: path#feature=Feature Name
+        assert items[0][0] == f"{path}#feature={feature}"
+        assert "Feature: Test Feature" in items[0][1]
+        assert "Full Name or Formula: Test Formula" in items[0][1]
+        assert "Meaning: Test meaning" in items[0][1]
+        assert "Interpretation or Signal: > 15%" in items[0][1]
+        assert "Financial Context: Test context" in items[0][1]
+
+    def test_save_feature_empty_feature(self):
+        """Test _save_feature with empty feature name (should return early)."""
+        items = []
+        path = "/test/path.md"
+        feature = ""
+        feature_data = {"meaning": "Test"}
+        
+        _save_feature(items, path, feature, feature_data)
+        
+        assert len(items) == 0
+
+    def test_save_feature_minimal_data(self):
+        """Test _save_feature with minimal feature data."""
+        items = []
+        path = "/test/path.md"
+        feature = "Minimal Feature"
+        feature_data = {}
+        
+        _save_feature(items, path, feature, feature_data)
+        
+        assert len(items) == 1
+        assert "Feature: Minimal Feature" in items[0][1]
+
+    def test_save_feature_with_thresholds(self):
+        """Test _save_feature extracts thresholds from interpretation."""
+        items = []
+        path = "/test/path.md"
+        feature = "Threshold Feature"
+        feature_data = {
+            "interpretation_or_signal": ">15% and <30"
+        }
+        
+        _save_feature(items, path, feature, feature_data)
+        
+        assert len(items) == 1
+        assert "Thresholds:" in items[0][1]

@@ -41,6 +41,7 @@ from rag import (
     _touch_chromadb_files,
     get_chromadb_client,
     SemanticSplitterCache,
+    _signal_handler,
 )
 
 
@@ -1199,4 +1200,26 @@ class TestSemanticSplitterCache:
             # Should return same instance, not create new one
             assert result1 == result2
             assert mock_chunker.call_count == 1  # Still only 1 call
+
+
+class TestSignalHandler:
+    """Tests for _signal_handler function."""
+
+    @patch("rag._cleanup_chromadb_server")
+    @patch("sys.exit")
+    def test_signal_handler_calls_cleanup_and_exits(self, mock_exit, mock_cleanup):
+        """Test that _signal_handler calls cleanup and exits."""
+        _signal_handler(15, None)  # SIGTERM = 15
+        
+        mock_cleanup.assert_called_once()
+        mock_exit.assert_called_once_with(0)
+
+    @patch("rag._cleanup_chromadb_server")
+    @patch("sys.exit")
+    def test_signal_handler_with_different_signal(self, mock_exit, mock_cleanup):
+        """Test _signal_handler with different signal number."""
+        _signal_handler(2, None)  # SIGINT = 2
+        
+        mock_cleanup.assert_called_once()
+        mock_exit.assert_called_once_with(0)
 

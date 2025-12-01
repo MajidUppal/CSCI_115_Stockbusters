@@ -502,7 +502,66 @@ class TestCleanupChromaDBServer:
 
     def teardown_method(self):
         """Clear mocks after each test."""
-        pass
+        import rag
+        rag._chromadb_server_process = None
+
+    @patch("os.getenv")
+    @patch("rag.GCS_AVAILABLE", False)
+    @patch("rag._gcs_synced", False)
+    def test_cleanup_with_no_server_process(self, mock_getenv):
+        """Test cleanup when no server process exists."""
+        import rag
+        rag._chromadb_server_process = None
+        
+        _cleanup_chromadb_server()
+        
+        # Should complete without errors
+        assert True
+
+    @patch("os.getenv")
+    @patch("rag.GCS_AVAILABLE", False)
+    @patch("rag._gcs_synced", False)
+    def test_cleanup_terminates_server_process(self, mock_getenv):
+        """Test cleanup terminates server process."""
+        import rag
+        import subprocess
+        
+        # Mock process that terminates successfully
+        mock_process = Mock()
+        mock_process.terminate = Mock()
+        mock_process.wait = Mock()
+        mock_process.kill = Mock()
+        
+        rag._chromadb_server_process = mock_process
+        
+        _cleanup_chromadb_server()
+        
+        mock_process.terminate.assert_called_once()
+        mock_process.wait.assert_called_once_with(timeout=10)
+        assert rag._chromadb_server_process is None
+
+    @patch("os.getenv")
+    @patch("rag.GCS_AVAILABLE", False)
+    @patch("rag._gcs_synced", False)
+    def test_cleanup_kills_on_timeout(self, mock_getenv):
+        """Test cleanup kills process on timeout."""
+        import rag
+        import subprocess
+        
+        # Mock process that times out
+        mock_process = Mock()
+        mock_process.terminate = Mock()
+        mock_process.wait = Mock(side_effect=subprocess.TimeoutExpired("cmd", 10))
+        mock_process.kill = Mock()
+        
+        rag._chromadb_server_process = mock_process
+        
+        _cleanup_chromadb_server()
+        
+        mock_process.terminate.assert_called_once()
+        mock_process.wait.assert_called_once_with(timeout=10)
+        mock_process.kill.assert_called_once()
+        assert rag._chromadb_server_process is None
 
 
 

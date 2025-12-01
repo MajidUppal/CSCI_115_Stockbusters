@@ -23,6 +23,7 @@ router = APIRouter()
 # Request/Response Models
 class ChatMessage(BaseModel):
     "pydantic object for the Chat messages"
+
     message: str
 
     class Config:
@@ -31,6 +32,7 @@ class ChatMessage(BaseModel):
 
 class ChatResponse(BaseModel):
     "pydantic object for the Chat response"
+
     chat_id: str
     message: str
     user_preferences: Optional[Dict[str, Any]] = None
@@ -39,6 +41,7 @@ class ChatResponse(BaseModel):
 
 class ChatHistory(BaseModel):
     "pydantic object for chat history"
+
     chat_id: str
     messages: List[Dict[str, str]]
     user_preferences: Optional[Dict[str, Any]] = None

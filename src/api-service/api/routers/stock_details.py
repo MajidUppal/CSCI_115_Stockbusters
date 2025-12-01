@@ -187,7 +187,7 @@ async def generate_report(
 
 @router.get("/{model}/reports")
 async def get_reports(model: str, limit: int = 20, x_session_id: str = Header(None, alias="X-Session-ID")):
-    """"Generates reports for specific chats"""
+    """ "Generates reports for specific chats"""
     session_reports = reports_storage.get(x_session_id, [])
     sorted_reports = sorted(session_reports, key=lambda x: x.get("generated_at", ""), reverse=True)[:limit]
     return sorted_reports
