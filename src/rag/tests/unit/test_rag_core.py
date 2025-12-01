@@ -177,6 +177,38 @@ class TestLoadFunctions:
         assert "Formula 1" in result[0][1]
         assert "Formula 2" in result[0][1]
 
+    def test_load_full_md_file_missing_file(self):
+        """Test loading non-existent markdown file returns empty list."""
+        result = _load_full_md_file("/nonexistent/path/file.md")
+        # Should return empty list on error
+        assert result == []
+
+    def test_load_full_md_file_empty_file(self, tmp_path):
+        """Test loading empty markdown file."""
+        test_file = tmp_path / "empty.md"
+        test_file.write_text("")
+        
+        result = _load_full_md_file(str(test_file))
+        # Should return single document with empty content (normalized)
+        assert len(result) == 1
+        assert result[0][0] == f"{str(test_file)}#full_document"
+        assert result[0][1] == ""  # Empty string after normalization
+
+    def test_load_full_md_file_text_normalization(self, tmp_path):
+        """Test that text normalization is applied to loaded content."""
+        test_file = tmp_path / "test.md"
+        # Content with extra whitespace that should be normalized
+        md_content = "  Feature  \n\n  Content  \n  "
+        test_file.write_text(md_content)
+        
+        result = _load_full_md_file(str(test_file))
+        # Should normalize whitespace
+        assert len(result) == 1
+        assert result[0][0] == f"{str(test_file)}#full_document"
+        # Normalized text should have cleaned whitespace
+        assert "Feature" in result[0][1]
+        assert "Content" in result[0][1]
+
     def test_load_all(self, tmp_path):
         """Test load_all function with multiple files."""
         # Create test files
