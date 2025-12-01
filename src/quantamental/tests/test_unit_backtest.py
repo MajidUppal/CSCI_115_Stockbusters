@@ -347,6 +347,27 @@ class TestRunBacktest:
         assert hasattr(backtester, "gcs")
         assert hasattr(backtester, "output_folder")
 
+    @pytest.mark.unit
+    @patch("backtest.GCSHandler")
+    def test_create_ranked_output(self, mock_gcs, sample_config, sample_prediction_data):
+        """Test create_ranked_output creates ranked DataFrame"""
+        from backtest import QuantamentalBacktester
+
+        backtester = QuantamentalBacktester(sample_config)
+
+        # Add required columns if missing
+        if "pred_prob" not in sample_prediction_data.columns:
+            sample_prediction_data["pred_prob"] = np.random.uniform(0, 1, len(sample_prediction_data))
+        if "pred_rank" not in sample_prediction_data.columns:
+            sample_prediction_data["pred_rank"] = range(1, len(sample_prediction_data) + 1)
+
+        result = backtester.create_ranked_output(sample_prediction_data, top_n=10)
+
+        assert isinstance(result, pd.DataFrame)
+        assert "symbol" in result.columns
+        assert "pred_prob" in result.columns or "pred_prob_next_month" in result.columns
+        assert len(result) <= 10 if len(sample_prediction_data) > 10 else len(result) == len(sample_prediction_data)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

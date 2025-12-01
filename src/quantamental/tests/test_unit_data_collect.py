@@ -251,5 +251,200 @@ class TestConcurrency:
         assert collector.concurrency > 0
 
 
+class TestAsyncFetchMethods:
+    """Test async fetch methods."""
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_fetch_ohlcv_all_with_cache(self, tmp_path):
+        """Test fetch_ohlcv_all uses cache when available."""
+        config = load_config()
+        config["data"]["data_dir"] = str(tmp_path)
+        config["data"]["cache_enabled"] = True
+        collector = FMPDataCollector(config)
+
+        # Create cache file
+        cache_path = f"{collector.data_dir}/ohlcv_raw.parquet"
+        test_df = pd.DataFrame({
+            "symbol": ["AAPL", "MSFT"],
+            "date": pd.to_datetime(["2023-01-01", "2023-01-02"]),
+            "close": [150.0, 250.0],
+        })
+        test_df.to_parquet(cache_path, index=False)
+
+        result = await collector.fetch_ohlcv_all(["AAPL", "MSFT"])
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_fetch_fundamentals_symbol(self):
+        """Test fetch_fundamentals_symbol with mock."""
+        config = load_config()
+        collector = FMPDataCollector(config)
+
+        mock_session = MagicMock()
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value=[{
+            "date": "2023-01-01",
+            "roe": 0.25,
+            "roic": 0.15,
+        }])
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_resp))
+        )
+
+        result = await collector.fetch_fundamentals_symbol(mock_session, "AAPL", "quarter")
+
+        if result is not None:
+            assert isinstance(result, pd.DataFrame)
+            assert "symbol" in result.columns
+            assert "date" in result.columns
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_fetch_fundamentals_combined_with_cache(self, tmp_path):
+        """Test fetch_fundamentals_combined uses cache."""
+        config = load_config()
+        config["data"]["data_dir"] = str(tmp_path)
+        config["data"]["cache_enabled"] = True
+        collector = FMPDataCollector(config)
+
+        # Create cache file
+        cache_path = f"{collector.data_dir}/fundamentals_combined.parquet"
+        test_df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "date": pd.to_datetime(["2023-01-01"]),
+            "roe": [0.25],
+        })
+        test_df.to_parquet(cache_path, index=False)
+
+        result = await collector.fetch_fundamentals_combined(["AAPL"])
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_fetch_sp500_index_with_cache(self, tmp_path):
+        """Test fetch_sp500_index uses cache."""
+        config = load_config()
+        config["data"]["data_dir"] = str(tmp_path)
+        config["data"]["cache_enabled"] = True
+        collector = FMPDataCollector(config)
+
+        # Create cache file
+        cache_path = f"{collector.data_dir}/sp500_index.parquet"
+        test_df = pd.DataFrame({
+            "date": pd.to_datetime(["2023-01-01"]),
+            "close": [4000.0],
+            "return_1d": [0.01],
+        })
+        test_df.to_parquet(cache_path, index=False)
+
+        result = await collector.fetch_sp500_index()
+
+        assert isinstance(result, pd.DataFrame)
+        assert "symbol" in result.columns or len(result) > 0
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_fetch_company_profile(self):
+        """Test fetch_company_profile with mock."""
+        config = load_config()
+        collector = FMPDataCollector(config)
+
+        mock_session = MagicMock()
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value=[{
+            "symbol": "AAPL",
+            "companyName": "Apple Inc",
+            "sector": "Technology",
+        }])
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_resp))
+        )
+
+        result = await collector.fetch_company_profile(mock_session, "AAPL")
+
+        assert result is not None
+        assert isinstance(result, dict)
+        assert "symbol" in result
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_fetch_company_profiles_with_cache(self, tmp_path):
+        """Test fetch_company_profiles uses cache."""
+        config = load_config()
+        config["data"]["data_dir"] = str(tmp_path)
+        config["data"]["cache_enabled"] = True
+        collector = FMPDataCollector(config)
+
+        # Create cache file
+        cache_path = f"{collector.data_dir}/company_profiles.parquet"
+        test_df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "companyName": ["Apple Inc"],
+            "sector": ["Technology"],
+        })
+        test_df.to_parquet(cache_path, index=False)
+
+        result = await collector.fetch_company_profiles(["AAPL"])
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_collect_all_structure(self, tmp_path):
+        """Test collect_all returns correct structure."""
+        config = load_config()
+        config["data"]["data_dir"] = str(tmp_path)
+        config["data"]["cache_enabled"] = True
+        collector = FMPDataCollector(config)
+
+        # Create cache files for all data types
+        cache_dir = collector.data_dir
+        pd.DataFrame({"symbol": ["AAPL"]}).to_csv(f"{cache_dir}/sp500_tickers.csv", index=False)
+        
+        test_ohlcv = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "date": pd.to_datetime(["2023-01-01"]),
+            "close": [150.0],
+        })
+        test_ohlcv.to_parquet(f"{cache_dir}/ohlcv_raw.parquet", index=False)
+        
+        test_fund = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "date": pd.to_datetime(["2023-01-01"]),
+            "roe": [0.25],
+        })
+        test_fund.to_parquet(f"{cache_dir}/fundamentals_combined.parquet", index=False)
+        
+        test_sp500 = pd.DataFrame({
+            "date": pd.to_datetime(["2023-01-01"]),
+            "close": [4000.0],
+        })
+        test_sp500.to_parquet(f"{cache_dir}/sp500_index.parquet", index=False)
+        
+        test_profiles = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "companyName": ["Apple Inc"],
+        })
+        test_profiles.to_parquet(f"{cache_dir}/company_profiles.parquet", index=False)
+
+        result = await collector.collect_all()
+
+        assert isinstance(result, dict)
+        assert "sp500_tickers" in result
+        assert "ohlcv" in result
+        assert "fundamentals" in result
+        assert "sp500_index" in result
+        assert "company_profiles" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

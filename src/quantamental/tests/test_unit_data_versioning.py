@@ -373,5 +373,71 @@ class TestErrorHandling:
             assert "error" in result["input_files"]["ohlcv_raw"]
 
 
+class TestVersioningMethods:
+    """Test individual versioning methods."""
+
+    @pytest.mark.unit
+    @patch("data_versioning.wandb")
+    def test_version_with_wandb(self, mock_wandb, sample_config, sample_data_files):
+        """Test version_with_wandb creates W&B artifacts."""
+        mock_run = MagicMock()
+        mock_wandb.init.return_value = mock_run
+        
+        mock_artifact = MagicMock()
+        mock_artifact.version = 1
+        mock_run.log_artifact.return_value = mock_artifact
+        mock_wandb.Artifact = MagicMock(return_value=mock_artifact)
+
+        manager = DataVersionManager(sample_config)
+
+        result = manager.version_with_wandb(
+            f"{sample_data_files}/ohlcv_raw.parquet",
+            f"{sample_data_files}/sp500_index.parquet",
+            version_tag="test_v1"
+        )
+
+        assert result == "test_v1"
+        mock_wandb.init.assert_called_once()
+
+    @pytest.mark.unit
+    def test_version_with_gcs_no_gcs(self, sample_config):
+        """Test version_with_gcs returns error when GCS not available."""
+        with patch("data_versioning.HAS_GCS", False):
+            manager = DataVersionManager(sample_config)
+
+            result = manager.version_with_gcs(
+                "test_ohlcv.parquet",
+                "test_sp500.parquet",
+                version_tag="test"
+            )
+
+            assert "error" in result
+
+    @pytest.mark.unit
+    def test_save_input_data_snapshot_metadata(self, sample_config, sample_data_files):
+        """Test save_input_data_snapshot extracts metadata correctly."""
+        manager = DataVersionManager(sample_config)
+
+        result = manager.save_input_data_snapshot(
+            f"{sample_data_files}/ohlcv_raw.parquet",
+            f"{sample_data_files}/sp500_index.parquet",
+            fundamentals_path=f"{sample_data_files}/fundamentals_combined.parquet",
+            version_tag="test_v1"
+        )
+
+        assert result["version_tag"] == "test_v1"
+        assert "timestamp" in result
+        assert "files" in result
+        assert "ohlcv_raw" in result["files"]
+        assert "sp500_index" in result["files"]
+        assert "fundamentals" in result["files"]
+        
+        # Check metadata structure
+        ohlcv_meta = result["files"]["ohlcv_raw"]
+        assert "rows" in ohlcv_meta
+        assert "columns" in ohlcv_meta
+        assert ohlcv_meta["rows"] == 100  # From sample_data_files fixture
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

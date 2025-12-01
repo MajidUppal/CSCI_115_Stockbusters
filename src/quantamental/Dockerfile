@@ -57,6 +57,7 @@ COPY data_versioning.py .
 COPY hybrid_scoring.py .
 COPY model_train.py .
 COPY model_predict.py .
+COPY model_validation.py .
 COPY backtest.py .
 COPY main.py .
 COPY verify_setup.py .
