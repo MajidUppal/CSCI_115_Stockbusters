@@ -61,6 +61,13 @@ jobs:
               - 'src/quantamental/**'
             api-service:
               - 'src/api-service/**'
+      
+      - name: Debug change detection
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "RAG changed: ${{ steps.filter.outputs.rag }}"
+          echo "Quantamental changed: ${{ steps.filter.outputs.quantamental }}"
+          echo "API-service changed: ${{ steps.filter.outputs.api-service }}"
 
   # Unified build job with matrix strategy
   build:

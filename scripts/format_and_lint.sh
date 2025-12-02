@@ -28,26 +28,68 @@ echo "[INFO] Formatting and linting code..."
 
 # Check if black is installed (only once)
 # Try python -m black first (more reliable cross-platform)
-if ! python -m black --version &> /dev/null; then
-    if ! command -v black &> /dev/null; then
-        echo -e "${YELLOW}[WARN] black not found. Installing...${NC}"
-        pip install black > /dev/null 2>&1
-    fi
+# Use explicit Python command that works in both bash and PowerShell
+PYTHON_CMD="python"
+if ! command -v python >/dev/null 2>&1; then
+    PYTHON_CMD="python3"
+fi
+
+if $PYTHON_CMD -m black --version >/dev/null 2>&1; then
+    BLACK_CMD="$PYTHON_CMD -m black"
+elif command -v black >/dev/null 2>&1; then
     BLACK_CMD="black"
 else
-    BLACK_CMD="python -m black"
+    echo -e "${YELLOW}[WARN] black not found. Attempting to install (max 30s)...${NC}"
+    # Use timeout if available, otherwise try background install with kill
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 30 $PYTHON_CMD -m pip install black >/dev/null 2>&1 || true
+    else
+        # Fallback: run in background and kill after timeout
+        ($PYTHON_CMD -m pip install black >/dev/null 2>&1) &
+        INSTALL_PID=$!
+        sleep 30
+        kill $INSTALL_PID 2>/dev/null || true
+        wait $INSTALL_PID 2>/dev/null || true
+    fi
+    if $PYTHON_CMD -m black --version >/dev/null 2>&1; then
+        BLACK_CMD="$PYTHON_CMD -m black"
+    elif command -v black >/dev/null 2>&1; then
+        BLACK_CMD="black"
+    else
+        echo -e "${RED}[ERROR] Could not find or install black.${NC}"
+        echo -e "${YELLOW}[INFO] Please install manually: $PYTHON_CMD -m pip install black${NC}"
+        echo -e "${YELLOW}[INFO] On Windows, consider using: .\\scripts\\format_and_lint.ps1${NC}"
+        exit 1
+    fi
 fi
 
 # Check if flake8 is installed (only once)
 # Try python -m flake8 first (more reliable cross-platform)
-if ! python -m flake8 --version &> /dev/null; then
-    if ! command -v flake8 &> /dev/null; then
-        echo -e "${YELLOW}[WARN] flake8 not found. Installing...${NC}"
-        pip install flake8 > /dev/null 2>&1
-    fi
+if $PYTHON_CMD -m flake8 --version >/dev/null 2>&1; then
+    FLAKE8_CMD="$PYTHON_CMD -m flake8"
+elif command -v flake8 >/dev/null 2>&1; then
     FLAKE8_CMD="flake8"
 else
-    FLAKE8_CMD="python -m flake8"
+    echo -e "${YELLOW}[WARN] flake8 not found. Attempting to install (max 30s)...${NC}"
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 30 $PYTHON_CMD -m pip install flake8 >/dev/null 2>&1 || true
+    else
+        ($PYTHON_CMD -m pip install flake8 >/dev/null 2>&1) &
+        INSTALL_PID=$!
+        sleep 30
+        kill $INSTALL_PID 2>/dev/null || true
+        wait $INSTALL_PID 2>/dev/null || true
+    fi
+    if $PYTHON_CMD -m flake8 --version >/dev/null 2>&1; then
+        FLAKE8_CMD="$PYTHON_CMD -m flake8"
+    elif command -v flake8 >/dev/null 2>&1; then
+        FLAKE8_CMD="flake8"
+    else
+        echo -e "${RED}[ERROR] Could not find or install flake8.${NC}"
+        echo -e "${YELLOW}[INFO] Please install manually: $PYTHON_CMD -m pip install flake8${NC}"
+        echo -e "${YELLOW}[INFO] On Windows, consider using: .\\scripts\\format_and_lint.ps1${NC}"
+        exit 1
+    fi
 fi
 
 # Function to get changed Python files for a component
