@@ -1,2 +1,2 @@
-# CSCI-E 115 Stock Screener Project - Main
+# AC215/CSCIE-115 - Milestone 4: A Multi-Agent System for Stock Recommendations
 
