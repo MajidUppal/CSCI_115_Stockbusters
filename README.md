@@ -1,10 +1,10 @@
-## AC215/CSCIE-115 - Milestone 4: A Multi-Agent System for Stock Recommendations
+## AC215/CSCIE-115 - Milestone 5: A Multi-Agent System for Stock Recommendations
 
 **Team Members** : Majid Uppal, Sirisom Pranivong, Seraphim Eilken, Mahmood Masqati
 
 **Group Name**  Stock Busters
 
-**What is new in MS4?**
+**What is new in MS5?**
 
 This repository contains the development-ready version of the LLM-Powered Quantamental Stock Screener application for AC215/E115 Milestone 4.
 Milestone 4 focuses on:
@@ -21,7 +21,7 @@ Milestone 4 focuses on:
 
 - A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
 
-### Project Milestone 4 - Code Organization
+### Project Milestone 5 - Code Organization
 
 
 
