@@ -438,6 +438,26 @@ Base on the time stamp, the ML pipeline is executed successfully every morning a
 ---
 
 
+## Known Issues and Limitations
+
+### Model Limitations
+
+| Issue | Impact | Mitigation |
+|-------|--------|------------|
+| 43% Accuracy | Below 80% production threshold | Degraded status with monitoring |
+| Limited training window | May miss market cycles | Extend to 36 months |
+| No sentiment data | Missing social signals | Future: Add alternative data |
+
+### Infrastructure Limitations
+
+<!-- MAHMOOD & MAJID: Add limitations -->
+
+| Issue | Impact | Mitigation |
+|-------|--------|------------|
+| [TBD] | [TBD] | [TBD] |
+
+---
+
 
 
 
