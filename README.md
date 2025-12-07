@@ -39,17 +39,407 @@ Milestone 5 transforms our project from a **locally functional system** (MS4) to
 ## Application Screenshots
 
 *Welcome screen with stock recommendations*
-<img width="1272" height="527" alt="image" src="https://github.com/user-attachments/assets/bec01d2b-b21a-47fe-8d87-4dcf6259ebff" />
+<img width="1254" height="534" alt="image" src="https://github.com/user-attachments/assets/5317509e-af3a-4570-9d09-01c995de4192" />
 
 
-![Stock Details](docs/images/stock_details.png)
 *Individual stock analysis with price charts*
+  <img width="1286" height="1238" alt="image" src="https://github.com/user-attachments/assets/eea7490e-4997-46b0-ae05-4ca85484963c" />
+---
+
+# Technical Implementation
+
+This section documents how each MS5 deliverable requirement was met.
+
+---
+## 1. Kubernetes Deployment   <-- MAHMOOD & MAJID: Please complete this section -->
+
+   - Requirements Checklist
+   - Cluster Configuration
+   - Services Deployed
+   - Scaling Demonstration
+
+
+> **Requirement**: Deploy the application to a Kubernetes cluster. Demonstrate basic scaling behavior by varying the load and showing how the cluster responds.
+
+
+### Requirements Checklist  <-- MAHMOOD & MAJID: Please complete this section -->
+
+
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Application deployed to Kubernetes cluster | ✅ | [See Cluster Configuration](#cluster-configuration) |
+| Scaling behavior demonstrated | ✅ | [See Scaling Demonstration](#scaling-demonstration) |
+
+### Cluster Configuration   <-- MAHMOOD & MAJID: Please complete this section -->
+
+| Parameter | Value |
+|-----------|-------|
+| **Cluster Name** | `[TBD]` |
+| **Region** | `us-central1` |
+| **Node Pool** | `[TBD]` |
+| **Machine Type** | `[TBD]` |
+| **Min Nodes** | `[TBD]` |
+| **Max Nodes** | `[TBD]` |
+
+### Services Deployed   <-- MAHMOOD & MAJID: Please complete this section -->
+
+
+| Service | Type | Port | Description |
+|---------|------|------|-------------|
+| `frontend` | LoadBalancer | 3000 | Next.js web application |
+| `api-service` | ClusterIP | 9000 | FastAPI backend |
+| `rag-service` | ClusterIP | 9000 | RAG/ChromaDB service |
+
+### Deployment Commands <-- MAHMOOD & MAJID: Please update this section -->
+
+
+
+### Scaling Demonstration  <-- MAHMOOD & MAJID: Please update this section -->
+
+
+
+
+**Scaling Evidence:**
+
+
+<!-- Add screenshots showing:
+1. kubectl get pods BEFORE load
+2. Load test running
+3. kubectl get pods AFTER scaling
+4. kubectl get hpa showing metrics
+-->
 
 ---
 
-### Project Milestone 5 - Code Organization    <-- Seraphim/Mahmood/Majid/Siri  check your part
+## 2. Pulumi Infrastructure Code   <-- MAHMOOD & MAJID: Please complete this section -->
+
+> **Requirement**: Use Pulumi to automate the provisioning and deployment of your infrastructure (Kubernetes cluster, networking, storage, configurations) and application.
+
+   - Requirements Checklist
+   - Infrastructure Components
+   - Deployment Commands
+   - Configuration
+
+###  Requirements Checklist
+
+### Infrastructure Components
 
 
+### Project Structure
+
+### Pulumi Deployment
+
+### Configuration Example
+
+
+---
+
+## 3. CI/CD Pipeline (GitHub Actions)  <--- Seraphim : Please update this section
+
+> **Requirement**: Set up a CI/CD pipeline that includes unit tests for each service, integration tests, auto-deploy on merge to main, 60%+ coverage, and documentation of untested functions.
+
+   - Requirements Checklist
+   - Unit tests 
+   - Integration tests 
+   - Auto-deploy on merge 
+   - 62% coverage 
+   - Untested functions documented
+
+### ✅ Requirements Checklist   <-- mock example only. pls update
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Unit test suite for each service/container | ✅ | [See Test Structure](#test-structure) |
+| Integration tests on codebase | ✅ | [See Test Types](#test-types) |
+| Deploy on merge to `main` | ✅ | [See Deployment Pipeline](#deployment-pipeline) |
+| 60%+ line coverage | ✅ **62%** | [See Coverage Results](#coverage-results) |
+| Document untested functions | ✅ | [See Untested Functions](#untested-functions) |
+
+### Pipeline Architecture  <-- mock example only. pls update
+
+```
+┌─────────────────┐    ┌─────────────┐    ┌─────────────┐    ┌──────────────┐
+│ detect-changes  │───▶│    build    │───▶│    tests    │───▶│ test-summary │
+│                 │    │  (matrix)   │    │  (matrix)   │    │              │
+└─────────────────┘    └─────────────┘    └─────────────┘    └──────────────┘
+        │                    │                  │                    │
+   Identifies           Builds Docker      Runs lint,          Combines
+   changed              images for         unit, integration,  coverage
+   components           each component     system tests        reports
+```
+
+### Workflow Triggers
+
+
+### Test Structure <-- mock example only. pls update
+
+Each service has its own test suite:
+
+```
+src/
+├── rag/tests/
+│   ├── unit/           # Unit tests
+│   ├── integration/    # Integration tests
+│   └── system/         # System tests
+│
+├── quantamental/tests/
+│   ├── test_unit_*.py
+│   ├── test_integration_*.py
+│   └── test_system_*.py
+│
+└── api-service/tests/
+    ├── unit/
+    ├── integration/
+    └── system/
+```
+
+### Test Types <-- mock example only. pls update
+
+| Type | Marker | Purpose | Runs On |
+|------|--------|---------|---------|
+| **Unit** | `@pytest.mark.unit` | Test individual functions | All branches |
+| **Integration** | `@pytest.mark.integration` | Test component interactions | All branches |
+| **System** | `@pytest.mark.system` | End-to-end tests | main, develop only |
+
+### Coverage Results  <-- below is just a mock example. feel free to replace
+
+**Combined Coverage: 62%** ✅ (Exceeds 60% requirement)
+
+| Component | Line Coverage | Branch Coverage | Status |
+|-----------|--------------|-----------------|--------|
+| **RAG** | 72% | 66% | ✅ Excellent |
+| **Quantamental** | 45% | 35% | ✅ Adequate |
+| **API-service** | 68% | 63% | ✅ Good |
+| **Combined** | **62%** | - | ✅ **Meets requirement** |
+
+
+*Unified CI Pipeline showing 62% combined coverage snapshot*
+
+### Deployment Pipeline
+
+### Untested Functions
+
+> **Required**: Document which functions and modules are not covered by tests.
+
+---
+## 4. Machine Learning Workflow  < ---  Assigned to Siri
+
+> **Requirement**: Demonstrate a production-ready ML workflow including data preprocessing, training, evaluation, automated retraining, and validation checks.
+
+### ✅ Requirements Checklist
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Data preprocessing integrated | ✅ | [Steps 1-2](#pipeline-steps) |
+| Model training integrated | ✅ | [Step 3](#pipeline-steps) |
+| Evaluation integrated | ✅ | [Step 4](#pipeline-steps) |
+| Automated retraining on new data/code | ✅ | [Cloud Scheduler](#automated-retraining) |
+| Validation checks (performance thresholds) | ✅ | [Validation Framework](#validation-framework) |
+
+### Architecture
+
+```
+Cloud Scheduler (Daily 6 AM CT)
+        │
+        │ Triggers HTTP POST
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Cloud Run Job                            │
+│               (quantamental-pipeline)                       │
+│                                                             │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │                 7-Step Pipeline                     │   │
+│   │                                                     │   │
+│   │  Step 1: Data Collection ──────▶ FMP API            │   │
+│   │  Step 2: Feature Engineering ──▶ 30+ indicators     │   │
+│   │  Step 3: Model Training ───────▶ Random Forest      │   │
+│   │  Step 4: Model Validation ─────▶ Quality Gates      │   │
+│   │  Step 5: Prediction & Backtest ▶ Hybrid Scores      │   │
+│   │  Step 6: RAG Reasoning ────────▶ AI Explanations    │   │
+│   │  Step 7: Data Versioning ──────▶ W&B Artifacts      │   │
+│   │                                                     │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+   GCS Bucket  +  W&B Artifacts  +  Secret Manager
+```
+
+### Pipeline Steps
+
+| Step | Module | Description | Output |
+|------|--------|-------------|--------|
+| 1 | `data_collect.py` | Fetch OHLCV & fundamentals from FMP API | Raw data (431 stocks) |
+| 2 | `data_process.py` | Feature engineering (30+ indicators) | Training dataset |
+| 3 | `model_train.py` | Train Random Forest, log to W&B | Model artifacts |
+| 4 | `model_validation.py` | Quality gates (35%/80% thresholds) | Validation status |
+| 5 | `backtest.py` | Hybrid scoring, predictions | Buy/Hold/Avoid signals |
+| 6 | `generate_stock_reasoning.py` | RAG-powered explanations | AI reasoning |
+| 7 | `data_versioning.py` | Version artifacts to W&B | Versioned outputs |
+
+### Feature Engineering
+
+**Technical Indicators (8 features):**
+
+| Feature | Description |
+|---------|-------------|
+| `return_1m` | 1-month price return |
+| `ema_12`, `ema_26` | Exponential moving averages |
+| `macd`, `macd_signal`, `macd_hist` | MACD indicators |
+| `RSI_14` | Relative Strength Index |
+| `volatility_21d` | 21-day volatility |
+
+**Fundamental Indicators (22+ features):**
+
+| Category | Features |
+|----------|----------|
+| Profitability | `roe`, `roic`, `netProfitMargin`, `earningsYield` |
+| Valuation | `peRatio`, `pbRatio`, `evToEbitda`, `freeCashFlowYield` |
+| Leverage | `debtToEquity`, `netDebtToEBITDA`, `interestCoverage` |
+| Liquidity | `currentRatio`, `quickRatio`, `cashRatio` |
+| Growth | `revenueGrowth`, `earningsGrowth`, `dividendYield` |
+
+### Automated Retraining
+
+**Trigger: Cloud Scheduler**
+
+| Parameter | Value |
+|-----------|-------|
+| **Schedule** | `0 6 * * *` (Daily at 6 AM Central) |
+| **Timezone** | America/Chicago |
+| **Trigger Type** | HTTP POST to Cloud Run Job |
+
+**Retraining Flow:**
+
+```
+Cloud Scheduler (6 AM CT)
+        │
+        ▼
+Cloud Run Job executes main.py
+        │
+        ├──▶ Fetches latest market data (FMP API)
+        ├──▶ Recomputes features
+        ├──▶ Retrains model
+        ├──▶ Validates performance
+        ├──▶ Generates predictions
+        └──▶ Versions artifacts (W&B)
+```
+
+**Trigger Commands:**
+
+```bash
+# Manual trigger
+gcloud scheduler jobs run trigger-quantamental-pipeline --location=us-central1
+
+# View execution logs
+gcloud run jobs executions list --job=quantamental-pipeline --region=us-central1
+```
+
+### Validation Framework
+
+**Performance Thresholds:**
+
+| Status | Threshold | Action |
+|--------|-----------|--------|
+| 🟢 **Production** | ≥ 80% accuracy | Full deployment, no warnings |
+| 🟡 **Degraded** | ≥ 35% accuracy | Deploy with monitoring, log warnings |
+| 🔴 **Rejected** | < 35% accuracy | Block deployment, trigger alert |
+
+**Current Model Performance:**
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| **Accuracy** | 43.62% | 🟡 Degraded |
+| **Precision** | 44.60% | Below target |
+| **Recall** | 27.19% | Below target |
+| **F1-Score** | 33.79% | Below target |
+| **ROC-AUC** | 40.29% | Moderate |
+
+**Validation Code:**
+
+```python
+# model_validation.py
+def validate_model(metrics: dict) -> str:
+    accuracy = metrics['accuracy']
+    
+    if accuracy >= 0.80:
+        return "production"    # ✅ Full deployment
+    elif accuracy >= 0.35:
+        return "degraded"      # ⚠️ Deploy with warnings
+    else:
+        return "rejected"      # ❌ Block deployment
+```
+
+**Why 35% Minimum Threshold?**
+
+1. **Stock prediction is inherently difficult** - even professionals struggle to beat the market
+2. **Above random chance** - 35% exceeds random 3-class prediction (33%)
+3. **Probability scores add value** - rankings work even with moderate accuracy
+4. **Framework demonstration** - shows validation system works correctly
+5. **Transparency** - honest about limitations rather than hiding them
+
+### Data Versioning
+
+**W&B Artifacts:**
+
+| Artifact | Type | Versions |
+|----------|------|----------|
+| `input_fundamentals` | Dataset | v0-v1 |
+| `training-data` | Dataset | v0-v1 |
+| `quantamental-model` | Model | v0-v3 |
+| `backtest_output` | Results | v0-v3 |
+
+**Lineage Tracking:**
+
+```
+[training-data:v1] ──▶ [Run: giddy-firefly-27] ──▶ [quantamental-model:v3]
+                                │
+                                └──▶ [backtest_output:v3]
+```
+
+### Deployment Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| **Image** | `us-central1-docker.pkg.dev/stock-busters-cs115/stock-busters/quantamental-pipeline:latest` |
+| **CPU** | 2 cores |
+| **Memory** | 4 GB |
+| **Timeout** | 3600 seconds (1 hour) |
+| **Max Retries** | 1 |
+
+### ML Pipeline Commands
+
+```bash
+# Manual execution
+gcloud run jobs execute quantamental-pipeline --region=us-central1
+
+# View logs
+gcloud run jobs executions logs <execution-id> --region=us-central1
+
+# Update pipeline (after code changes)
+docker build -t us-central1-docker.pkg.dev/stock-busters-cs115/stock-busters/quantamental-pipeline:latest .
+docker push us-central1-docker.pkg.dev/stock-busters-cs115/stock-busters/quantamental-pipeline:latest
+gcloud run jobs update quantamental-pipeline \
+    --image=us-central1-docker.pkg.dev/stock-busters-cs115/stock-busters/quantamental-pipeline:latest \
+    --region=us-central1
+```
+
+---
+
+
+
+
+
+
+
+
+
+
+
+---
+### Milestone 5 - Code Organization    <-- Seraphim/Mahmood/Majid/Siri  check your part
 
 ```
 AC215_StockBusters/
@@ -167,6 +557,40 @@ AC215_StockBusters/
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+###  Milestone 4 README  <-- to be deleted later 
 ### Milestone4 : Development and Deployment ###
 
 Milestone 4 focuses on integrating all components developed in previous milestones into a complete, working application. The goal is to make your system fully functional and testable locally, with clean code organization, automated testing, and continuous integration in place.
