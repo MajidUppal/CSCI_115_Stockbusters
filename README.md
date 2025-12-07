@@ -223,17 +223,26 @@ src/
 > **Required**: Document which functions and modules are not covered by tests.
 
 ---
-## 4. Machine Learning Workflow  < ---  Assigned to Siri
+## 4. Machine Learning Workflow  
 
 > **Requirement**: Demonstrate a production-ready ML workflow including data preprocessing, training, evaluation, automated retraining, and validation checks.
 
+### Overview
 
+The Quantamental ML workflow has been deployed to **Google Cloud Run Jobs**, a serverless compute platform that enables scalable execution without infrastructure management. Automated daily retraining is orchestrated through **Google Cloud Scheduler**, configured to trigger pipeline execution at 6 AM Central Time to capture the latest market data before trading hours.
 
+### Why Cloud Run Jobs + Cloud Scheduler?
 
+Cloud Run Jobs and Cloud Scheduler were selected over Kubernetes-based solutions for the ML pipeline for several strategic reasons:
 
+| Reason | Benefit |
+|--------|---------|
+| **Pay-per-execution** | Pipeline only incurs costs during ~15-30 min daily execution, not 24/7 infrastructure |
+| **Operational simplicity** | No Kubernetes CronJobs, pod scheduling, or resource tuning for batch workloads |
+| **Automatic scaling** | CPU and memory provisioned on-demand without manual intervention |
+| **Native GCP integration** | Unified authentication, monitoring, and logging through single console |
 
-
-### ✅ Requirements Checklist
+### Requirements Checklist
 
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
@@ -243,47 +252,19 @@ src/
 | Automated retraining on new data/code | ✅ | [Cloud Scheduler](#automated-retraining) |
 | Validation checks (performance thresholds) | ✅ | [Validation Framework](#validation-framework) |
 
-### Architecture
+> **Architecture Pattern**: Kubernetes handles the user-facing application (high availability), while Cloud Run handles periodic batch ML workloads (cost-optimized). This separation of concerns optimizes both cost and operational overhead.
 
-```
-Cloud Scheduler (Daily 6 AM CT)
-        │
-        │ Triggers HTTP POST
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Cloud Run Job                            │
-│               (quantamental-pipeline)                       │
-│                                                             │
-│   ┌─────────────────────────────────────────────────────┐   │
-│   │                 7-Step Pipeline                     │   │
-│   │                                                     │   │
-│   │  Step 1: Data Collection ──────▶ FMP API            │   │
-│   │  Step 2: Feature Engineering ──▶ 30+ indicators     │   │
-│   │  Step 3: Model Training ───────▶ Random Forest      │   │
-│   │  Step 4: Model Validation ─────▶ Quality Gates      │   │
-│   │  Step 5: Prediction & Backtest ▶ Hybrid Scores      │   │
-│   │  Step 6: RAG Reasoning ────────▶ AI Explanations    │   │
-│   │  Step 7: Data Versioning ──────▶ W&B Artifacts      │   │
-│   │                                                     │   │
-│   └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-        │
-        ▼
-   GCS Bucket  +  W&B Artifacts  +  Secret Manager
-```
+### 7-Step Pipeline Workflow
 
-### Pipeline Steps
-
-| Step | Module | Description | Output |
-|------|--------|-------------|--------|
-| 1 | `data_collect.py` | Fetch OHLCV & fundamentals from FMP API | Raw data (431 stocks) |
-| 2 | `data_process.py` | Feature engineering (30+ indicators) | Training dataset |
-| 3 | `model_train.py` | Train Random Forest, log to W&B | Model artifacts |
-| 4 | `model_validation.py` | Quality gates (35%/80% thresholds) | Validation status |
-| 5 | `backtest.py` | Hybrid scoring, predictions | Buy/Hold/Avoid signals |
-| 6 | `generate_stock_reasoning.py` | RAG-powered explanations | AI reasoning |
-| 7 | `data_versioning.py` | Version artifacts to W&B | Versioned outputs |
+| Step | Module | Description |
+|------|--------|-------------|
+| 1 | `data_collect.py` | Fetch data from FMP API ( S&P 500 stocks) |
+| 2 | `data_process.py` | Feature engineering (30+ technical & fundamental indicators) |
+| 3 | `model_train.py` | Random Forest training with hyperparameter configuration |
+| 4 | `model_validation.py` | Validate against quality thresholds |
+| 5 | `backtest.py` | Generate predictions with hybrid scoring (Buy/Hold/Avoid) |
+| 6 | `generate_stock_reasoning.py` | RAG-powered reasoning via Vertex AI (optional) |
+| 7 | `data_versioning.py` | Version artifacts to W&B for reproducibility |
 
 ### Feature Engineering
 
@@ -306,6 +287,15 @@ Cloud Scheduler (Daily 6 AM CT)
 | Leverage | `debtToEquity`, `netDebtToEBITDA`, `interestCoverage` |
 | Liquidity | `currentRatio`, `quickRatio`, `cashRatio` |
 | Growth | `revenueGrowth`, `earningsGrowth`, `dividendYield` |
+
+### Security & Infrastructure
+
+| Component | Service | Purpose |
+|-----------|---------|---------|
+| **Secrets** | Google Secret Manager | Secure storage for FMP & W&B API keys |
+| **Container Images** | Google Artifact Registry | Version-controlled Docker images |
+| **Model Outputs** | Google Cloud Storage | Timestamped predictions & data files |
+| **Experiment Tracking** | Weights & Biases | Metrics, artifacts, and lineage tracking |
 
 ### Automated Retraining
 
@@ -333,25 +323,17 @@ Cloud Run Job executes main.py
         └──▶ Versions artifacts (W&B)
 ```
 
-**Trigger Commands:**
-
-```bash
-# Manual trigger
-gcloud scheduler jobs run trigger-quantamental-pipeline --location=us-central1
-
-# View execution logs
-gcloud run jobs executions list --job=quantamental-pipeline --region=us-central1
-```
-
 ### Validation Framework
 
-**Performance Thresholds:**
+The validation framework implements a three-tier classification system:
 
 | Status | Threshold | Action |
 |--------|-----------|--------|
-| 🟢 **Production** | ≥ 80% accuracy | Full deployment, no warnings |
-| 🟡 **Degraded** | ≥ 35% accuracy | Deploy with monitoring, log warnings |
-| 🔴 **Rejected** | < 35% accuracy | Block deployment, trigger alert |
+| 🟢 **Production** | ≥ 80% accuracy | Full deployment |
+| 🟡 **Degraded** | 35% - 79% accuracy | Deploy with monitoring |
+| 🔴 **Rejected** | < 35% accuracy | Block deployment |
+
+This automated quality gate ensures deployment reliability while maintaining transparency about model performance limitations.
 
 **Current Model Performance:**
 
@@ -362,21 +344,6 @@ gcloud run jobs executions list --job=quantamental-pipeline --region=us-central1
 | **Recall** | 27.19% | Below target |
 | **F1-Score** | 33.79% | Below target |
 | **ROC-AUC** | 40.29% | Moderate |
-
-**Validation Code:**
-
-```python
-# model_validation.py
-def validate_model(metrics: dict) -> str:
-    accuracy = metrics['accuracy']
-    
-    if accuracy >= 0.80:
-        return "production"    # ✅ Full deployment
-    elif accuracy >= 0.35:
-        return "degraded"      # ⚠️ Deploy with warnings
-    else:
-        return "rejected"      # ❌ Block deployment
-```
 
 **Why 35% Minimum Threshold?**
 
@@ -430,7 +397,43 @@ docker push us-central1-docker.pkg.dev/stock-busters-cs115/stock-busters/quantam
 gcloud run jobs update quantamental-pipeline \
     --image=us-central1-docker.pkg.dev/stock-busters-cs115/stock-busters/quantamental-pipeline:latest \
     --region=us-central1
+
+# Scheduler management
+gcloud scheduler jobs run trigger-quantamental-pipeline --location=us-central1  # Manual trigger
+gcloud scheduler jobs pause trigger-quantamental-pipeline --location=us-central1
+gcloud scheduler jobs resume trigger-quantamental-pipeline --location=us-central1
 ```
+## Snapshot Evidence
+
+## Cloud run Deployment on GCP
+
+Base on the time stamp, the ML pipeline is executed successfully every morning at 6AM CST.
+
+<img width="1907" height="581" alt="image" src="https://github.com/user-attachments/assets/ef954c42-3844-44e5-978d-0258dc2b2575" />
+
+**Cloud scheduler set up**
+
+<img width="932" height="585" alt="image" src="https://github.com/user-attachments/assets/6537bc41-7874-48a8-93de-0cafd1e9653b" />
+
+**Cloud Scheduler job**
+<img width="1596" height="260" alt="image" src="https://github.com/user-attachments/assets/4f620f5e-6a63-4929-b884-0a6a125c1ff4" />
+
+
+**GCP deployment**
+
+<img width="814" height="691" alt="image" src="https://github.com/user-attachments/assets/ff982684-734c-47d5-9e1d-0cf77c8e7b9c" />
+
+**GCP Log**
+
+<img width="807" height="932" alt="image" src="https://github.com/user-attachments/assets/c6ba264d-7170-4629-bac6-3d3bdc74c25f" />
+
+**Output link and update on W&B**
+
+<img width="1895" height="846" alt="image" src="https://github.com/user-attachments/assets/61773918-fbad-4205-a4b3-0fe432c46da1" />
+
+**Data versioning is tracked on W&B**
+
+<img width="745" height="343" alt="image" src="https://github.com/user-attachments/assets/72ff0787-f57e-4763-a748-8fa05af93603" />
 
 ---
 
@@ -439,7 +442,8 @@ gcloud run jobs update quantamental-pipeline \
 
 
 
-
+  
+---
 
 
 
