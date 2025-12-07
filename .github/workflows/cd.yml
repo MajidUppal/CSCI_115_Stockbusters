@@ -203,6 +203,6 @@ jobs:
           echo "- **App URL**: ${{ steps.deployment-outputs.outputs.app_url }}" >> $GITHUB_STEP_SUMMARY
           echo "- **IP Address**: ${{ steps.deployment-outputs.outputs.ip_address }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit**: ${{ github.event.workflow_run.head_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.event.workflow_run.head_sha || github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Authentication**: Workload Identity Federation (OIDC)" >> $GITHUB_STEP_SUMMARY
 

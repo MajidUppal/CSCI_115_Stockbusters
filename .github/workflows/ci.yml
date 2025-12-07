@@ -16,14 +16,14 @@ on:
       - 'src/quantamental/**'
       - 'src/api-service/**'
       - '.github/workflows/ci.yml'
-    branches: [main, develop, Milestone4]
+    branches: [main, develop, Milestone5]
   pull_request:
     paths:
       - 'src/rag/**'
       - 'src/quantamental/**'
       - 'src/api-service/**'
       - '.github/workflows/ci.yml'
-    branches: [main, develop, Milestone4]
+    branches: [main, develop, Milestone5]
   workflow_dispatch:  # Allow manual triggering
 
 # Set default permissions
@@ -281,7 +281,7 @@ jobs:
           
           # Check system test condition
           if [ "${{ matrix.test-type }}" = "system" ]; then
-            if [ "${{ github.ref }}" != "refs/heads/main" ] && [ "${{ github.ref }}" != "refs/heads/develop" ] && [ "${{ github.ref }}" != "refs/heads/Milestone4" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            if [ "${{ github.ref }}" != "refs/heads/main" ] && [ "${{ github.ref }}" != "refs/heads/develop" ] && [ "${{ github.ref }}" != "refs/heads/Milestone5" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
               SKIP=true
             fi
           fi
