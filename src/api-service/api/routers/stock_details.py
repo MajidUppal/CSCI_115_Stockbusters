@@ -18,7 +18,7 @@ from datetime import datetime
 from collections import defaultdict
 
 
-credentials_path = "../secrets/stock-busters-service-account.json"
+# credentials_path = "../secrets/stock-busters-service-account.json"
 
 # file_quant_model = 'model_output/combined_quantamental_hybrid_with_factors_and_backtest.csv'
 file_quant_model = "model_output/combined_quantamental_hybrid_with_factors_and_backtest_with_reasoning.csv"

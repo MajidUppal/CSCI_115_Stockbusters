@@ -8,7 +8,7 @@ import ProfileHeader from '@/components/Settings/ProfileHeader';
 import SettingsSection from '@/components/Settings/SettingsSection';
 import FormField from '@/components/Settings/FormField';
 import SelectField from '@/components/Settings/SelectField';
-import CheckboxGroup from '@/components/Settings/CheckboxGroup';
+import CheckboxGroup from '@/components/Settings/Checkboxgroup';
 import ToggleSwitch from '@/components/Settings/ToggleSwitch';
 import SettingItem from '@/components/Settings/SettingItem';
 

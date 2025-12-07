@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    reactStrictMode: true,
+    output: 'standalone',  // ← ADD THIS LINE
+    reactStrictMode: true,  // Keep only one
     webpack: (config) => {
         config.module.rules.push({
             test: /\.svg$/,
@@ -8,7 +9,6 @@ const nextConfig = {
         });
         return config;
     },
-    reactStrictMode: false,
 };
 
 module.exports = nextConfig;

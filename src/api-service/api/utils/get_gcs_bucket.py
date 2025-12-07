@@ -2,19 +2,28 @@
 import pandas as pd
 from google.cloud import storage
 from io import BytesIO
+from google.auth import default
 
 credentials_path = "../secrets/stock-busters-service-account.json"
 import os
 
 storage_client = None
 
+# try:
+#     if os.path.exists(credentials_path):
+#         storage_client = storage.Client.from_service_account_json(credentials_path)
+#         print(f"GCS Client initialized using service account: {credentials_path}")
+#     else:
+#         # Credentials file not found - will be mocked in tests
+#         print(f"Info: Credentials file not found at {credentials_path}. GCS client will be mocked in tests.")
+# except Exception as e:
+#     # Any error initializing - will be mocked in tests
+#     print(f"Info: Could not initialize GCS Client: {e}. Will be mocked in tests.")
+#     storage_client = None
 try:
-    if os.path.exists(credentials_path):
-        storage_client = storage.Client.from_service_account_json(credentials_path)
-        print(f"GCS Client initialized using service account: {credentials_path}")
-    else:
-        # Credentials file not found - will be mocked in tests
-        print(f"Info: Credentials file not found at {credentials_path}. GCS client will be mocked in tests.")
+    credentials, project_id = default()
+    storage_client = storage.Client(credentials=credentials, project=project_id)
+    print(f"GCS Client initialized with project: {project_id}")
 except Exception as e:
     # Any error initializing - will be mocked in tests
     print(f"Info: Could not initialize GCS Client: {e}. Will be mocked in tests.")

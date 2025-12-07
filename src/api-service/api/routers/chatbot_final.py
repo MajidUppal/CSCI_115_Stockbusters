@@ -16,6 +16,7 @@ from api.utils.detailed_page_funcs import (
     get_stocks_data,
     user_pref_stock_selection,
 )
+from google.auth import default
 
 router = APIRouter()
 
@@ -56,16 +57,25 @@ load_dotenv(override=True)
 credentials = None
 llm = None
 
+# try:
+#     credentials_path = "../secrets/stock-busters-service-account.json"
+#     if os.path.exists(credentials_path):
+#         credentials = service_account.Credentials.from_service_account_file(credentials_path)
+#         llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
+#     else:
+#         # Credentials file not found - will be mocked in tests via conftest.py
+#         print(f"Info: Credentials file not found at {credentials_path}. LLM will be mocked in tests.")
+# except Exception as e:
+#     # Any error loading credentials - will be mocked in tests
+#     print(f"Info: Could not load credentials: {e}. LLM will be mocked in tests.")
+
+
 try:
-    credentials_path = "../secrets/stock-busters-service-account.json"
-    if os.path.exists(credentials_path):
-        credentials = service_account.Credentials.from_service_account_file(credentials_path)
-        llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
-    else:
-        # Credentials file not found - will be mocked in tests via conftest.py
-        print(f"Info: Credentials file not found at {credentials_path}. LLM will be mocked in tests.")
+    credentials, project_id = default()
+    print(f"Authenticated with project: {project_id}")
+    llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
 except Exception as e:
-    # Any error loading credentials - will be mocked in tests
+    # Any error loading credentials - will be mocked in tests via conftest.py
     print(f"Info: Could not load credentials: {e}. LLM will be mocked in tests.")
 
 system_prompt = """

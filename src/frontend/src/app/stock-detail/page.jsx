@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, TrendingUp, Building2, Sparkles, AlertCircle } from 'lucide-react';
 
@@ -10,7 +10,8 @@ import StockVolumeChart from '@/components/stock/StockVolumeChart';
 
 import DataService from "../../lib/DataService";
 
-export default function StockDetailPage() {
+// Separate component that uses useSearchParams
+function StockDetailContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -320,6 +321,22 @@ export default function StockDetailPage() {
     );
 }
 
+// Main export - wraps content in Suspense
+export default function StockDetailPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                    <p className="mt-4 text-muted-foreground">Loading...</p>
+                </div>
+            </div>
+        }>
+            <StockDetailContent />
+        </Suspense>
+    );
+}
+
 /* ---------------- SMALL COMPONENTS ---------------- */
 
 const Metric = ({ label, value, positive, negative }) => (
@@ -340,7 +357,6 @@ const Metric = ({ label, value, positive, negative }) => (
 const TimeSelector = ({ timeRange, setTimeRange, priceData }) => {
     const ranges = ["1W", "1M", "3M", "6M", "1Y", "YTD", "3Y", "5Y", "MAX"];
 
-    // Check if we have 5 years of data
     const has5YearsData = useMemo(() => {
         if (!priceData || priceData.length === 0) return false;
         
@@ -348,7 +364,7 @@ const TimeSelector = ({ timeRange, setTimeRange, priceData }) => {
         const newestDate = new Date(priceData[priceData.length - 1].date);
         const daysDiff = (newestDate - oldestDate) / (1000 * 60 * 60 * 24);
         
-        return daysDiff >= 1825; // 5 years = 1825 days
+        return daysDiff >= 1825;
     }, [priceData]);
 
     return (
