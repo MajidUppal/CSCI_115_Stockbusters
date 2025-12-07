@@ -4,6 +4,10 @@
 
 **Group Name**  Stock Busters
 
+**Overview**
+Stock Busters empowers everyday investors who are overwhelmed by information overload and analysis paralysis. Our AI-powered agent delivers personalized stock recommendations with clear reasoning, replacing static dashboards with conversational intelligence that adapts to each user's goals and risk tolerance.
+The system combines fundamental analysis (company financials) with technical analysis (market indicators) to predict which S&P 500 stocks are likely to outperform the market. Through an interactive chatbot, users receive tailored Buy/Hold/Avoid signals with AI-generated explanations—making professional-grade investment insights accessible to novice investors, busy professionals, and DIY retirement savers alike.
+
 **What is new in MS5?**
 
 This repository contains the development-ready version of the LLM-Powered Quantamental Stock Screener application for AC215/E115 Milestone 4.
