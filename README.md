@@ -227,6 +227,12 @@ src/
 
 > **Requirement**: Demonstrate a production-ready ML workflow including data preprocessing, training, evaluation, automated retraining, and validation checks.
 
+
+
+
+
+
+
 ### ✅ Requirements Checklist
 
 | Requirement | Status | Evidence |
