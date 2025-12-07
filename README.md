@@ -5,27 +5,49 @@
 **Group Name**  Stock Busters
 
 **Overview**
-Stock Busters empowers everyday investors who are overwhelmed by information overload and analysis paralysis. Our AI-powered agent delivers personalized stock recommendations with clear reasoning, replacing static dashboards with conversational intelligence that adapts to each user's goals and risk tolerance.
+
+Stock Busters Application empowers everyday investors who are overwhelmed by information overload and analysis paralysis. Our AI-powered agent delivers personalized stock recommendations with clear reasoning, replacing static dashboards with conversational intelligence that adapts to each user's goals and risk tolerance.
 The system combines fundamental analysis (company financials) with technical analysis (market indicators) to predict which S&P 500 stocks are likely to outperform the market. Through an interactive chatbot, users receive tailored Buy/Hold/Avoid signals with AI-generated explanations—making professional-grade investment insights accessible to novice investors, busy professionals, and DIY retirement savers alike.
 
 **What is new in MS5?**
 
-This repository contains the development-ready version of the LLM-Powered Quantamental Stock Screener application for AC215/E115 Milestone 4.
-Milestone 4 focuses on:
 
-- End-to-end local functionality
+Milestone 5 transforms our project from a **locally functional system** (MS4) to a **production-grade deployed application**.
 
-- Code organization
+### MS4 → MS5 Progression
 
-- Fully working backend APIs, agents, model, and frontend
+| Category | MS4 | MS5 |
+|----------|-----|-----|
+| **ML Deployment** | Local/Container | Cloud Run Jobs + Cloud Scheduler |
+| **Application Hosting** | Local development | Google Kubernetes Engine (GKE) |
+| **Infrastructure** | Manual setup | Pulumi IaC |
+| **CI/CD** | Testing only (51%) | Full CI/CD + Deploy (62%) |
+| **Accessibility** | Local only | Public URL |
 
-- Continuous Integration with automated tests
+### New Components Added
 
-- Data versioning and reproducibility
+| Component |  Description |
+|-----------|-------------|
+| Cloud Run Deployment | ML pipeline on serverless infrastructure |
+| Cloud Scheduler | Automated daily retraining (6 AM CT) |
+| Kubernetes Deployment | GKE cluster for application |
+| Pulumi Infrastructure | Infrastructure as Code |
+| CD Pipeline | Auto-deploy to Kubernetes |
 
-- A deployment-ready codebase (for Cloud Run/Vertex AI in MS5)
+---
 
-### Project Milestone 5 - Code Organization
+## Application Screenshots
+
+*Welcome screen with stock recommendations*
+<img width="1272" height="527" alt="image" src="https://github.com/user-attachments/assets/bec01d2b-b21a-47fe-8d87-4dcf6259ebff" />
+
+
+![Stock Details](docs/images/stock_details.png)
+*Individual stock analysis with price charts*
+
+---
+
+### Project Milestone 5 - Code Organization    <-- Seraphim/Mahmood/Majid/Siri  check your part
 
 
 
