@@ -3,7 +3,6 @@
 
 # API Configuration
 api:
-  fmp_api_key: "VXTY4Jz8jYbQ9R4PjjkmqJ8VLROXlC3Z"  # Will be overridden by env var if set
   base_url: "https://financialmodelingprep.com/api/v3"
   concurrency: 8
   timeout: 60
@@ -26,7 +25,6 @@ gcs:
 wandb:
   project: "Quantamental-model"
   entity: null  # Will use default W&B account
-  api_key: "35a05083157054c9f1d557c446fe9ebf9d2c3fda"
   run_name: null  # Auto-generated if not set
   tags:
     - "quantamental"
