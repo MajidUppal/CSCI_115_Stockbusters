@@ -48,11 +48,14 @@ jobs:
   deploy:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    # Only run if CI workflow succeeded and was triggered from Milestone5 branch
-    # Allow manual dispatch to skip CI check for testing
+    # Run on:
+    # 1. Manual workflow_dispatch
+    # 2. Push events (only triggers when cd.yml changes on Milestone5)
+    # 3. workflow_run: CI completed successfully on Milestone5 branch
     if: |
-      github.event_name == 'workflow_dispatch' || 
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'Milestone5')
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'Milestone5')
     
     steps:
       - name: Debug workflow trigger
