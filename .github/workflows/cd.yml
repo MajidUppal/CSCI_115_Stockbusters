@@ -8,9 +8,9 @@ on:
   workflow_run:
     workflows: ["Unified CI Pipeline"]
     types: [completed]
-    branches: [Milestone5]
+    branches: [main, develop, Milestone5]
   push:
-    branches: [Milestone5]
+    branches: [main, develop, Milestone5]
     paths:
       - '.github/workflows/cd.yml'
       - 'src/deployment/**'
@@ -51,12 +51,12 @@ jobs:
     runs-on: ubuntu-latest
     # Run on:
     # 1. Manual workflow_dispatch
-    # 2. Push events (only triggers when cd.yml changes on Milestone5)
-    # 3. workflow_run: CI completed successfully on Milestone5 branch
+    # 2. Push events (triggers when cd.yml or deployment code changes on main/develop/Milestone5)
+    # 3. workflow_run: CI completed successfully on main/develop/Milestone5 branch
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'push' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'Milestone5')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'develop' || github.event.workflow_run.head_branch == 'Milestone5'))
     
     steps:
       - name: Debug workflow trigger
