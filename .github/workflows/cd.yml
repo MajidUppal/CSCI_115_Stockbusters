@@ -8,7 +8,7 @@ on:
   workflow_run:
     workflows: ["Unified CI Pipeline"]
     types: [completed]
-    branches: [main]
+    branches: [Milestone5]
   workflow_dispatch:  # Allow manual triggering for testing
     inputs:
       skip_ci_check:
@@ -44,13 +44,24 @@ jobs:
   deploy:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    # Only run if CI workflow succeeded and was triggered from main branch
+    # Only run if CI workflow succeeded and was triggered from Milestone5 branch
     # Allow manual dispatch to skip CI check for testing
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_ci_check == 'true') ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+      github.event_name == 'workflow_dispatch' || 
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'Milestone5')
     
     steps:
+      - name: Debug workflow trigger
+        run: |
+          echo "🔍 Debugging CD Pipeline Trigger"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Workflow run conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow run head branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Workflow run workflow: ${{ github.event.workflow_run.workflow }}"
+          echo "Current ref: ${{ github.ref }}"
+          echo "Current branch: ${{ github.ref_name }}"
+          echo "Triggered by workflow_run: ${{ github.event.workflow_run.id }}"
+      
       - name: Checkout code
         uses: actions/checkout@v4
         with:
