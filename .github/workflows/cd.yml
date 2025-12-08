@@ -13,6 +13,7 @@ on:
     branches: [Milestone5]
     paths:
       - '.github/workflows/cd.yml'
+      - 'src/deployment/**'
   workflow_dispatch:  # Allow manual triggering for testing
     inputs:
       skip_ci_check:
