@@ -209,7 +209,7 @@ def run_rag_reasoning(config, combined_csv_path=None, sample_size=None):
             upload_to_gcs=True,
             gcs_bucket=config.get("gcs", {}).get("bucket_name"),
             gcs_path=config.get("gcs", {}).get("output_folder", "model_output")
-            + "/combined_with_reasoning.csv",
+            + "/combined_quantamental_hybrid_with_factors_and_backtest_with_reasoning.csv",
         )
         log.info(f"RAG reasoning added: {enhanced_path}")
         return enhanced_path
@@ -364,3 +364,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
