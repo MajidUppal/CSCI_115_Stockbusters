@@ -176,6 +176,7 @@ jobs:
         env:
           GCP_REGION: ${{ env.GCP_REGION }}
           PULUMI_CONFIG_PASSPHRASE: ""
+          PULUMI_K8S_DELETE_UNREACHABLE: "true"
 
       - name: Get deployment outputs
         id: deployment-outputs
