@@ -1,6 +1,6 @@
 # CD Pipeline - Continuous Deployment to Kubernetes
 # Uses Workload Identity Federation (OIDC) for authentication
-# This version does NOT require GitHub secrets!
+# This version does NOT require GitHub secrets
 # Optimized for faster execution (~5-7 minutes instead of 10+ minutes)
 name: CD Pipeline
 
