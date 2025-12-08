@@ -120,8 +120,39 @@ jobs:
 
       - name: Configure Pulumi backend
         run: |
-          gsutil ls -b ${{ env.PULUMI_BUCKET }} || gsutil mb -p ${{ env.GCP_PROJECT }} -l ${{ env.GCP_REGION }} ${{ env.PULUMI_BUCKET }}
-          pulumi login ${{ env.PULUMI_BUCKET }}
+          echo "🔐 Verifying GCP authentication..."
+          gcloud auth list
+          echo "📦 Configuring Pulumi backend..."
+          # Verify bucket access with retry
+          for i in {1..3}; do
+            if gsutil ls -b ${{ env.PULUMI_BUCKET }} 2>/dev/null || gsutil mb -p ${{ env.GCP_PROJECT }} -l ${{ env.GCP_REGION }} ${{ env.PULUMI_BUCKET }} 2>/dev/null; then
+              echo "✅ Bucket access verified"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Bucket access failed, retrying in 5s... (attempt $i/3)"
+                sleep 5
+              else
+                echo "❌ Failed to access bucket after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
+          # Login to Pulumi backend with retry
+          for i in {1..3}; do
+            if pulumi login ${{ env.PULUMI_BUCKET }} 2>/dev/null; then
+              echo "✅ Pulumi backend login successful"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Pulumi login failed, retrying in 5s... (attempt $i/3)"
+                sleep 5
+              else
+                echo "❌ Failed to login to Pulumi backend after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Set Pulumi config for GCP project
         run: |
@@ -133,11 +164,41 @@ jobs:
 
       - name: Select or create Pulumi stacks
         run: |
+          echo "📦 Selecting or creating Pulumi stacks..."
+          
+          # Function to retry Pulumi commands with exponential backoff
+          retry_pulumi_cmd() {
+            local max_attempts=3
+            local attempt=1
+            local delay=5
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $1"
+              if eval "$1"; then
+                echo "✅ Command succeeded"
+                return 0
+              else
+                if [ $attempt -lt $max_attempts ]; then
+                  echo "⚠️ Command failed, retrying in ${delay}s..."
+                  sleep $delay
+                  delay=$((delay * 2))
+                else
+                  echo "❌ Command failed after $max_attempts attempts"
+                  return 1
+                fi
+              fi
+              attempt=$((attempt + 1))
+            done
+          }
+          
+          # Select or create stacks with retry logic
           cd src/deployment/deploy_images
-          pulumi stack select ${{ env.PULUMI_STACK }} || pulumi stack init ${{ env.PULUMI_STACK }}
+          retry_pulumi_cmd "pulumi stack select ${{ env.PULUMI_STACK }} 2>/dev/null || pulumi stack init ${{ env.PULUMI_STACK }}"
           
           cd ../deploy_k8s
-          pulumi stack select ${{ env.PULUMI_STACK }} || pulumi stack init ${{ env.PULUMI_STACK }}
+          retry_pulumi_cmd "pulumi stack select ${{ env.PULUMI_STACK }} 2>/dev/null || pulumi stack init ${{ env.PULUMI_STACK }}"
+          
+          echo "✅ Stack selection complete"
 
       - name: Deploy Docker images (Pulumi)
         run: |
