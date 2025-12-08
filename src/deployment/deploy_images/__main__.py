@@ -11,9 +11,24 @@ project = gcp_config.require("project")
 location = os.environ.get("GCP_REGION", "us-central1")
 
 # Get absolute paths
-# If running from /app/deploy_images, src is at /app
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # /app/deploy_images
-SRC_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))  # /app (src directory)
+# Script is at: src/deployment/deploy_images/__main__.py (repo root)
+#              or /app/deploy_images/__main__.py (Docker)
+# Handle two scenarios:
+# 1. Docker: /app/deploy_images/__main__.py -> /app (go up 1 level)
+# 2. GitHub Actions/repo root: src/deployment/deploy_images/__main__.py -> src/ (go up 2 levels)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # deploy_images directory
+DEPLOYMENT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))  # parent directory
+
+# Check if we're in Docker (path starts with /app) or repo root (path contains src/deployment)
+# In Docker, /app is the mount point where api-service and frontend are also mounted
+# In repo root, we need to go up to src/ to find api-service and frontend
+if DEPLOYMENT_DIR.startswith("/app") or os.path.basename(DEPLOYMENT_DIR) != "deployment":
+    # Docker: /app/deploy_images -> go up 1 level to /app
+    # Also handles case where parent is not "deployment" (fallback)
+    SRC_DIR = DEPLOYMENT_DIR
+else:
+    # GitHub Actions/repo root: src/deployment/deploy_images -> go up 2 levels to src/
+    SRC_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "../.."))
 
 print(f"Script directory: {SCRIPT_DIR}")
 print(f"Src directory: {SRC_DIR}")
