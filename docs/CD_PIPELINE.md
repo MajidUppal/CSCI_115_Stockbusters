@@ -103,26 +103,64 @@ stockbusters-deployment@stock-busters-cs115.iam.gserviceaccount.com
 
 ## Deployment Steps
 
-### Step 1: Checkout Code
+### Step 1: Determine Checkout Ref
+
+- Dynamically determines the correct Git SHA to checkout based on trigger type:
+  - `workflow_run`: Uses `github.event.workflow_run.head_sha` from CI pipeline
+  - `push` or `workflow_dispatch`: Uses current commit SHA (`github.sha`)
+- Sets output `ref` for use in checkout step
+
+### Step 2: Checkout Code
 
 - Uses shallow clone (`fetch-depth: 1`) for faster execution
-- Dynamically determines checkout ref based on trigger type:
-  - `workflow_run`: Uses `head_sha` from CI pipeline
-  - `push` or `workflow_dispatch`: Uses current commit SHA
+- Checks out the ref determined in previous step
+- Uses `actions/checkout@v4` action
 
-### Step 2: Authenticate to Google Cloud (OIDC)
+### Step 3: Authenticate to Google Cloud (OIDC)
 
 - Uses `google-github-actions/auth@v2` action
 - Authenticates using Workload Identity Federation
 - No secrets required
 
-### Step 3: Set up Cloud SDK
+### Step 4: Set up Cloud SDK
 
 - Installs and configures `gcloud` CLI
-- Sets up Docker authentication for Artifact Registry
-- Installs `gke-gcloud-auth-plugin` for GKE cluster access
+- Uses `google-github-actions/setup-gcloud@v2` action
 
-### Step 4: Configure Pulumi
+### Step 4: Configure Docker for Artifact Registry
+
+- Configures Docker authentication for GCP Artifact Registry
+- Uses `gcloud auth configure-docker` with the `--quiet` flag
+
+### Step 5: Install GKE gcloud auth plugin
+
+- Installs `gke-gcloud-auth-plugin` for GKE cluster authentication
+- Adds the plugin binary to PATH for `kubectl` and Pulumi access
+
+### Step 6: Create dummy secrets for build (if needed)
+
+- Creates placeholder JSON files for GCS keys and service accounts
+- These are typically not used in OIDC but prevent build failures if the build process expects them
+
+### Step 7: Install Dependencies
+
+**Python Setup**:
+- **Python**: 3.13
+- Uses `actions/setup-python@v5` with pip caching
+
+**Python Dependency Caching**:
+- Caches `~/.cache/pip`, `~/.cache/uv`, and `~/.local/lib/python*`
+- Cache key based on `pyproject.toml` and `uv.lock` hashes
+
+**Pulumi CLI**:
+- Installs latest version via `pulumi/actions@v4`
+
+**Python Packages**:
+- Installed via `uv` with caching
+- Uses `~/.cache/uv` for faster subsequent installs
+- Installs from `src/deployment/pyproject.toml` with `-e .` flag
+
+### Step 8: Configure Pulumi Backend
 
 **Pulumi Backend**:
 - **Storage**: GCS bucket (`gs://stock-busters-cs115-pulumi-state-bucket`)
@@ -130,15 +168,13 @@ stockbusters-deployment@stock-busters-cs115.iam.gserviceaccount.com
 - **Project**: `stock-busters-cs115`
 
 **Configuration Process**:
-1. Verifies GCS bucket access (creates bucket if needed)
-2. Logs into Pulumi backend with retry logic
-3. Configures and selects Pulumi stacks:
-   - `deploy_images`: Builds and pushes Docker images
-   - `deploy_k8s`: Deploys to Kubernetes cluster
+1. Verifies GCP authentication
+2. Verifies GCS bucket access (creates bucket if needed) with retry logic (3 attempts, 3s delay)
+3. Logs into Pulumi backend with retry logic (3 attempts, 3s delay)
 
-**Retry Logic**: Includes exponential backoff retries for network/authentication issues.
+**Retry Logic**: Includes retry loops with 3-second delays (3 attempts max) for network/authentication issues.
 
-### Step 5: Install Dependencies
+### Step 9: Configure and Select Pulumi Stacks
 
 - **Python**: 3.13
 - **Pulumi CLI**: Latest version
@@ -146,13 +182,22 @@ stockbusters-deployment@stock-busters-cs115.iam.gserviceaccount.com
   - Uses `~/.cache/uv` for faster subsequent installs
   - Installs from `src/deployment/pyproject.toml`
 
-### Step 6: Set up Docker Buildx
+**Configuration Process**:
+1. Configures and selects Pulumi stacks for:
+   - `deploy_images`: Builds and pushes Docker images
+   - `deploy_k8s`: Deploys to Kubernetes cluster
+2. Sets GCP project configuration for each stack
+3. Uses exponential backoff retry logic (initial 2s delay, max 3 attempts)
+
+**Retry Logic**: Exponential backoff retries for `pulumi stack select` and `pulumi stack init` commands.
+
+### Step 10: Set up Docker Buildx
 
 - Configures Docker BuildKit for advanced build features
 - Enables automatic layer caching
 - Supports parallel builds
 
-### Step 7: Deploy Docker Images (Pulumi)
+### Step 11: Deploy Docker Images (Pulumi)
 
 **Location**: `src/deployment/deploy_images/`
 
@@ -169,7 +214,14 @@ stockbusters-deployment@stock-busters-cs115.iam.gserviceaccount.com
 - `stockbusters-app-frontend:<tag>`
 - `stockbusters-app-api-service:<tag>`
 
-### Step 8: Deploy to Kubernetes (Pulumi)
+**Command**: `pulumi up --yes --skip-preview`
+
+**Environment Variables**:
+- `GCP_REGION`: us-central1
+- `PULUMI_CONFIG_PASSPHRASE`: "" (empty)
+- `DOCKER_BUILDKIT`: "1" (enabled)
+
+### Step 12: Deploy to Kubernetes (Pulumi)
 
 **Location**: `src/deployment/deploy_k8s/`
 
@@ -181,6 +233,14 @@ stockbusters-deployment@stock-busters-cs115.iam.gserviceaccount.com
    - Ingress (for external access)
 2. Updates existing resources or creates new ones
 3. Handles unreachable resources: `PULUMI_K8S_DELETE_UNREACHABLE: "true"`
+4. Verifies `gke-gcloud-auth-plugin` is accessible before deployment
+
+**Command**: `pulumi up --yes --skip-preview`
+
+**Environment Variables**:
+- `GCP_REGION`: us-central1
+- `PULUMI_CONFIG_PASSPHRASE`: "" (empty)
+- `PULUMI_K8S_DELETE_UNREACHABLE`: "true"
 
 **Kubernetes Resources**:
 - **Namespace**: `stockbusters-app-namespace`
@@ -189,16 +249,30 @@ stockbusters-deployment@stock-busters-cs115.iam.gserviceaccount.com
 - **Services**: LoadBalancer (public) and ClusterIP (internal)
 - **Ingress**: Routes external traffic to services
 
-### Step 9: Get Deployment Outputs
+### Step 13: Get Deployment Outputs
 
 Retrieves deployment information from Pulumi stack:
 - **Cluster Name**: GKE cluster identifier
 - **App URL**: Public application URL
 - **IP Address**: LoadBalancer IP address
 
-**Fallback**: If Pulumi outputs are unavailable, retrieves from Kubernetes directly using `kubectl`.
+**Process**:
+1. Ensures correct Pulumi stack is selected
+2. Retrieves outputs using `pulumi stack output --show-secrets`
+3. Extracts: `cluster_name`, `app_url`, `ip_address`
+4. Removes quotes and trims whitespace from outputs
 
-### Step 10: Wait for Pods to be Ready
+**Fallback**: If Pulumi outputs are unavailable, retrieves from Kubernetes directly using `kubectl get ingress`.
+
+**Environment Variable**: `PULUMI_CONFIG_PASSPHRASE: ""`
+
+### Step 14: Get kubeconfig
+
+- Retrieves Kubernetes configuration from Pulumi stack output
+- Saves to `/tmp/kubeconfig.yaml`
+- Sets output flags: `kubeconfig_path` and `kubeconfig_exists`
+
+### Step 15: Wait for Pods to be Ready
 
 **Parallel Wait Strategy**:
 - Waits for frontend and API pods simultaneously (not sequentially)
@@ -208,13 +282,28 @@ Retrieves deployment information from Pulumi stack:
 
 **Optimization**: Parallel waiting saves ~30-60 seconds compared to sequential waits.
 
-### Step 11: Verify Deployment Health
+**Condition**: Only runs if `kubeconfig_exists == 'true'`
+
+**Process**:
+1. Sets `KUBECONFIG` environment variable
+2. Runs `kubectl wait` commands in parallel using background processes
+3. Captures exit codes for both pod types
+4. Displays pod status after completion
+
+### Step 16: Verify Deployment Health
 
 - Checks application health endpoint
 - Verifies HTTP response codes (200, 301, 302 considered successful)
 - Provides feedback on deployment status
 
-### Step 12: Deployment Summary
+**Condition**: Only runs if `app_url` output is not empty
+
+**Process**:
+1. Waits 5 seconds before health check
+2. Uses `curl` with 10-second timeout
+3. Accepts HTTP 200, 301, or 302 as successful responses
+
+### Step 17: Deployment Summary
 
 Generates a markdown summary in GitHub Actions showing:
 - Deployment status
