@@ -144,6 +144,7 @@ jobs:
           pulumi up --yes --skip-preview
         env:
           GCP_REGION: ${{ env.GCP_REGION }}
+          PULUMI_CONFIG_PASSPHRASE: ""
 
       - name: Deploy to Kubernetes (Pulumi)
         run: |
@@ -153,6 +154,7 @@ jobs:
           pulumi up --yes --skip-preview
         env:
           GCP_REGION: ${{ env.GCP_REGION }}
+          PULUMI_CONFIG_PASSPHRASE: ""
 
       - name: Get deployment outputs
         id: deployment-outputs
