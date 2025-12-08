@@ -9,6 +9,10 @@ on:
     workflows: ["Unified CI Pipeline"]
     types: [completed]
     branches: [Milestone5]
+  push:
+    branches: [Milestone5]
+    paths:
+      - '.github/workflows/cd.yml'
   workflow_dispatch:  # Allow manual triggering for testing
     inputs:
       skip_ci_check:
@@ -65,7 +69,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud (OIDC)
