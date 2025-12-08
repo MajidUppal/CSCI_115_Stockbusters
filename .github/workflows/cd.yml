@@ -190,6 +190,10 @@ jobs:
         run: |
           echo "📦 Configuring and selecting Pulumi stacks..."
           
+          # Ensure we start from repo root
+          REPO_ROOT=$(pwd)
+          echo "Repo root: $REPO_ROOT"
+          
           # Function to retry Pulumi commands with exponential backoff (reduced initial delay)
           retry_pulumi_cmd() {
             local max_attempts=3
@@ -215,13 +219,14 @@ jobs:
             done
           }
           
-          # Configure and select stacks in parallel (combined step)
+          # Configure and select stacks (ensure we're always in repo root before each iteration)
           for stack_dir in deploy_images deploy_k8s; do
             echo "Processing $stack_dir..."
-            cd src/deployment/$stack_dir
+            cd "$REPO_ROOT/src/deployment/$stack_dir"
+            echo "Current directory: $(pwd)"
             retry_pulumi_cmd "pulumi stack select ${{ env.PULUMI_STACK }} 2>/dev/null || pulumi stack init ${{ env.PULUMI_STACK }}"
             pulumi config set gcp:project ${{ env.GCP_PROJECT }} || true
-            cd ../..
+            cd "$REPO_ROOT"
           done
           
           echo "✅ Stack configuration complete"
