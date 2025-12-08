@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.checkout-ref.outputs.ref }}
-          fetch-depth: 0
+          fetch-depth: 1  # Shallow checkout for faster clone
 
       - name: Authenticate to Google Cloud (OIDC)
         uses: google-github-actions/auth@v2
@@ -127,12 +127,13 @@ jobs:
           cache: 'pip'
 
       - name: Cache Python dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pip
+            ~/.cache/uv
             ~/.local/lib/python*
-          key: ${{ runner.os }}-python-deployment-${{ hashFiles('src/deployment/pyproject.toml') }}
+          key: ${{ runner.os }}-python-deployment-${{ hashFiles('src/deployment/pyproject.toml', 'src/deployment/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-python-deployment-
 
@@ -146,7 +147,8 @@ jobs:
           cd src/deployment
           python -m pip install --upgrade pip --cache-dir ~/.cache/pip
           pip install uv
-          uv pip install --system -e .
+          # Use uv with cache directory for faster installs
+          uv pip install --system --cache-dir ~/.cache/uv -e .
 
       - name: Configure Pulumi backend
         run: |
@@ -229,14 +231,19 @@ jobs:
           
           echo "✅ Stack configuration complete"
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Deploy Docker images (Pulumi)
         run: |
           cd src/deployment/deploy_images
           echo "🚀 Building and pushing Docker images to Artifact Registry..."
           export GCP_REGION=${{ env.GCP_REGION }}
-          # Enable Docker BuildKit for better caching and parallel builds
+          # Enable Docker BuildKit for automatic layer caching and parallel builds
+          # BuildKit will automatically cache layers when the same base images and commands are used
           export DOCKER_BUILDKIT=1
           export COMPOSE_DOCKER_CLI_BUILD=1
+          export BUILDKIT_PROGRESS=plain
           pulumi up --yes --skip-preview
         env:
           GCP_REGION: ${{ env.GCP_REGION }}
@@ -334,9 +341,18 @@ jobs:
         run: |
           export KUBECONFIG=${{ steps.kubeconfig.outputs.kubeconfig_path }}
           
-          echo "⏳ Waiting for pods to be ready..."
-          kubectl wait --for=condition=ready pod -l run=frontend --timeout=120s --namespace=stockbusters-app-namespace || echo "Frontend pods not ready"
-          kubectl wait --for=condition=ready pod -l run=api --timeout=120s --namespace=stockbusters-app-namespace || echo "API pods not ready"
+          echo "⏳ Waiting for pods to be ready (parallel)..."
+          # Wait for both pods in parallel to save time
+          kubectl wait --for=condition=ready pod -l run=frontend --timeout=120s --namespace=stockbusters-app-namespace || echo "Frontend pods not ready" &
+          FRONTEND_PID=$!
+          kubectl wait --for=condition=ready pod -l run=api --timeout=120s --namespace=stockbusters-app-namespace || echo "API pods not ready" &
+          API_PID=$!
+          
+          # Wait for both background processes to complete
+          wait $FRONTEND_PID
+          FRONTEND_EXIT=$?
+          wait $API_PID
+          API_EXIT=$?
           
           echo "📋 Pod status:"
           kubectl get pods --namespace=stockbusters-app-namespace
