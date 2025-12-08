@@ -1,6 +1,7 @@
 # Unified CI/CD Pipeline for RAG and Quantamental Components
 # Optimized with unified matrix strategy, path-based conditionals, and reusable actions
 # Unified coverage report committed to coverage/ (combines both components)
+# Triggers CD Pipeline when CI pipeline completes successfully
 
 name: Unified CI Pipeline
 
