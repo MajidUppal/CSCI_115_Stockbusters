@@ -354,8 +354,12 @@ jobs:
                 ${{ matrix.image-name }}:${{ github.sha }} \
                 /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --cov=api --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q"
             else
+              # Quantamental unit tests - pass environment variables into container
               docker run --rm -v ${{ github.workspace }}/${{ matrix.coverage-path }}:/workspace/coverage \
                 -w /app \
+                -e FMP_API_KEY="$FMP_API_KEY" \
+                -e WANDB_API_KEY="$WANDB_API_KEY" \
+                -e GCS_BUCKET_NAME="$GCS_BUCKET_NAME" \
                 ${{ matrix.image-name }}:${{ github.sha }} \
                 pytest ${{ matrix.test-path }} --cov=. --cov-branch --cov-report=term --cov-report=xml:/workspace/coverage/coverage.xml --cov-report=html:/workspace/coverage/htmlcov -m unit --maxfail=2 -x --tb=line -q
             fi
@@ -448,7 +452,11 @@ jobs:
               ${{ matrix.image-name }}:${{ github.sha }} \
               /bin/bash -c "export PATH=/home/app/.venv/bin:$PATH && python -m pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q"
           else
+            # Quantamental tests - pass environment variables into container
             docker run --rm -w /app \
+              -e FMP_API_KEY="$FMP_API_KEY" \
+              -e WANDB_API_KEY="$WANDB_API_KEY" \
+              -e GCS_BUCKET_NAME="$GCS_BUCKET_NAME" \
               ${{ matrix.image-name }}:${{ github.sha }} \
               pytest ${{ matrix.test-path }} --tb=line -m integration --maxfail=1 -x -q
           fi
@@ -515,7 +523,11 @@ jobs:
             # Cleanup
             docker stop api-server && docker rm api-server || true
           else
+            # Quantamental system tests - pass environment variables into container
             docker run --rm -w /app \
+              -e FMP_API_KEY="$FMP_API_KEY" \
+              -e WANDB_API_KEY="$WANDB_API_KEY" \
+              -e GCS_BUCKET_NAME="$GCS_BUCKET_NAME" \
               ${{ matrix.image-name }}:${{ github.sha }} \
               pytest ${{ matrix.test-path }} --tb=line -m system --maxfail=1 -x -q
           fi
