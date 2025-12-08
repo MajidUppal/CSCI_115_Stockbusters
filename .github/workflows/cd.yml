@@ -94,8 +94,6 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          export_default_credentials: true
 
       - name: Configure Docker for Artifact Registry
         run: |
@@ -316,6 +314,8 @@ jobs:
               fi
             fi
           fi
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ""
 
       - name: Get kubeconfig
         id: kubeconfig
