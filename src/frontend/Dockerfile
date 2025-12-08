@@ -14,7 +14,7 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
-    npm ci
+    npm ci --verbose
 
 ############################
 # 2) builder: build Next.js
