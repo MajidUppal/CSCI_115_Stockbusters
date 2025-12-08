@@ -139,6 +139,12 @@ This section documents how each MS5 deliverable requirement was met.
 
 > **Requirement**: Set up a CI/CD pipeline that includes unit tests for each service, integration tests, auto-deploy on merge to main, 60%+ coverage, and documentation of untested functions.
 
+We have implemented a **Unified CI Pipeline** that automatically builds, tests, and validates all three main components of the Stock Busters application:
+
+- **RAG (Retrieval-Augmented Generation)**: Document processing, embedding, and retrieval
+- **Quantamental**: Quantitative analysis and stock prediction models  
+- **API-service**: FastAPI-based service for chatbot and stock details
+
 ### ✅ Requirements Checklist
 
 | Requirement | Status | Evidence |
@@ -146,7 +152,7 @@ This section documents how each MS5 deliverable requirement was met.
 | Unit test suite for each service/container | ✅ | [See Test Structure](#test-structure) |
 | Integration tests on codebase | ✅ | [See Test Types](#test-types) |
 | Deploy on merge to `main` | ✅ | [See Deployment Pipeline](#deployment-pipeline) |
-| 60%+ line coverage | ✅ **62%** | [See Coverage Results](#coverage-results) |
+| 60%+ line coverage | ✅ **70%** | [See Coverage Results](#coverage-results) |
 | Document untested functions | ✅ | [See Untested Functions](#untested-functions) |
 
 ### Pipeline Architecture
@@ -187,6 +193,30 @@ The CI/CD pipeline consists of two main workflows:
 
 **Optimization:** The CI pipeline uses path-based change detection to skip building and testing unchanged components, reducing execution time.
 
+### Pipeline Features
+
+The unified CI pipeline runs on every push and pull request and includes:
+
+- **Build and Lint**: Automated Docker image builds and code-quality checks (Black, Flake8)  
+- **Run Tests**: Executes all test suites (unit, integration, and system tests)  
+- **Report Coverage**: Generates and displays unified code coverage reports (minimum 50% combined threshold)  
+- **Optimized Execution**: Skips unchanged components to save execution time  
+- **Parallel Execution**: Matrix strategy for parallel test runs across components  
+
+### CI Evidence
+
+**Successful CI Pipeline Execution:**
+
+![Successful Automated Unified CI run on push](docs/Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
+
+*Complete CI pipeline run showing all jobs passing*
+
+**CI Test Summary with Coverage:**
+
+![Unified CI Test Summary](docs/Unified%20CI%20Test%20Summary.png)
+
+*Test summary showing combined coverage (70%) and individual component breakdown*
+
 ### Test Structure
 
 Each service has its own comprehensive test suite:
@@ -217,16 +247,21 @@ src/
 │   └── test_system_pipeline.py  # 5-10 system tests
 │
 └── api-service/tests/
-    ├── unit/                    # Unit tests for API endpoints
-    ├── integration/             # Integration tests
-    └── system/                  # System tests
+    ├── test_unit_routers.py     # Unit tests for API router endpoints (25 tests)
+    ├── test_chat_bot_agent.py   # Unit tests for ChatAgent and models (17 tests)
+    ├── test_detailed_page_funcs.py  # Unit tests for stock detail utilities (27 tests)
+    ├── test_service.py          # Unit tests for main FastAPI service (9 tests)
+    ├── test_gcs_bucket.py       # Unit tests for GCS bucket operations (8 tests)
+    ├── test_integration_api.py  # Integration tests for API endpoints (27 tests)
+    ├── test_system_api.py       # System tests for live container (16 tests)
+    └── conftest.py              # Pytest fixtures and shared test utilities
 ```
 
 **Total Test Count:**
 - **RAG Component**: 174 tests (151 unit + 15 integration + 8 system)
 - **Quantamental Component**: 90+ tests (60+ unit + 30+ integration + 5-10 system)
-- **API-service Component**: Comprehensive test suite
-- **Total**: 260+ tests across all components
+- **API-service Component**: 130+ tests (86 unit + 27 integration + 16 system)
+- **Total**: 390+ tests across all components
 
 ### Test Types
 
@@ -245,14 +280,27 @@ src/
 
 ### Coverage Results
 
-**Combined Coverage: 62%** ✅ (Exceeds 60% requirement)
+The pipeline enforces a **minimum 50% combined coverage** threshold across all components.
 
-| Component | Line Coverage | Branch Coverage | Status |
-|-----------|--------------|-----------------|--------|
-| **RAG** | 72% | 66% | ✅ Excellent |
-| **Quantamental** | 45% | 35% | ✅ Adequate |
-| **API-service** | 68% | 63% | ✅ Good |
-| **Combined** | **62%** | **55%** | ✅ **Meets requirement** |
+**📈 Combined Coverage Report**
+
+- **Combined Coverage**: 70% ✅ (meets 50% threshold, exceeds 60% requirement)
+
+**Component Breakdown**
+
+- 🔍 **RAG Component**
+  - Coverage: 73%
+  - Branch Coverage: 67%
+
+- 📊 **Quantamental Component**
+  - Coverage: 62%
+  - Branch Coverage: 46%
+
+- 🚀 **API-service Component**
+  - Coverage: 78%
+  - Branch Coverage: 67%
+
+**Test Status**: 🎉 All tests passed!
 
 **Coverage Calculation:**
 - Combined coverage is a **weighted average** based on total lines: `(Total Lines Covered / Total Lines Valid) × 100`
@@ -260,37 +308,40 @@ src/
 - Coverage reports are automatically committed to the repository after each CI run
 
 **Coverage Reports Location:**
+
+Coverage reports are automatically generated and committed to the repository:
+
 - **Unified Report**: `coverage/coverage.xml` (Cobertura format) and `coverage/htmlcov/` (HTML)
 - **Component-Specific**: 
   - RAG: `src/rag/coverage/coverage.xml` and `src/rag/coverage/htmlcov/`
   - Quantamental: `src/quantamental/coverage/coverage.xml` and `src/quantamental/coverage/htmlcov/`
   - API-service: `src/api-service/coverage/coverage.xml` and `src/api-service/coverage/htmlcov/`
 
+The unified coverage report combines metrics from all components and is updated on every CI run.
+
+### Documentation
+
+For detailed information about the CI pipeline, including architecture, job descriptions, test types, coverage calculation methodology, and troubleshooting, see:
+
+📖 **[Complete CI Pipeline Documentation](docs/CI_PIPELINE.md)**
+
 ### Deployment Pipeline
 
-The CD pipeline automatically deploys to Kubernetes when CI completes successfully:
+The CD pipeline automatically deploys to Kubernetes when CI completes successfully. For complete documentation, see:
 
-**Deployment Flow:**
-1. **Trigger**: CI pipeline completes successfully on `main`, `develop`, or `Milestone5` branch
-2. **Authentication**: Uses Workload Identity Federation (OIDC) for secure GCP access (no secrets required)
-3. **Build Images**: Builds Docker images and pushes to GCP Artifact Registry
-   - Location: `us-central1-docker.pkg.dev/stock-busters-cs115/stockbusters-app-repository`
-4. **Deploy Infrastructure**: Uses Pulumi to deploy/update Kubernetes cluster
-   - Runs `pulumi up` in `src/deployment/deploy_images/` (builds and pushes images)
-   - Runs `pulumi up` in `src/deployment/deploy_k8s/` (deploys to GKE cluster)
-5. **Verification**: Waits for pods to be ready and verifies application health
+📖 **[CD Pipeline Documentation](docs/CD_PIPELINE.md)**
 
-**Pulumi Configuration:**
-- **State Backend**: GCS bucket (`gs://stock-busters-cs115-pulumi-state-bucket`)
-- **Stack**: `dev`
-- **Infrastructure**: GKE cluster, VPC network, load balancer, application deployments
+![Successful Automatic CD run after CI run](docs/Successful%20Automatic%20CD%20run%20after%20CI%20run.png)
 
-**Deployment Outputs:**
-- Cluster name and endpoint
-- Application URL (public IP)
-- Kubeconfig for cluster access
+*CD pipeline automatically triggered after successful CI pipeline completion*
 
-**Execution Time:** ~5-7 minutes (optimized for faster deployment)
+**Quick Overview:**
+- **Trigger**: CI pipeline completes successfully on `main`, `develop`, or `Milestone5` branch
+- **Authentication**: Uses Workload Identity Federation (OIDC) for secure GCP access (no secrets required)
+- **Build Images**: Builds Docker images and pushes to GCP Artifact Registry
+- **Deploy Infrastructure**: Uses Pulumi to deploy/update Kubernetes cluster
+- **Verification**: Waits for pods to be ready and verifies application health
+- **Execution Time**: 7-8 minutes (optimized for faster deployment)
 
 ### Untested Functions
 
@@ -318,7 +369,7 @@ All untested functions are documented with justifications:
 - **Coverage**: Lower coverage in `backtest.py` (11%) and `model_train.py` (17%)
 - **Justification**: Core data processing and feature engineering are well-tested. Model training and backtesting are validated through system tests.
 
-**Summary**: All untested functions are documented with clear justifications. Critical business logic, API endpoints, and core functionality are fully tested. The 62% combined coverage significantly exceeds the 60% minimum requirement.
+**Summary**: All untested functions are documented with clear justifications. Critical business logic, API endpoints, and core functionality are fully tested. The 70% combined coverage significantly exceeds the 60% minimum requirement.
 
 ---
 ## 4. Machine Learning Workflow  
@@ -841,66 +892,6 @@ PORT=3000
 **Port**: 3000 | **API**: http://localhost:9000 | **Docs**: See [README.md](frontend/README.md) for more details
 
 ---
-
-### Continuous Integration and Testing
-
-We have implemented a **Unified CI Pipeline** that automatically builds, tests, and validates all three main components of the Stock Busters application:
-
-- **RAG (Retrieval-Augmented Generation)**: Document processing, embedding, and retrieval
-- **Quantamental**: Quantitative analysis and stock prediction models  
-- **API-service**: FastAPI-based service for chatbot and stock details
-
-#### Pipeline Features
-
-The unified CI pipeline runs on every push and pull request and includes:
-
- **Build and Lint**: Automated Docker image builds and code-quality checks (Black, Flake8)  
- **Run Tests**: Executes all test suites (unit, integration, and system tests)  
- **Report Coverage**: Generates and displays unified code coverage reports (minimum 50% combined threshold)  
- **Optimized Execution**: Skips unchanged components to save execution time  
- **Parallel Execution**: Matrix strategy for parallel test runs across components  
-
-#### CI Evidence
-
-**Successful CI Pipeline Execution:**
-
-![Successful Automated Unified CI run on push](docs/Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
-
-*Complete CI pipeline run showing all jobs passing*
-
-**CI Test Summary with Coverage:**
-
-![Unified CI Test Summary](docs/Unified%20CI%20Test%20Summary.png)
-
-*Test summary showing combined coverage (62%) and individual component breakdown*
-
-#### Coverage Results
-
-The pipeline enforces a **minimum 50% combined coverage** threshold across all components. Current coverage:
-
-- **Combined Coverage**: 62% ✅ (exceeds 50% threshold)
-- **RAG Component**: 72% line coverage, 66% branch coverage
-- **Quantamental Component**: 45% line coverage, 35% branch coverage
-- **API-service Component**: 68% line coverage, 63% branch coverage
-
-#### Coverage Reports Location
-
-Coverage reports are automatically generated and committed to the repository:
-
-- **Unified Coverage Report**: `coverage/coverage.xml` (Cobertura format) and `coverage/htmlcov/` (browseable HTML)
-- **Component-Specific Reports**:
-  - RAG: `src/rag/coverage/coverage.xml` and `src/rag/coverage/htmlcov/`
-  - Quantamental: `src/quantamental/coverage/coverage.xml` and `src/quantamental/coverage/htmlcov/`
-  - API-service: `src/api-service/coverage/coverage.xml` and `src/api-service/coverage/htmlcov/`
-
-The unified coverage report combines metrics from all components and is updated on every CI run.
-
-#### Documentation
-
-For detailed information about the CI pipeline, including architecture, job descriptions, test types, coverage calculation methodology, and troubleshooting, see:
-
-📖 **[Complete CI Pipeline Documentation](docs/CI_PIPELINE.md)**
-
 
 ##  Quantamental ML Model pipeline
 

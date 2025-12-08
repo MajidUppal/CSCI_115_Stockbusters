@@ -1,7 +1,7 @@
 # API Service - Untested Functions Documentation
 
 **Last Updated:** December 2024  
-**Current Test Coverage:** ~70% overall (exceeds 60% minimum requirement)  
+**Current Test Coverage:** ~78% overall (exceeds 60% minimum requirement)  
 **Purpose:** Document production code paths not covered by **unit tests**, with justifications.
 
 **Note:** This document excludes legacy, archived, duplicated, or unused code.
@@ -19,53 +19,57 @@ This document lists **production code paths** not covered by **unit tests** and 
 ### 1. API Validation Error Paths
 
 **File:** `routers/chatbot_final.py`  
-**Untested in Unit Tests:** Lines 123, 160, 163, 193, 198, 255, 258, 267
+**Untested in Unit Tests:** Lines 132, 169, 172, 202, 207, 264, 267, 276
 
 **Functions:**
-- `get_chats()` (line 123): Missing `X-Session-ID` header validation
-- `get_chat()` (lines 160, 163): Missing `X-Session-ID` header, chat not found
-- `start_chat()` (lines 193, 198): Missing `X-Session-ID` header, missing message content
-- `continue_chat()` (lines 255, 258, 267): Missing `X-Session-ID` header, chat not found, missing message content
+- `get_chats()` (line 132): Missing `X-Session-ID` header validation
+- `get_chat()` (lines 169, 172): Missing `X-Session-ID` header, chat not found
+- `start_chat()` (lines 202, 207): Missing `X-Session-ID` header, missing message content
+- `continue_chat()` (lines 264, 267, 276): Missing `X-Session-ID` header, chat not found, missing message content
 
 **Why Not Tested in Unit Tests:**
 - Unit tests always provide valid inputs (session IDs, chat IDs, message content)
 - Focus on happy path and business logic validation
 - **Note:** Most of these ARE tested in integration tests:
-  - Line 123: `test_get_chats_requires_session_header` ✅
-  - Line 160: `test_get_specific_chat_requires_session` ✅
-  - Line 163: `test_get_specific_chat_not_found` ✅
-  - Line 193: `test_start_chat_requires_session_header` ✅
-  - Line 198: `test_start_chat_requires_message` ✅
-  - Line 255: `test_continue_chat_requires_session` ✅
-  - Line 258: `test_continue_chat_not_found` ✅
-  - Line 267: ❌ **Not tested** (missing message content in continue_chat)
+  - Line 132: `test_get_chats_requires_session_header` ✅
+  - Line 169: `test_get_specific_chat_requires_session` ✅
+  - Line 172: `test_get_specific_chat_not_found` ✅
+  - Line 202: `test_start_chat_requires_session_header` ✅
+  - Line 207: `test_start_chat_requires_message` ✅
+  - Line 264: `test_continue_chat_requires_session` ✅
+  - Line 267: `test_continue_chat_not_found` ✅
+  - Line 276: ❌ **Not tested** (missing message content in continue_chat)
 
-**Recommendation:** ✅ **Acceptably untested in unit tests** - Most tested in integration tests. Line 267 could be added to integration tests.
+**Recommendation:** ✅ **Acceptably untested in unit tests** - Most tested in integration tests. Line 276 could be added to integration tests.
 
 ---
 
 ### 2. Module-Level Initialization Code
 
-#### `routers/chatbot_final.py` - Credential Loading (Lines 62-63, 69, 101)
+#### `routers/chatbot_final.py` - Credential Loading (Lines 73-79, 101)
 
 **Code:**
 ```python
-# Lines 62-63: Credential loading (when file exists)
-credentials = service_account.Credentials.from_service_account_file(credentials_path)
-llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
-
-# Line 69: Exception handler
+# Lines 73-76: Credential loading using default() credentials
+try:
+    credentials, project_id = default()
+    print(f"Authenticated with project: {project_id}")
+    llm = ChatVertexAI(model="gemini-2.5-flash", credentials=credentials)
+# Line 77-79: Exception handler
 except Exception as e:
-    print(f"Info: Could not load credentials: {e}...")
+    print(f"Info: Could not load credentials: {e}. LLM will be mocked in tests.")
+    llm = None
 
 # Line 101: ChatAgent initialization (when llm is not None)
 if llm is not None:
     abot = ChatAgent(llm, [], system=system_prompt, checkpointer=memory)
 ```
 
+**Note:** The old service account file-based credential loading code (lines 60-70) has been commented out and replaced with `default()` credentials.
+
 **Why Not Tested:**
-- `conftest.py` patches `service_account.Credentials.from_service_account_file` at module level (line 44-55) before imports
-- Tests mock entire credential loading to avoid requiring actual credentials
+- `conftest.py` patches credential loading at module level before imports
+- Tests mock entire credential loading to avoid requiring actual GCP credentials
 - These paths never execute in test environment due to mocking
 
 **Recommendation:** ✅ **Correctly untested** - Appropriately mocked at module level.
@@ -89,22 +93,24 @@ if df_stocks is None:
 
 **Recommendation:** ✅ **Acceptably untested** - Defensive code, tested indirectly.
 
-#### `utils/get_gcs_bucket.py` - GCS Client Initialization (Lines 13, 14, 20, 21)
+#### `utils/get_gcs_bucket.py` - GCS Client Initialization (Lines 23-27)
 
 **Code:**
 ```python
-# Lines 13-14: Successful initialization
-storage_client = storage.Client.from_service_account_json(credentials_path)
-print(f"GCS Client initialized...")
-
-# Lines 20-21: Exception handler
+# Lines 23-26: Successful initialization using default() credentials
+try:
+    credentials, project_id = default()
+    storage_client = storage.Client(credentials=credentials)
+# Line 27: Exception handler
 except Exception as e:
-    print(f"Info: Could not initialize GCS Client: {e}...")
+    print(f"Info: Could not initialize GCS Client: {e}. Will be mocked in tests.")
     storage_client = None
 ```
 
+**Note:** The old service account file-based initialization code (lines 12-22) has been commented out and replaced with `default()` credentials.
+
 **Why Not Tested:**
-- `conftest.py` patches `storage.Client` at module level (line 34-40) before imports
+- `conftest.py` patches `storage.Client` at module level before imports
 - Tests always use mocked storage client
 - These paths never execute in test environment
 
@@ -130,7 +136,7 @@ else:
 
 **Recommendation:** ✅ **Acceptably untested** - Edge case, low risk.
 
-#### `utils/get_gcs_bucket.py` - Parquet File Type (Line 46)
+#### `utils/get_gcs_bucket.py` - Parquet File Type (Line 56-58)
 
 **Code:**
 ```python
@@ -139,7 +145,7 @@ elif file_type == "parquet":
 ```
 
 **Why Not Tested:**
-- Similar logic to CSV path (line 45, which is tested)
+- Similar logic to CSV path (line 52-54, which is tested)
 - Tests use CSV format; parquet follows same pattern
 - Production uses parquet for `df_stocks`, but tests mock dataframes directly
 
@@ -182,7 +188,7 @@ def call_llm(self, state: ChatAgentState):
 | Side effects | ~5 | ✅ Correct | Not business logic |
 
 **Total Untested in Unit Tests:** ~20 lines  
-**Current Coverage:** ~70% (exceeds 60% requirement)  
+**Current Coverage:** ~78% (exceeds 60% requirement)  
 **Note:** Most validation errors ARE tested in integration tests (7 of 8 paths)
 
 ---
@@ -228,7 +234,7 @@ The API service has **comprehensive test coverage** of all critical functionalit
 4. **Side Effects**: Not business logic
 5. **Validation Errors**: Most tested in integration tests (7 of 8 paths)
 
-**Current test coverage (~70%) exceeds the 60% requirement** and focuses on high-value, high-risk functionality.
+**Current test coverage (~78%) exceeds the 60% requirement** and focuses on high-value, high-risk functionality.
 
 ---
 
