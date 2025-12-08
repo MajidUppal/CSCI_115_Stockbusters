@@ -1600,29 +1600,12 @@ jobs:
             echo "❌ **Some tests failed.** Check individual test jobs for details." >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-      
-      - name: Trigger CD Pipeline
-        if: needs.tests.result == 'success' && github.ref == 'refs/heads/Milestone5' && github.event_name == 'push'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            console.log('🚀 Triggering CD Pipeline...');
-            const response = await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'cd.yml',
-              ref: 'Milestone5',
-              inputs: {
-                skip_ci_check: 'false'
-              }
-            });
-            console.log('✅ CD Pipeline triggered successfully');
-            console.log('Response:', response.status);
           
           # Coverage Report Location
           echo "### 📁 Coverage Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Unified coverage report available at: \`coverage/coverage.xml\`" >> $GITHUB_STEP_SUMMARY
+          echo "HTML reports available in: \`coverage/htmlcov/\` (or component-specific subdirectories)" >> $GITHUB_STEP_SUMMARY
       
       - name: Trigger CD Pipeline
         if: needs.tests.result == 'success' && github.ref == 'refs/heads/Milestone5' && github.event_name == 'push'
@@ -1641,4 +1624,3 @@ jobs:
             });
             console.log('✅ CD Pipeline triggered successfully');
             console.log('Response status:', response.status);
-          echo "HTML reports available in: \`coverage/htmlcov/\` (or component-specific subdirectories)" >> $GITHUB_STEP_SUMMARY
