@@ -1066,6 +1066,13 @@ Push → Test → Train → Validate → Select Best Model → Deploy
 
 📄 *See [docs/Quantamental_Model_Pipeline.md](docs/Quantamental_Model_Pipeline.md) for detailed analysis.*
 
+**Bugs and Fixes**
+- Rarely the chatbot doesn't activate the generate report button. This happens when the user confirmation is ambiguous. Work is being done to resolve that.
+- In dark mode, some of the text is not visible. Working on changing the colors and contrast.
+
+**Future Enhancements**
+- Incorporate other trading models for recommending stocks
+- Implement auto trader that implements trading orders directly to the brokerage account
 
 
 
