@@ -64,7 +64,72 @@ Below is the solution architecture for Stockbusters. For details refer to the de
 
 <img width="1884" height="1036" alt="image" src="https://github.com/user-attachments/assets/d5731820-21c6-4cd8-8e4f-7e1c26f64e70" />
 
+# 📈 StockBusters: An Advanced AI-Driven Personalized Stock Recommendation System
 
+## Introduction
+
+The financial market is complex and constantly evolving, making personalized, data-driven investment advice invaluable. **StockBusters** is a sophisticated stock recommendation system designed to provide tailored investment insights by harmoniously blending **user personalization, deep financial data analysis, machine learning intelligence, and advanced LLM-based reasoning.**
+
+This document outlines the core architectural components that drive the system.
+
+## 🧠 Architectural Components
+
+The system is built on six interconnected modules that handle everything from user input to final report generation.
+
+### 1. The Personalization Engine: User Preference Collection Bot 🤖
+
+This module serves as the primary user interface for gathering tailored investment parameters.
+
+* **Function:** Gathers critical user inputs, including **risk tolerance, investment horizon, and personalized investment criteria**.
+* **Key Capability:** Capable of answering clarifying questions to ensure accurate capture of financial choices.
+* **Output:** Feeds the validated user profile directly into the **Stock Recommender**.
+
+### 2. The Foundation: Finance Data Pipeline 📊
+
+The core data ingestion and processing engine, ensuring high-quality data for analysis.
+
+* **Function:** Sourcing, cleaning, and processing raw financial data (e.g., **historical prices, company fundamentals, and sector information**).
+* **Core Task:** Transforms raw, messy data into a structured format ready for model consumption.
+* **Output:** Clean, structured data input for the **ML Models**.
+
+### 3. The Intelligence Core: ML Models (Machine Learning) 🔬
+
+The quantitative analysis layer responsible for objective stock evaluation.
+
+* **Input Data:**
+    * **Fundamental:** Metrics like ROE, ROIC, FCF Yield, Debt to Equity, cash, and revenue.
+    * **Technical:** Opening/closing prices, volume, daily high/low.
+* **Process:** Computes intermediate metrics and performs comprehensive analysis to generate objective decisions and **stock rankings** based on both fundamental and technical health.
+
+### 4. The Reasoning and Context: LLM with RAG (Retrieval-Augmented Generation) 📚
+
+This module provides the "why" behind the recommendation, acting as an expert advisor.
+
+* **Function:** Combines the quantitative output of the ML Model with **expert financial knowledge** retrieved via the RAG system.
+* **Role:** Generates **robust, enriched reasoning and context** to explain *why* a particular stock was selected.
+* **Output:** Passes the contextualized rationale to the **Stock Recommender**.
+
+### 5. The Synthesis and Decision-Making: Stock Recommender 🎯
+
+The central decision-making unit that synthesizes all intelligence into a final, actionable plan.
+
+* **Synthesis:** Integrates three critical inputs:
+    1.  **User Preferences** (from the Bot)
+    2.  **Model Output** (from the ML Models)
+    3.  **LLM Context** (from the Reasoning Engine)
+* **Result:** Produces the final, **tailored personalized recommendations** that align with the user's financial profile.
+
+### 6. The User Experience: Recommendation and Reporting 📝
+
+The final stage, focused on transparent delivery of insights.
+
+#### A. Stocks Report
+* **Description:** The primary personalized output delivered to the user.
+* **Content:** Summarizes the recommendations, including **Key Performance Indicators (KPIs)** and an initial **risk assessment**.
+
+#### B. Stock Details
+* **Description:** A drill-down component for granular stock information.
+* **Content:** Provides in-depth company details, stock trend analysis, and the **full rationale** for the recommendation, enlightening users on the decision-making process.
  
 
 ## Technical Architecture ##  
@@ -73,6 +138,58 @@ The technical architecture for Stockbusters is shown below. For details refer to
 
 <img width="1853" height="1062" alt="image" src="https://github.com/user-attachments/assets/4a41fcf6-7f29-403d-86c2-382b96949920" />
 
+
+# ⚙️ Technical Architecture of StockBusters
+
+The **StockBusters** recommendation system is built upon a robust, layered technical architecture designed to support application development, advanced AI/ML capabilities, and a seamless conversational interface powered by Large Language Models (LLMs) like Gemini.
+
+The architecture is logically separated into three distinct and interconnected layers: **Process**, **Execution**, and **State**. 
+
+---
+
+## 1. The Process Layer: User and High-Level Functionality 🚀
+
+This is the top-most layer, defining the primary functional areas and points of interaction supported by the system.
+
+* **Develop App:** Standard activities related to application development, ensuring integration with the lower layers.
+* **AI/ML Tasks:** Focuses on core intelligent functions, including all aspects of **model development and training**.
+* **Chat Bot:** The crucial conversational interface that enables **Human Interactions** to efficiently collect detailed financial preferences for personalized recommendations.
+
+---
+
+## 2. The Execution Layer: Runtime Components and Logic ⚙️
+
+This layer contains the runtime components, services, and core logic that handle processing, application behavior, and user interaction.
+
+| Component | Function | Key Role |
+| :--- | :--- | :--- |
+| **Frontend (StockBusters)** | The user-facing application interface. | Supports **Human Interactions** and communicates with the Backend via HTTP/HTTPS. |
+| **Backend** | Core application logic and data-handling services. | Accessible via HTTPS; manages primary system functions and data flow. |
+| **API Service** | Handles core business logic. | Serves data and processing logic to the **Frontend** and **LLMs**. |
+| **LLMs (as a Service)** | Utilizes **Gemini** with **RAG** (Retrieval-Augmented Generation) support. | Uses the financial knowledge base to generate detailed **reasoning for stock selections**. |
+| **Agents Layer** | A network of cooperative agents. | Collects user preferences and converts natural language input into **structured data objects** for the ML model. |
+| **Interactive Notebooks** | Development environment for data scientists/developers. | Facilitates experimentation, development, and connects to the LLMs and the State Layer. |
+
+### The Automated ML Pipeline 🔗
+
+A critical workflow within the Execution Layer that manages the end-to-end machine learning lifecycle:
+
+* **Data Collector:** Gathers raw financial data through **API calls** from external datasources.
+* **Data Processor:** Prepares the data for training or inference, including **preprocessing and cleanup**.
+* **Model Training:** The AI/ML model is trained using the cleansed and processed data.
+* **Model Deploy:** The trained model is deployed into a **production environment** for real-time inference and use.
+
+---
+
+## 3. The State Layer: Data, Storage, and Infrastructure 💾
+
+The foundational layer responsible for storing, managing, and tracking all persistent assets and data required for the system's operation.
+
+* **Data Store:** Persistent storage for all **raw, processed, and training data** used by the ML Pipeline and LLMs.
+* **Knowledge Base:** Stores proprietary finance knowledge, implemented in a **Vector DB (e.g., Chroma DB)**, crucial for the LLM's reasoning capabilities.
+    * **Vector DB Service:** The operational service that manages and provides the vector database for the LLM's financial knowledge base.
+* **Source Control:** Stores all application code, configuration files, and definitions (including pipeline configurations).
+* **Artifact Registry:** Repository for built artifacts, most importantly the **trained models** generated by the ML Pipeline.
 
 ---
 ## 1. Kubernetes Deployment   <-- MAHMOOD & MAJID: Please complete this section -->
