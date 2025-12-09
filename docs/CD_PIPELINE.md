@@ -56,6 +56,7 @@ The CD pipeline runs automatically on:
 - **Push events** to `main`, `develop`, or `Milestone5` branches when files in:
   - `.github/workflows/cd.yml`
   - `src/deployment/**`
+  - `src/frontend/**`
   are modified
 
 - **Manual dispatch** via GitHub Actions UI (`workflow_dispatch`)

@@ -443,7 +443,7 @@ The CI/CD pipeline consists of two main workflows:
 
 **CD Pipeline Triggers:**
 - **Workflow run completion**: Automatically triggers when CI pipeline completes successfully on `main`, `develop`, or `Milestone5` branches
-- **Push events** to `main`, `develop`, or `Milestone5` branches (when `.github/workflows/cd.yml` or `src/deployment/**` changes)
+- **Push events** to `main`, `develop`, or `Milestone5` branches (when `.github/workflows/cd.yml`, `src/deployment/**`, or `src/frontend/**` changes)
 - **Manual dispatch** via GitHub Actions UI
 
 **Optimization:** The CI pipeline uses path-based change detection to skip building and testing unchanged components, reducing execution time.
