@@ -14,6 +14,10 @@ The system combines fundamental analysis (company financials) with technical ana
 
 Milestone 5 transforms our project from a **locally functional system** (MS4) to a **production-grade deployed application**.
 
+
+
+
+
 ### MS4 → MS5 Progression
 
 | Category | MS4 | MS5 |
@@ -48,7 +52,27 @@ Milestone 5 transforms our project from a **locally functional system** (MS4) to
 
 # Technical Implementation
 
-This section documents how each MS5 deliverable requirement was met.
+### Application Design Document ###              
+
+
+[Architecture Design Document](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone4/docs/Architecture_Design_Document_MS4.pdf)
+
+
+## Solution Architecture ## 
+
+Below is the solution architecture for Stockbusters. For details refer to the design document below
+
+<img width="1884" height="1036" alt="image" src="https://github.com/user-attachments/assets/d5731820-21c6-4cd8-8e4f-7e1c26f64e70" />
+
+
+ 
+
+## Technical Architecture ##  
+
+The technical architecture for Stockbusters is shown below. For details refer to the design document below
+
+<img width="1853" height="1062" alt="image" src="https://github.com/user-attachments/assets/4a41fcf6-7f29-403d-86c2-382b96949920" />
+
 
 ---
 ## 1. Kubernetes Deployment   <-- MAHMOOD & MAJID: Please complete this section -->
@@ -733,12 +757,13 @@ AC215_StockBusters/
 
 ```
 
+**Bugs and Fixes**
+- Rarely the chatbot doesn't activate the generate report button. This happens when the user confirmation is ambiguous. Work is being done to resolve that.
+- In dark mode, some of the text is not visible. Working on changing the colors and contrast.
 
-
-
-
-
-
+**Future Enhancements**
+- Incorporate other trading models for recommending stocks
+- Implement auto trader that implements trading orders directly to the brokerage account
 
 
 
@@ -778,26 +803,7 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 
 
-### Application Design Document ###              
 
-
-[Architecture Design Document](https://github.com/Siri-Gith1/AC215_StockBusters/blob/Milestone4/docs/Architecture_Design_Document_MS4.pdf)
-
-
-## Solution Architecture ## 
-
-Below is the solution architecture for Stockbusters. For details refer to the design document below
-
-<img width="1884" height="1036" alt="image" src="https://github.com/user-attachments/assets/d5731820-21c6-4cd8-8e4f-7e1c26f64e70" />
-
-
- 
-
-## Technical Architecture ##  
-
-The technical architecture for Stockbusters is shown below. For details refer to the design document below
-
-<img width="1853" height="1062" alt="image" src="https://github.com/user-attachments/assets/4a41fcf6-7f29-403d-86c2-382b96949920" />
 
 
 
@@ -1066,13 +1072,7 @@ Push → Test → Train → Validate → Select Best Model → Deploy
 
 📄 *See [docs/Quantamental_Model_Pipeline.md](docs/Quantamental_Model_Pipeline.md) for detailed analysis.*
 
-**Bugs and Fixes**
-- Rarely the chatbot doesn't activate the generate report button. This happens when the user confirmation is ambiguous. Work is being done to resolve that.
-- In dark mode, some of the text is not visible. Working on changing the colors and contrast.
 
-**Future Enhancements**
-- Incorporate other trading models for recommending stocks
-- Implement auto trader that implements trading orders directly to the brokerage account
 
 
 
