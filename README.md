@@ -272,31 +272,12 @@ For complete deployment instructions, troubleshooting, and configuration details
 
 **Live Demo:** http://34.60.47.248.sslip.io
 
-**Scalibility**
+### Scalibility
 
-╔════════════════════════════════════════════════════════════════════╗
-║          STOCK BUSTERS SCALING COMPARISON                          ║
-╠════════════════════════════════════════════════════════════════════╣
-║                                                                    ║
-║  BEFORE SCALING (1 replica)    │   AFTER SCALING (3 replicas)    ║
-║  ════════════════════════════   │   ═══════════════════════════   ║
-║                                                                    ║
-║  API Pods:           1          │   API Pods:           3         ║
-║  Frontend Pods:      1          │   Frontend Pods:      3         ║
-║  Total Pods:         2          │   Total Pods:         6         ║
-║                                                                    ║
-║  Node CPU:          4%          │   Node CPU:          4%         ║
-║  Node Memory:      54%          │   Node Memory:      54%         ║
-║                                                                    ║
-║  Load Test Results:             │   Load Test Results:            ║
-║  • Requests/sec:   136.18       │   • Requests/sec:   136.18      ║
-║  • Failed:         0            │   • Failed:         0           ║
-║  • Success Rate:   100%         │   • Success Rate:   100%        ║
-║                                                                    ║
-║  Key Achievement: 3X scaling with ZERO failed requests!           ║
-║                                                                    ║
-╚════════════════════════════════════════════════════════════════════╝
-For more details please check 
+<img width="728" height="661" alt="image" src="https://github.com/user-attachments/assets/59eed5e2-579d-4e38-be6d-0b039fa85447" />
+
+For more details please check [src/deployment/scaling_demo_output.txt](src/deployment/scaling_demo_output.txt) , [src/deployment/Scaling_Proof.md](src/deployment/Scaling_Proof.md) , [src/deployment/quick_scaling_demo.sh](src/deployment/quick_scaling_demo.sh)
+
 ---
 
 ## 3. CI/CD Pipeline (GitHub Actions)
