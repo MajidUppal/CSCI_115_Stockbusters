@@ -788,14 +788,17 @@ Full cloud deployment and scalability considerations will be addressed in Milest
 
 Below is the solution architecture for Stockbusters. For details refer to the design document below
 
-<img width="1095" height="603" alt="image" src="https://github.com/user-attachments/assets/a2b19430-681e-4aa9-947e-65ac0d9d5e79" />
+<img width="1884" height="1036" alt="image" src="https://github.com/user-attachments/assets/d5731820-21c6-4cd8-8e4f-7e1c26f64e70" />
+
+
  
 
 ## Technical Architecture ##  
 
 The technical architecture for Stockbusters is shown below. For details refer to the design document below
 
-<img width="1094" height="600" alt="image" src="https://github.com/user-attachments/assets/920ed09f-781c-4ced-b5f1-cca1f4b9c4a1" />
+<img width="1853" height="1062" alt="image" src="https://github.com/user-attachments/assets/4a41fcf6-7f29-403d-86c2-382b96949920" />
+
 
 
 
