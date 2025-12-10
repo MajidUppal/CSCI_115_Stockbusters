@@ -983,11 +983,34 @@ AC215_StockBusters/
     │   ├── docker-shell.sh 
     │   └── README.md
     │
+    │
+    ├── 📁 deployment/
+    │       ├── deploy_images/         # Docker image building and pushing
+    │       │   ├── __main__.py        # Pulumi program for building images
+    │       │   ├── Pulumi.yaml        # Project configuration
+    │       │   └── Pulumi.dev.yaml    # Stack-specific configuration
+    │       │
+    │       ├── deploy_k8s/            # Kubernetes cluster deployment
+    │       │   ├── __main__.py        # Main Pulumi orchestration
+    │       │   ├── create_network.py  # VPC, subnet, NAT configuration
+    │       │   ├── create_cluster.py  # GKE cluster and node pool setup
+    │       │   ├── setup_containers.py # Application deployments
+    │       │   ├── setup_loadbalancer.py # Ingress configuration
+    │       │   ├── Pulumi.yaml        # Project configuration
+    │       │   └── Pulumi.dev.yaml    # Stack-specific configuration
+    │       │
+    │       ├── deploy_single_vm/      # Legacy single VM deployment (reference only)
+    │       │
+    │       ├── Dockerfile             # Deployment container image
+    │       ├── docker-shell.sh        # Container startup script
+    │       ├── docker-entrypoint.sh   # Container initialization
+    │       ├── pyproject.toml         # Python dependencies
+    │       ├── Readme.md              # Readme file
+    │       └── uv.lock                # Locked dependencies
     ├── dvc.yaml                           ← data versioning
     ├── requirements.txt
     ├── README.md
-    └── .env.example
-
+    └── .env.example  
 ```
 
 **Bugs and Fixes**
