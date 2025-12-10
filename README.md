@@ -993,10 +993,19 @@ AC215_StockBusters/
 - In dark mode, some of the text is not visible. Working on changing the colors and contrast.
 
 **Future Enhancements**
-- Incorporate other trading models for recommending stocks
-- Implement auto trader that implements trading orders directly to the brokerage account
 
-
+***Models***
+- Incorporate additional models for recommending stocks
+- Integrate Sentiment and macroeconomics signals
+  
+***Product Features***
+- Develop auto trader that implements trading orders directly to the brokerage accounts
+- Launch mobile alerts for new signal or trade execution
+  
+***Exploring New Horizons***
+- Expand coverage to ETF and cryptocurrencies
+- Introduce commodity and alternative asset classes
+- Expand product availability to International Markets
 
 
 
