@@ -196,6 +196,8 @@ The foundational layer responsible for storing, managing, and tracking all persi
 
 Stock Busters is deployed on **Google Kubernetes Engine (GKE)** using **Pulumi** for infrastructure-as-code.
 
+<img width="2119" height="227" alt="image" src="https://github.com/user-attachments/assets/0675e3dd-75eb-460e-8c80-f5eff1b27b99" />
+
 ### Architecture
 
 - **Frontend**: Next.js application
