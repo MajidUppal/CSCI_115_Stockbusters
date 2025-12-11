@@ -38,19 +38,44 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
+# Coverage reports are now committed to show MS4 evidence
+# Root-level coverage/ directory is tracked (contains rag/ and quantamental/ subdirectories)
+# htmlcov/
+#.tox/
+#.nox/
+# .coverage
+# .coverage.*
+#.cache
+#nosetests.xml
+# coverage.xml
+# *.cover
+# *.py,cover
+#.hypothesis/
+#.pytest_cache/
+# cover/
+
+# Explicitly allow coverage files to be tracked
+!coverage/
+!coverage/**/*
+!src/rag/coverage/
+!src/rag/coverage/**/*
+!src/rag/coverage/htmlcov/
+!src/rag/coverage/htmlcov/**/*
+!src/quantamental/coverage/
+!src/quantamental/coverage/**/*
+!src/quantamental/coverage/htmlcov/
+!src/quantamental/coverage/htmlcov/**/*
+!src/api-service/coverage/
+!src/api-service/coverage/**/*
+!src/api-service/coverage/htmlcov/
+!src/api-service/coverage/htmlcov/**/*
+!**/coverage.xml
+!**/htmlcov/
+!**/htmlcov/**/*
+
+# Explicitly allow frontend lib directory (source code, not build artifacts)
+!src/frontend/src/lib/
+!src/frontend/src/lib/**/*
 
 # Translations
 *.mo
@@ -161,3 +186,29 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# VS Code
+.vscode/settings.json
+
+# DVC (Data Version Control)
+# Ignore DVC cache but track .dvc files and .dvc/ directory
+.dvc/cache/
+.dvc/tmp/
+.dvc/config.local
+
+# ChromaDB data directories (versioned via DVC, not git)
+/chroma/
+src/rag/volumes/
+volumes/
+
+# Source documents (large PDFs - consider using DVC if versioning needed)
+src/rag/data/*.pdf
+src/rag/data/*.txt
+src/rag/data/*.csv
+# Keep .gitkeep and .md files for documentation
+!src/rag/data/.gitkeep
+!src/rag/data/*.md
+
+# Secrets - JSON files contain sensitive credentials
+# CI pipeline creates dummy files if needed, so these don't need to be in git
+secrets/*.json

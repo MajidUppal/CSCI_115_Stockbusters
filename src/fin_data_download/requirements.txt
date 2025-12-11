@@ -1,6 +1,0 @@
-pandas
-numpy
-yfinance
-google-cloud-storage
-ta
-requests
