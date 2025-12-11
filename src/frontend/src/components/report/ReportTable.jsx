@@ -201,10 +201,10 @@ export default function ReportTable({ stocks, userPreferences }) {
                                             {stock.sharpe?.toFixed(2)}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-foreground">
-                                            {stock.cagr?.toFixed(2)}%
+                                            {(stock.cagr*100)?.toFixed(2)}%
                                         </td>
                                         <td className="px-6 py-4 text-sm text-foreground">
-                                            {stock.max_drawdown?.toFixed(2)}%
+                                            {(stock.max_drawdown*-100)?.toFixed(2)}%
                                         </td>
                                         <td className="px-6 py-4 text-sm">
                                             <button
@@ -280,4 +280,5 @@ export default function ReportTable({ stocks, userPreferences }) {
             </div>
         </div>
     );
+
 }
