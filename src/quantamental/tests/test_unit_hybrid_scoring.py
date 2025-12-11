@@ -146,10 +146,12 @@ class TestBacktestMetrics:
 
     @pytest.mark.unit
     def test_metrics_with_no_forward_returns(self, sample_data):
-        """Test handling of missing forward returns"""
-        result = calculate_backtest_metrics(sample_data)
+        """Test handling when return_1m is missing (should return NaN)"""
+        # Remove return_1m to test NaN case
+        df_no_returns = sample_data.drop(columns=["return_1m"], errors="ignore")
+        result = calculate_backtest_metrics(df_no_returns)
 
-        # Should add NaN columns
+        # Should add NaN columns when return_1m is missing
         assert "sharpe_1m_annual" in result.columns
         assert result["sharpe_1m_annual"].isna().all()
 
