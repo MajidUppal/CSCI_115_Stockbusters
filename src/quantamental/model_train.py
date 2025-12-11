@@ -359,7 +359,7 @@ class QuantamentalTrainer:
         # UPDATED: Log model artifact WITH METADATA
         # This fixes the "no metadata, using fallback" warning
         # ================================================================
-        
+
         # Determine validation status
         accuracy = metrics["accuracy"]
         if accuracy >= 0.80:
@@ -368,7 +368,7 @@ class QuantamentalTrainer:
             validation_status = "degraded"
         else:
             validation_status = "rejected"
-        
+
         # Create artifact WITH metadata
         artifact = wandb.Artifact(
             name="quantamental-model",
@@ -386,7 +386,7 @@ class QuantamentalTrainer:
                 "train_samples": len(X_train),
                 "test_samples": len(X_test),
                 "test_month": f"{test_year}-{test_month:02d}",
-            }
+            },
         )
         artifact.add_file(artifact_paths["model"])
         artifact.add_file(artifact_paths["scaler"])

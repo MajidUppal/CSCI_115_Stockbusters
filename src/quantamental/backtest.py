@@ -256,16 +256,20 @@ class QuantamentalBacktester:
         # ============================================
         # STEP 1.5: Load full historical data for TRAILING metrics
         # ============================================
-        logger.info("   📊 Loading full historical data for trailing backtest metrics...")
-        
+        logger.info(
+            "   📊 Loading full historical data for trailing backtest metrics..."
+        )
+
         try:
             # Load full historical data (all months, not just latest)
-            df_historical = pd.read_parquet(f"{self.data_dir}/quantamental_monthly.parquet")
+            df_historical = pd.read_parquet(
+                f"{self.data_dir}/quantamental_monthly.parquet"
+            )
             logger.info(f"    Loaded {len(df_historical):,} rows of historical data")
-            
+
             # Ensure it's sorted
             df_historical = df_historical.sort_values(["symbol", "date"])
-            
+
         except Exception as e:
             logger.warning(f"    Could not load historical data: {e}")
             df_historical = None
@@ -273,17 +277,21 @@ class QuantamentalBacktester:
         # ============================================
         # STEP 2: Calculate TRAILING Backtest Metrics
         # ============================================
-        logger.info("    Calculating TRAILING backtest metrics (historical performance)...")
-        
+        logger.info(
+            "    Calculating TRAILING backtest metrics (historical performance)..."
+        )
+
         # Pass both current predictions AND full history for trailing calculation
         df_combined = calculate_backtest_metrics(df_combined, df_full=df_historical)
         logger.info("    Backtest metrics calculated")
-        
+
         # Log what we got
         if "n_periods" in df_combined.columns:
             avg_periods = df_combined["n_periods"].mean()
             if pd.notna(avg_periods):
-                logger.info(f"    Average historical periods per stock: {avg_periods:.0f} months")
+                logger.info(
+                    f"    Average historical periods per stock: {avg_periods:.0f} months"
+                )
 
         # ============================================
         # STEP 3: Handle column name mappings
@@ -462,11 +470,13 @@ class QuantamentalBacktester:
 
         # Show first few columns
         logger.info(f"    First 10 columns: {list(df_output.columns[:10])}")
-        
+
         # Show backtest metric stats
         if "sharpe_1m_annual" in df_output.columns:
             sharpe_filled = df_output["sharpe_1m_annual"].notna().sum()
-            logger.info(f"    📊 Backtest metrics filled: {sharpe_filled}/{len(df_output)} rows")
+            logger.info(
+                f"    📊 Backtest metrics filled: {sharpe_filled}/{len(df_output)} rows"
+            )
 
         # ============================================
         # STEP 7: Company profiles
@@ -575,7 +585,9 @@ class QuantamentalBacktester:
         )
         logger.info("      Fundamentals (11): roe, roic, peRatio, etc.")
         logger.info("      Technicals (8): return_1m, RSI_14, MACD, etc.")
-        logger.info("      Backtest (9): sharpe_1m_annual, cagr, hit_rates, etc. [TRAILING]")
+        logger.info(
+            "      Backtest (9): sharpe_1m_annual, cagr, hit_rates, etc. [TRAILING]"
+        )
         logger.info("      Other (3): date, sector, industry")
         logger.info("=" * 60)
 

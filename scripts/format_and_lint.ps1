@@ -49,13 +49,24 @@ function Get-ChangedFiles {
     
     if ($ChangedOnly -and (Get-Command git -ErrorAction SilentlyContinue)) {
         $changed = git diff --name-only --diff-filter=ACMR HEAD 2>&1
-        switch ($Component) {
-            "rag" { return $changed | Select-String "^src/rag/.*\.py$" }
-            "quantamental" { return $changed | Select-String "^src/quantamental/.*\.py$" }
-            "api-service" { return $changed | Select-String "^src/api-service/.*\.py$" }
+        if ($LASTEXITCODE -ne 0) {
+            return @()
         }
+        $filtered = @()
+        switch ($Component) {
+            "rag" { 
+                $filtered = $changed | Where-Object { $_ -match "^src/rag/.*\.py$" }
+            }
+            "quantamental" { 
+                $filtered = $changed | Where-Object { $_ -match "^src/quantamental/.*\.py$" }
+            }
+            "api-service" { 
+                $filtered = $changed | Where-Object { $_ -match "^src/api-service/.*\.py$" }
+            }
+        }
+        return $filtered
     }
-    return $null
+    return @()
 }
 
 # Function to format and lint RAG
@@ -72,29 +83,44 @@ function Format-Lint-RAG {
     }
     
     # Check if we should only process changed files
+    $changedFiles = @()
     if ($ChangedOnly) {
         $changedFiles = Get-ChangedFiles "rag"
-        if (-not $changedFiles) {
+        if ($changedFiles.Count -eq 0) {
             Write-Host "[INFO] No RAG files changed, skipping..." -ForegroundColor Blue
             return 0
         }
-        Write-Host "[INFO] Processing changed files only" -ForegroundColor Blue
+        Write-Host "[INFO] Processing $($changedFiles.Count) changed file(s) only" -ForegroundColor Blue
     }
     
     Write-Host "[INFO] Formatting with black..."
     # Match CI: format entire directory (including tests), exclude archived files
+    # Or format only changed files if -ChangedOnly is set
     $ErrorActionPreference = 'SilentlyContinue'
-    $formatResult = python -m black --line-length 120 --exclude '/(__pycache__|\.venv|venv|_archived)/' src/rag/ 2>&1 | Out-Null
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $formatCmd = "$blackCmd --line-length 120 $($changedFiles -join ' ')"
+        Invoke-Expression $formatCmd 2>&1 | Out-Null
+    } else {
+        $formatCmd = "$blackCmd --line-length 120 --exclude '/(__pycache__|\.venv|venv|_archived)/' src/rag/"
+        Invoke-Expression $formatCmd 2>&1 | Out-Null
+    }
     $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
         Write-Host "[FAIL] RAG formatting failed" -ForegroundColor Red
         return 1
     }
     
     Write-Host "[INFO] Running flake8 linting..."
     # Match CI: lint entire directory (including tests), exclude archived files
+    # Or lint only changed files if -ChangedOnly is set
     $ErrorActionPreference = 'SilentlyContinue'
-    $lintResult = python -m flake8 --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821,F541,E231 --exclude=_archived src/rag/ 2>&1 | Out-Null
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $lintCmd = "$flake8Cmd --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821,F541,E231 $($changedFiles -join ' ')"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
+    } else {
+        $lintCmd = "$flake8Cmd --max-line-length=120 --extend-ignore=E203,W503,E501,E722,W504,E402,F401,F841,F811,F821,F541,E231 --exclude=_archived src/rag/"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
+    }
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -eq 0) {
         $elapsed = [math]::Round(($(Get-Date) - $StartTime).TotalSeconds, 1)
@@ -120,21 +146,29 @@ function Format-Lint-Quantamental {
     }
     
     # Check if we should only process changed files
+    $changedFiles = @()
     if ($ChangedOnly) {
         $changedFiles = Get-ChangedFiles "quantamental"
-        if (-not $changedFiles) {
+        if ($changedFiles.Count -eq 0) {
             Write-Host "[INFO] No Quantamental files changed, skipping..." -ForegroundColor Blue
             return 0
         }
-        Write-Host "[INFO] Processing changed files only" -ForegroundColor Blue
+        Write-Host "[INFO] Processing $($changedFiles.Count) changed file(s) only" -ForegroundColor Blue
     }
     
     Write-Host "[INFO] Formatting with black..."
     # Match CI: format entire directory (including tests)
+    # Or format only changed files if -ChangedOnly is set
     $ErrorActionPreference = 'SilentlyContinue'
-    $formatResult = python -m black --exclude '/(__pycache__|\.venv|venv)/' src/quantamental/ 2>&1 | Out-Null
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $formatCmd = "$blackCmd $($changedFiles -join ' ')"
+        Invoke-Expression $formatCmd 2>&1 | Out-Null
+    } else {
+        $formatCmd = "$blackCmd --exclude '/(__pycache__|\.venv|venv)/' src/quantamental/"
+        Invoke-Expression $formatCmd 2>&1 | Out-Null
+    }
     $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
         Write-Host "[FAIL] Quantamental formatting failed" -ForegroundColor Red
         return 1
     }
@@ -143,24 +177,32 @@ function Format-Lint-Quantamental {
     # Match CI: two separate flake8 runs (entire directory including tests)
     # First run: strict errors (E9,F63,F7,F82)
     $ErrorActionPreference = 'SilentlyContinue'
-    $lintResult = python -m flake8 --count --select=E9,F63,F7,F82 --show-source --statistics src/quantamental/ 2>&1 | Out-Null
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $lintCmd = "$flake8Cmd --count --select=E9,F63,F7,F82 --show-source --statistics $($changedFiles -join ' ')"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
+    } else {
+        $lintCmd = "$flake8Cmd --count --select=E9,F63,F7,F82 --show-source --statistics src/quantamental/"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
+    }
     $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
         Write-Host "[FAIL] Quantamental linting failed (strict errors)" -ForegroundColor Red
         return 1
     }
     # Second run: warnings with exit-zero (matches CI behavior)
+    # Note: --exit-zero always returns 0, so we just run it for reporting
     $ErrorActionPreference = 'SilentlyContinue'
-    $lintResult = python -m flake8 --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics src/quantamental/ 2>&1 | Out-Null
-    $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -eq 0) {
-        $elapsed = [math]::Round(($(Get-Date) - $StartTime).TotalSeconds, 1)
-        Write-Host "[OK] Quantamental passed - $elapsed seconds" -ForegroundColor Green
-        return 0
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $lintCmd = "$flake8Cmd --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics $($changedFiles -join ' ')"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
     } else {
-        Write-Host "[FAIL] Quantamental linting failed" -ForegroundColor Red
-        return 1
+        $lintCmd = "$flake8Cmd --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics src/quantamental/"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
     }
+    $ErrorActionPreference = 'Stop'
+    $elapsed = [math]::Round(($(Get-Date) - $StartTime).TotalSeconds, 1)
+    Write-Host "[OK] Quantamental passed - $elapsed seconds" -ForegroundColor Green
+    return 0
 }
 
 # Function to format and lint API-service
@@ -177,21 +219,29 @@ function Format-Lint-APIService {
     }
     
     # Check if we should only process changed files
+    $changedFiles = @()
     if ($ChangedOnly) {
         $changedFiles = Get-ChangedFiles "api-service"
-        if (-not $changedFiles) {
+        if ($changedFiles.Count -eq 0) {
             Write-Host "[INFO] No API-service files changed, skipping..." -ForegroundColor Blue
             return 0
         }
-        Write-Host "[INFO] Processing changed files only" -ForegroundColor Blue
+        Write-Host "[INFO] Processing $($changedFiles.Count) changed file(s) only" -ForegroundColor Blue
     }
     
     Write-Host "[INFO] Formatting with black..."
     # Match CI: format entire directory (including tests)
+    # Or format only changed files if -ChangedOnly is set
     $ErrorActionPreference = 'SilentlyContinue'
-    $formatResult = python -m black --exclude '/(__pycache__|\.venv|venv)/' src/api-service/ 2>&1 | Out-Null
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $formatCmd = "$blackCmd $($changedFiles -join ' ')"
+        Invoke-Expression $formatCmd 2>&1 | Out-Null
+    } else {
+        $formatCmd = "$blackCmd --exclude '/(__pycache__|\.venv|venv)/' src/api-service/"
+        Invoke-Expression $formatCmd 2>&1 | Out-Null
+    }
     $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
         Write-Host "[FAIL] API-service formatting failed" -ForegroundColor Red
         return 1
     }
@@ -200,24 +250,32 @@ function Format-Lint-APIService {
     # Match CI: two separate flake8 runs (entire directory including tests)
     # First run: strict errors (E9,F63,F7,F82)
     $ErrorActionPreference = 'SilentlyContinue'
-    $lintResult = python -m flake8 --count --select=E9,F63,F7,F82 --show-source --statistics src/api-service/ 2>&1 | Out-Null
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $lintCmd = "$flake8Cmd --count --select=E9,F63,F7,F82 --show-source --statistics $($changedFiles -join ' ')"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
+    } else {
+        $lintCmd = "$flake8Cmd --count --select=E9,F63,F7,F82 --show-source --statistics src/api-service/"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
+    }
     $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
         Write-Host "[FAIL] API-service linting failed (strict errors)" -ForegroundColor Red
         return 1
     }
     # Second run: warnings with exit-zero (matches CI behavior)
+    # Note: --exit-zero always returns 0, so we just run it for reporting
     $ErrorActionPreference = 'SilentlyContinue'
-    $lintResult = python -m flake8 --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics src/api-service/ 2>&1 | Out-Null
-    $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -eq 0) {
-        $elapsed = [math]::Round(($(Get-Date) - $StartTime).TotalSeconds, 1)
-        Write-Host "[OK] API-service passed - $elapsed seconds" -ForegroundColor Green
-        return 0
+    if ($ChangedOnly -and $changedFiles.Count -gt 0) {
+        $lintCmd = "$flake8Cmd --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics $($changedFiles -join ' ')"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
     } else {
-        Write-Host "[FAIL] API-service linting failed" -ForegroundColor Red
-        return 1
+        $lintCmd = "$flake8Cmd --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics src/api-service/"
+        Invoke-Expression $lintCmd 2>&1 | Out-Null
     }
+    $ErrorActionPreference = 'Stop'
+    $elapsed = [math]::Round(($(Get-Date) - $StartTime).TotalSeconds, 1)
+    Write-Host "[OK] API-service passed - $elapsed seconds" -ForegroundColor Green
+    return 0
 }
 
 # Main execution

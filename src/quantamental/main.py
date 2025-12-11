@@ -322,7 +322,9 @@ def main():
     )
     # CHANGED: RAG is now enabled by default, use --no-rag to disable
     parser.add_argument(
-        "--no-rag", action="store_true", help="Disable RAG reasoning (enabled by default)"
+        "--no-rag",
+        action="store_true",
+        help="Disable RAG reasoning (enabled by default)",
     )
     parser.add_argument(
         "--rag-sample", type=int, default=None, help="Limit RAG to N stocks"

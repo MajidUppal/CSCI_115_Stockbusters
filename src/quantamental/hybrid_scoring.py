@@ -263,10 +263,12 @@ def calculate_hybrid_scores(df: pd.DataFrame) -> pd.DataFrame:
     return df_score
 
 
-def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -> pd.DataFrame:
+def calculate_backtest_metrics(
+    df: pd.DataFrame, df_full: pd.DataFrame = None
+) -> pd.DataFrame:
     """
     Calculate per-symbol TRAILING backtest metrics (historical performance)
-    
+
     UPDATED: Uses historical returns instead of forward returns
     This ensures metrics are always available, even for latest month predictions.
 
@@ -305,6 +307,7 @@ def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -
         # Try to load historical data
         try:
             import os
+
             data_dir = os.path.dirname(os.path.abspath(__file__))
             hist_file = f"{data_dir}/data/quantamental_monthly.parquet"
             if os.path.exists(hist_file):
@@ -342,7 +345,7 @@ def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -
 
         # Average return (trailing, not forward)
         avg_ret = rets.mean()
-        
+
         # Volatility
         vol = rets.std()
 
@@ -385,11 +388,11 @@ def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -
     # Calculate metrics per symbol using HISTORICAL data
     metrics_list = []
     symbols = df["symbol"].unique()
-    
+
     for symbol in symbols:
         # Get ALL historical data for this symbol
         symbol_hist = hist_df[hist_df["symbol"] == symbol].sort_values("date")
-        
+
         if len(symbol_hist) > 0:
             metrics = _trailing_metrics(symbol_hist)
             metrics["symbol"] = symbol
@@ -397,10 +400,10 @@ def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -
 
     if metrics_list:
         metrics_df = pd.DataFrame(metrics_list)
-        
+
         # Merge back to original df
         df_result = df.merge(metrics_df, on="symbol", how="left")
-        
+
         logger.info(f"    Trailing metrics calculated for {len(metrics_df)} symbols")
         logger.info(f"      Avg Sharpe: {metrics_df['sharpe_1m_annual'].mean():.2f}")
         logger.info(f"      Avg CAGR: {metrics_df['cagr'].mean()*100:.1f}%")
@@ -427,7 +430,7 @@ def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -
 def calculate_backtest_metrics_forward(df: pd.DataFrame) -> pd.DataFrame:
     """
     ORIGINAL: Calculate per-symbol backtest metrics using FORWARD returns
-    
+
     NOTE: This requires future data (fwd_return_1m) which may not exist
     for latest month predictions. Use calculate_backtest_metrics() instead
     for trailing metrics that always work.
@@ -467,7 +470,9 @@ def calculate_backtest_metrics_forward(df: pd.DataFrame) -> pd.DataFrame:
         logger.warning(
             "    This is normal for latest month predictions (no future data yet)"
         )
-        logger.warning("    TIP: Use calculate_backtest_metrics() for trailing metrics instead")
+        logger.warning(
+            "    TIP: Use calculate_backtest_metrics() for trailing metrics instead"
+        )
 
         # Add NaN columns
         for col in [
