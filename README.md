@@ -855,11 +855,9 @@ Base on the time stamp, the ML pipeline is executed successfully every morning a
 |Model| Moderate Prediction Accuracy | Predictions may not reliably identify outperforming stocks | Implement walk-forward validation, additional hyperparameter tuning, and ensemble methods (XGBoost, LightGBM) |
 |Storage cost|GCS storage Growth | Output files accumulate over time, increasing storage costs|  Implement lifecycle policies to delete old files, use versioning with retention limits|
 |Data Pipeline|Stale Predictions|Same recommendations shown for entire month; doesn't reflect intra-month market changes|Implement daily prediction refresh using latest technical indicators while maintaining monthly model training|
-|FrontEnd|
+|FrontEnd|generate report button not activate|Unable to generate report| Work is being done to resolve that|
 
 
-**Bugs and Fixes**
-- Rarely the chatbot doesn't activate the generate report button. This happens when the user confirmation is ambiguous. Work is being done to resolve that.
 
 **Future Enhancements**
 
