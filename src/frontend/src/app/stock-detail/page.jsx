@@ -175,9 +175,9 @@ function StockDetailContent() {
 
                     <div className="flex items-center gap-3">
                         <span className="text-2xl font-bold">{symbol}</span>
-                        {quant.signal && (
+                        {quant["H_Score Recommendation"] && (
                             <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm">
-                                {quant.signal}
+                                {quant["H_Score Recommendation"]}
                             </span>
                         )}
                         {company.name && (
@@ -245,7 +245,7 @@ function StockDetailContent() {
                                 {quant.cagr !== undefined && (
                                     <Metric
                                         label="CAGR"
-                                        value={`${quant.cagr.toFixed(2)}%`}
+                                        value={`${(quant.cagr*100).toFixed(2)}%`}
                                         positive
                                     />
                                 )}
@@ -253,7 +253,7 @@ function StockDetailContent() {
                                 {quant.max_drawdown !== undefined && (
                                     <Metric
                                         label="Max Drawdown"
-                                        value={`${quant.max_drawdown.toFixed(2)}%`}
+                                        value={`${(quant.max_drawdown*-100).toFixed(2)}%`}
                                         negative
                                     />
                                 )}
@@ -407,4 +407,5 @@ const ChartCard = ({ title, children }) => (
         <h2 className="text-xl font-semibold mb-4">{title}</h2>
         {children}
     </div>
+
 );
