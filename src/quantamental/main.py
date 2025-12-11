@@ -7,7 +7,7 @@ Pipeline steps:
 3. Model Training (with validation)
 4. Prediction (validated model)
 5. Backtest (output CSV)
-6. RAG Reasoning (optional)
+6. RAG Reasoning (enabled by default)
 7. Data Versioning (W&B artifacts)
 """
 
@@ -181,7 +181,7 @@ def run_backtest(config, df=None):
 
 
 def run_rag_reasoning(config, combined_csv_path=None, sample_size=None):
-    """Step 6: Add RAG reasoning to output CSV (optional)"""
+    """Step 6: Add RAG reasoning to output CSV"""
     log.info("=" * 50)
     log.info("STEP 6: RAG REASONING")
     log.info("=" * 50)
@@ -243,7 +243,7 @@ def run_data_versioning(config, version_tag="ms4"):
 def run_full_pipeline(
     force_refresh=False,
     skip_training=False,
-    enable_rag=False,
+    enable_rag=True,  # RAG enabled by default
     rag_sample_size=None,
     version_data=True,
 ):
@@ -275,7 +275,7 @@ def run_full_pipeline(
     backtest_results = run_backtest(config, df)
     results["backtest"] = backtest_results
 
-    # Step 6: RAG Reasoning (optional)
+    # Step 6: RAG Reasoning (enabled by default)
     if enable_rag:
         csv_path = backtest_results.get("local_files", {}).get("combined")
         enhanced_path = run_rag_reasoning(config, csv_path, sample_size=rag_sample_size)
@@ -320,7 +320,10 @@ def main():
     parser.add_argument(
         "--skip-training", action="store_true", help="Use existing model"
     )
-    parser.add_argument("--enable-rag", action="store_true", help="Add RAG reasoning")
+    # CHANGED: RAG is now enabled by default, use --no-rag to disable
+    parser.add_argument(
+        "--no-rag", action="store_true", help="Disable RAG reasoning (enabled by default)"
+    )
     parser.add_argument(
         "--rag-sample", type=int, default=None, help="Limit RAG to N stocks"
     )
@@ -336,7 +339,7 @@ def main():
             run_full_pipeline(
                 force_refresh=args.force_refresh,
                 skip_training=args.skip_training,
-                enable_rag=args.enable_rag,
+                enable_rag=not args.no_rag,  # CHANGED: RAG enabled unless --no-rag
                 rag_sample_size=args.rag_sample,
                 version_data=not args.no_version,
             )
