@@ -27,9 +27,10 @@ on:
           - 'true'
 
 # Prevent multiple deployments from running simultaneously
+# cancel-in-progress: true ensures only the latest run executes
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 # Set default permissions
 permissions:
@@ -53,6 +54,8 @@ jobs:
     # Run on:
     # 1. Manual workflow_dispatch
     # 2. Push events (triggers when cd.yml or deployment code changes on main/develop/Milestone5)
+    #    Note: If the same commit also triggers CI, workflow_run will also trigger CD.
+    #    The concurrency group with cancel-in-progress: true ensures only one runs.
     # 3. workflow_run: CI completed successfully on main/develop/Milestone5 branch
     if: |
       github.event_name == 'workflow_dispatch' ||
