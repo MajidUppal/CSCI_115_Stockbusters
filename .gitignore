@@ -73,6 +73,10 @@ pip-delete-this-directory.txt
 !**/htmlcov/
 !**/htmlcov/**/*
 
+# Explicitly allow frontend lib directory (source code, not build artifacts)
+!src/frontend/src/lib/
+!src/frontend/src/lib/**/*
+
 # Translations
 *.mo
 *.pot

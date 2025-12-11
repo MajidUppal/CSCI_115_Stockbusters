@@ -11,12 +11,12 @@ from api.routers import chatbot_final, stock_details
 # from api.routers import test_router
 
 # Setup FastAPI app
-#app = FastAPI(title="API Server", description="API Server", version="v1")
+# app = FastAPI(title="API Server", description="API Server", version="v1")
 app = FastAPI(
-    title="API Server", 
-    description="API Server", 
+    title="API Server",
+    description="API Server",
     version="v1",
-    root_path=os.getenv("ROOT_PATH", "")
+    root_path=os.getenv("ROOT_PATH", ""),
 )
 
 # Enable CORSMiddleware

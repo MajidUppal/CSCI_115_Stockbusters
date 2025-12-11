@@ -1,10 +1,10 @@
 # Stock Busters - Deployment Documentation
 
-This directory contains the infrastructure-as-code (IaC) deployment configurations for the Stock Busters application using Pulumi and Google Cloud Platform (GCP).
+This directory contains the infrastructure-as-code (IaC) deployment configurations for the Stock Busters application using **Pulumi and Google Cloud Platform (GCP)**.
 
 ## 🏗️ Architecture Overview
 
-The Stock Busters application is deployed on Google Kubernetes Engine (GKE) with the following components:
+The Stock Busters application is deployed on **Google Kubernetes Engine (GKE)** with the following components:
 
 - **Frontend**: Next.js application serving the user interface
 - **API Service**: FastAPI backend providing stock analysis and recommendations

@@ -45,6 +45,7 @@
     "uuid": "^11.0.2"
   },
   "devDependencies": {
+    "@svgr/webpack": "^8.1.0",
     "@tailwindcss/typography": "^0.5.10",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",

@@ -10,6 +10,8 @@ The Unified CI Pipeline is a comprehensive continuous integration system that au
 
 The pipeline uses Docker containers for isolation, runs multiple test types (lint, unit, integration, system), generates code coverage reports, and combines them into a unified report.
 
+**Continuous Deployment**: After the CI pipeline completes successfully on `main`, `develop`, or `Milestone5` branches, the CD (Continuous Deployment) pipeline automatically triggers to build Docker images, push them to GCP Artifact Registry, and deploy the application to Google Kubernetes Engine (GKE) using Pulumi. See the [CD Pipeline Documentation](CD_PIPELINE.md) for complete details.
+
 ![Successful Automated Unified CI run on push](Successful%20Automated%20Unified%20CI%20run%20on%20push.png)
 
 *Example: Successful CI pipeline execution triggered by a push event*
@@ -49,14 +51,14 @@ detect-changes → build → tests → test-summary
 
 The pipeline runs automatically on:
 
-- **Push events** to `main`, `develop`, or `Milestone4` branches when files in:
+- **Push events** to `main`, `develop`, or `Milestone5` branches when files in:
   - `src/rag/**`
   - `src/quantamental/**`
   - `src/api-service/**`
   - `.github/workflows/ci.yml`
   are modified
 
-- **Pull request events** targeting `main`, `develop`, or `Milestone4` branches with the same path filters
+- **Pull request events** targeting `main`, `develop`, or `Milestone5` branches with the same path filters
 
 - **Manual dispatch** via GitHub Actions UI (`workflow_dispatch`)
 
@@ -65,6 +67,19 @@ The pipeline runs automatically on:
 The pipeline uses concurrency groups to prevent multiple runs for the same branch:
 - Only one workflow run per branch at a time
 - New runs cancel in-progress runs for the same branch
+
+### Continuous Deployment Trigger
+
+**Important**: Upon successful completion of the CI pipeline on `main`, `develop`, or `Milestone5` branches, the CD (Continuous Deployment) pipeline automatically triggers. The CD pipeline:
+
+1. Builds Docker images for all components
+2. Pushes images to GCP Artifact Registry
+3. Deploys the application to Google Kubernetes Engine (GKE) using Pulumi
+4. Verifies deployment health and pod readiness
+
+This ensures that only code that passes all tests and coverage requirements is automatically deployed to production.
+
+📖 **For detailed CD pipeline documentation, see**: [CD Pipeline Documentation](CD_PIPELINE.md)
 
 ---
 
@@ -131,7 +146,7 @@ The pipeline uses concurrency groups to prevent multiple runs for the same branc
 
 **Conditional Execution**:
 - Skips if component didn't change (unless manual dispatch)
-- System tests only run on `main`, `develop`, `Milestone4` branches (or manual dispatch)
+- System tests only run on `main`, `develop`, `Milestone5` branches (or manual dispatch)
 
 #### Test Types
 
@@ -287,17 +302,49 @@ The pipeline uses concurrency groups to prevent multiple runs for the same branc
 
 **Summary includes**:
 - **Combined Coverage Report**:
-  - Combined coverage percentage with threshold status
+  - Combined coverage percentage with threshold status (✅ or ❌)
 - **Component Breakdown**:
-  - RAG: Coverage %, Branch Coverage %
-  - Quantamental: Coverage %, Branch Coverage %
-  - API-service: Coverage %, Branch Coverage %
-- **Test Status**: Overall test result (passed/skipped/failed)
+  - 🔍 RAG Component: Coverage %, Branch Coverage %
+  - 📊 Quantamental Component: Coverage %, Branch Coverage %
+  - 🚀 API-service Component: Coverage %, Branch Coverage %
+- **Test Status**: Overall test result (🎉 All tests passed! or ⚠️ Some tests failed)
 - **Coverage Reports**: Links to unified XML and HTML reports
+
+**Example Summary Format**:
+```
+📊 Unified CI Pipeline Results
+
+📈 Combined Coverage Report
+
+Combined Coverage: 70% ✅ (meets 50% threshold)
+
+Component Breakdown
+
+🔍 RAG Component
+Coverage: 73%
+Branch Coverage: 67%
+
+📊 Quantamental Component
+Coverage: 62%
+Branch Coverage: 46%
+
+🚀 API-service Component
+Coverage: 78%
+Branch Coverage: 67%
+
+Test Status
+
+🎉 All tests passed!
+
+📁 Coverage Reports
+
+Unified coverage report available at: coverage/coverage.xml
+HTML reports available in: coverage/htmlcov/ (or component-specific subdirectories)
+```
 
 ![Unified CI Test Summary](Unified%20CI%20Test%20Summary.png)
 
-*Example: CI pipeline test summary showing combined coverage and component breakdown*
+*Example: CI pipeline test summary showing combined coverage (70%) and individual component breakdown*
 
 ---
 
@@ -399,7 +446,7 @@ The pipeline uses concurrency groups to prevent multiple runs for the same branc
 
 **Execution**: Slower, requires service startup and teardown.
 
-**Branch Restriction**: Only runs on `main`, `develop`, `Milestone4` branches (or manual dispatch).
+**Branch Restriction**: Only runs on `main`, `develop`, `Milestone5` branches (or manual dispatch).
 
 **Isolation**: Uses real service instances in Docker containers.
 
@@ -425,6 +472,8 @@ Where:
 **Requirement**: Combined coverage must be ≥ 50%
 
 **Enforcement**: Pipeline fails if threshold not met.
+
+**Current Performance**: 70% combined coverage (exceeds threshold by 20 percentage points)
 
 **Individual Components**: No individual thresholds (only combined threshold).
 
@@ -493,7 +542,7 @@ Where:
 **Benefit**: Faster CI on feature branches (skips slow system tests).
 
 **Implementation**:
-- System tests only run on `main`, `develop`, `Milestone4`
+- System tests only run on `main`, `develop`, `Milestone5`
 - Feature branches skip system tests automatically
 
 ### 5. Fail-Fast Strategy
@@ -599,12 +648,18 @@ docker pull ghcr.io/<owner>/<repo>/api-service:abc123def456
 **Clarification**: Combined coverage is a **weighted average**, not a simple average.
 
 **Example**:
-- RAG: 72% (1000 lines)
-- Quantamental: 45% (2000 lines)
-- API-service: 68% (500 lines)
-- **Combined**: (720 + 900 + 340) / (1000 + 2000 + 500) = 1960 / 3500 = **56%**
+- RAG: 73% (1000 lines) → 730 lines covered
+- Quantamental: 62% (2000 lines) → 1240 lines covered
+- API-service: 78% (500 lines) → 390 lines covered
+- **Combined**: (730 + 1240 + 390) / (1000 + 2000 + 500) = 2360 / 3500 = **67.4%**
 
-Not: (72 + 45 + 68) / 3 = **61.67%**
+Not: (73 + 62 + 78) / 3 = **71%** (simple average - incorrect method)
+
+**Current Actual Values**:
+- Combined Coverage: **70%** ✅
+- RAG: 73% coverage, 67% branch coverage
+- Quantamental: 62% coverage, 46% branch coverage
+- API-service: 78% coverage, 67% branch coverage
 
 ### Coverage Report Not Committed
 

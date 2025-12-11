@@ -11,12 +11,43 @@ project = gcp_config.require("project")
 location = os.environ.get("GCP_REGION", "us-central1")
 
 # Get absolute paths
-# If running from /app/deploy_images, src is at /app
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # /app/deploy_images
-SRC_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))  # /app (src directory)
+# Script is at: src/deployment/deploy_images/__main__.py (repo root)
+#              or /app/deploy_images/__main__.py (Docker)
+# Handle two scenarios:
+# 1. Docker: /app/deploy_images/__main__.py -> /app (go up 1 level)
+# 2. GitHub Actions/repo root: src/deployment/deploy_images/__main__.py -> src/ (go up 2 levels)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # deploy_images directory
+DEPLOYMENT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))  # parent directory
+
+# Detect environment by checking which path structure exists
+# In Docker: api-service exists at /app/api-service
+# In repo root: api-service exists at src/api-service (two levels up)
+docker_api_service = os.path.join(DEPLOYMENT_DIR, "api-service")
+repo_api_service = os.path.abspath(os.path.join(SCRIPT_DIR, "../../api-service"))
 
 print(f"Script directory: {SCRIPT_DIR}")
-print(f"Src directory: {SRC_DIR}")
+print(f"Deployment directory: {DEPLOYMENT_DIR}")
+print(f"Checking Docker path: {docker_api_service} - exists: {os.path.exists(docker_api_service)}")
+print(f"Checking repo path: {repo_api_service} - exists: {os.path.exists(repo_api_service)}")
+
+if DEPLOYMENT_DIR.startswith("/app"):
+    # Docker environment: /app/deploy_images -> /app
+    SRC_DIR = DEPLOYMENT_DIR
+    print("Detected: Docker environment (path starts with /app)")
+elif os.path.exists(repo_api_service):
+    # Repo root structure: go up 2 levels to src/
+    SRC_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "../.."))
+    print("Detected: Repo root structure (api-service found two levels up)")
+elif os.path.exists(docker_api_service):
+    # Fallback: api-service exists at deployment level (unlikely but possible)
+    SRC_DIR = DEPLOYMENT_DIR
+    print("Detected: Deployment-level structure (api-service found at deployment level)")
+else:
+    # Default: assume repo structure
+    SRC_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "../.."))
+    print("Warning: Could not detect structure, defaulting to repo structure")
+
+print(f"Final SRC_DIR: {SRC_DIR}")
 
 # 🕒 Timestamp for tagging
 timestamp_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -52,6 +83,15 @@ api_service_dockerfile = os.path.join(api_service_context, "Dockerfile")
 print(f"API Service context: {api_service_context}")
 print(f"API Service dockerfile: {api_service_dockerfile}")
 print(f"Dockerfile exists: {os.path.exists(api_service_dockerfile)}")
+if not os.path.exists(api_service_dockerfile):
+    print(f"ERROR: Dockerfile not found at: {api_service_dockerfile}")
+    print(f"Checking alternative paths...")
+    # Try alternative paths for debugging
+    alt_path1 = os.path.join(DEPLOYMENT_DIR, "api-service", "Dockerfile")
+    alt_path2 = os.path.abspath(os.path.join(SCRIPT_DIR, "../../api-service/Dockerfile"))
+    print(f"Alternative path 1 (deployment level): {alt_path1} - exists: {os.path.exists(alt_path1)}")
+    print(f"Alternative path 2 (repo level): {alt_path2} - exists: {os.path.exists(alt_path2)}")
+    raise FileNotFoundError(f"Dockerfile not found at: {api_service_dockerfile}")
 
 api_service_image = docker_build.Image(
     "build-stockbusters-app-api-service",
