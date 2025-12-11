@@ -2,7 +2,7 @@
 Model Training Module
 - Train Random Forest Classifier
 - Log to Weights & Biases (W&B)
-- Save model artifacts
+- Save model artifacts WITH METADATA
 - Evaluate performance
 """
 
@@ -355,18 +355,45 @@ class QuantamentalTrainer:
         # Save artifacts
         artifact_paths = self.save_artifacts(model, scaler, run.id)
 
-        # Log artifacts to W&B
+        # ================================================================
+        # UPDATED: Log model artifact WITH METADATA
+        # This fixes the "no metadata, using fallback" warning
+        # ================================================================
+        
+        # Determine validation status
+        accuracy = metrics["accuracy"]
+        if accuracy >= 0.80:
+            validation_status = "production"
+        elif accuracy >= 0.35:
+            validation_status = "degraded"
+        else:
+            validation_status = "rejected"
+        
+        # Create artifact WITH metadata
         artifact = wandb.Artifact(
             name="quantamental-model",
             type="model",
-            description="Random Forest model for stock screening",
+            description=f"Random Forest model for stock screening (accuracy: {accuracy:.2%})",
+            metadata={
+                "accuracy": float(metrics["accuracy"]),
+                "precision": float(metrics["precision"]),
+                "recall": float(metrics["recall"]),
+                "f1_score": float(metrics["f1_score"]),
+                "roc_auc": float(metrics["roc_auc"]),
+                "validation_status": validation_status,
+                "optimal_threshold": float(optimal_threshold),
+                "n_features": len(self.feature_names),
+                "train_samples": len(X_train),
+                "test_samples": len(X_test),
+                "test_month": f"{test_year}-{test_month:02d}",
+            }
         )
         artifact.add_file(artifact_paths["model"])
         artifact.add_file(artifact_paths["scaler"])
         artifact.add_file(artifact_paths["config"])
         run.log_artifact(artifact)
 
-        logger.info(" Model logged to W&B as artifact")
+        logger.info(f" Model logged to W&B with metadata (status: {validation_status})")
 
         # Log classification report
         report = classification_report(y_test, y_pred, output_dict=True)

@@ -1,9 +1,10 @@
 """
-Backtest Module
-- Rank stocks by prediction probability
-- Generate final output reports
-- Upload results to GCS
-- Log results to W&B
+Backtest Module - UPDATED with Trailing Metrics Support
+
+Changes from original:
+- Uses TRAILING (historical) backtest metrics instead of forward metrics
+- Backtest columns will be filled even for latest month predictions
+- Loads full historical data for accurate metrics calculation
 """
 
 import pandas as pd
@@ -162,10 +163,14 @@ class QuantamentalBacktester:
                     run.summary["avg_hybrid_score"] = df_output["Hybrid_Score"].mean()
 
                 if "sharpe_1m_annual" in df_output.columns:
-                    run.summary["avg_sharpe"] = df_output["sharpe_1m_annual"].mean()
+                    sharpe_val = df_output["sharpe_1m_annual"].mean()
+                    if pd.notna(sharpe_val):
+                        run.summary["avg_sharpe"] = sharpe_val
 
                 if "cagr" in df_output.columns:
-                    run.summary["avg_cagr"] = df_output["cagr"].mean()
+                    cagr_val = df_output["cagr"].mean()
+                    if pd.notna(cagr_val):
+                        run.summary["avg_cagr"] = cagr_val
 
                 # Create artifact
                 artifact = wandb.Artifact(
@@ -210,7 +215,7 @@ class QuantamentalBacktester:
 
         Pipeline:
         1. Calculate Hybrid Scores (from hybrid_scoring.py)
-        2. Calculate Backtest Metrics (from hybrid_scoring.py)
+        2. Calculate TRAILING Backtest Metrics (historical, not forward)
         3. Select exactly 40 columns
         4. Save output files
 
@@ -249,38 +254,36 @@ class QuantamentalBacktester:
         logger.info("    Hybrid scores calculated")
 
         # ============================================
-        # STEP 1.5: Calculate fwd_return_1m if missing
+        # STEP 1.5: Load full historical data for TRAILING metrics
         # ============================================
-        if "fwd_return_1m" not in df_combined.columns:
-            logger.info("   🔧 Calculating fwd_return_1m for backtest metrics...")
-
-            # Sort by symbol and date
-            df_combined = df_combined.sort_values(["symbol", "date"])
-
-            # Calculate forward return (shift -1 within each symbol group)
-            df_combined["fwd_return_1m"] = df_combined.groupby("symbol")[
-                "return_1m"
-            ].shift(-1)
-
-            # Calculate forward S&P500 return if sp500_return_1m exists
-            if "sp500_return_1m" in df_combined.columns:
-                df_combined["fwd_sp500_return_1m"] = df_combined.groupby("symbol")[
-                    "sp500_return_1m"
-                ].shift(-1)
-                logger.info("    Added 'fwd_return_1m' and 'fwd_sp500_return_1m'")
-            else:
-                logger.info("    Added 'fwd_return_1m' (no S&P500 benchmark)")
-
-            # Log stats
-            valid_fwd = df_combined["fwd_return_1m"].notna().sum()
-            logger.info(f"    {valid_fwd} rows have forward returns for backtest")
+        logger.info("   📊 Loading full historical data for trailing backtest metrics...")
+        
+        try:
+            # Load full historical data (all months, not just latest)
+            df_historical = pd.read_parquet(f"{self.data_dir}/quantamental_monthly.parquet")
+            logger.info(f"    Loaded {len(df_historical):,} rows of historical data")
+            
+            # Ensure it's sorted
+            df_historical = df_historical.sort_values(["symbol", "date"])
+            
+        except Exception as e:
+            logger.warning(f"    Could not load historical data: {e}")
+            df_historical = None
 
         # ============================================
-        # STEP 2: Calculate Backtest Metrics
+        # STEP 2: Calculate TRAILING Backtest Metrics
         # ============================================
-        logger.info("    Calculating backtest metrics...")
-        df_combined = calculate_backtest_metrics(df_combined)
+        logger.info("    Calculating TRAILING backtest metrics (historical performance)...")
+        
+        # Pass both current predictions AND full history for trailing calculation
+        df_combined = calculate_backtest_metrics(df_combined, df_full=df_historical)
         logger.info("    Backtest metrics calculated")
+        
+        # Log what we got
+        if "n_periods" in df_combined.columns:
+            avg_periods = df_combined["n_periods"].mean()
+            if pd.notna(avg_periods):
+                logger.info(f"    Average historical periods per stock: {avg_periods:.0f} months")
 
         # ============================================
         # STEP 3: Handle column name mappings
@@ -459,6 +462,11 @@ class QuantamentalBacktester:
 
         # Show first few columns
         logger.info(f"    First 10 columns: {list(df_output.columns[:10])}")
+        
+        # Show backtest metric stats
+        if "sharpe_1m_annual" in df_output.columns:
+            sharpe_filled = df_output["sharpe_1m_annual"].notna().sum()
+            logger.info(f"    📊 Backtest metrics filled: {sharpe_filled}/{len(df_output)} rows")
 
         # ============================================
         # STEP 7: Company profiles
@@ -567,7 +575,7 @@ class QuantamentalBacktester:
         )
         logger.info("      Fundamentals (11): roe, roic, peRatio, etc.")
         logger.info("      Technicals (8): return_1m, RSI_14, MACD, etc.")
-        logger.info("      Backtest (9): sharpe_1m_annual, cagr, hit_rates, etc.")
+        logger.info("      Backtest (9): sharpe_1m_annual, cagr, hit_rates, etc. [TRAILING]")
         logger.info("      Other (3): date, sector, industry")
         logger.info("=" * 60)
 

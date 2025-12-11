@@ -1,6 +1,9 @@
 """
-Hybrid Scoring Module
+Hybrid Scoring Module - UPDATED with Trailing Backtest Metrics
 
+Changes from original:
+- calculate_backtest_metrics now uses TRAILING (historical) returns
+- Works even for latest month predictions (no future data needed)
 """
 
 import pandas as pd
@@ -260,24 +263,187 @@ def calculate_hybrid_scores(df: pd.DataFrame) -> pd.DataFrame:
     return df_score
 
 
-def calculate_backtest_metrics(df: pd.DataFrame) -> pd.DataFrame:
+def calculate_backtest_metrics(df: pd.DataFrame, df_full: pd.DataFrame = None) -> pd.DataFrame:
     """
-    Calculate per-symbol backtest metrics - FIXED to handle empty metrics
+    Calculate per-symbol TRAILING backtest metrics (historical performance)
+    
+    UPDATED: Uses historical returns instead of forward returns
+    This ensures metrics are always available, even for latest month predictions.
 
     Args:
-        df: DataFrame with fwd_return_1m and fwd_sp500_return_1m
+        df: DataFrame with current predictions (latest month)
+        df_full: Full historical DataFrame with all months (optional, for trailing calc)
 
     Returns:
         DataFrame with added columns:
         - n_periods, avg_fwd_1m_ret, vol_1m, sharpe_1m_annual
         - max_drawdown, hit_rate_pos, hit_rate_vs_sp500, cagr
     """
-    logger.info(" Calculating backtest metrics per symbol...")
+    logger.info(" Calculating TRAILING backtest metrics per symbol...")
+
+    # Check if we have return_1m for trailing calculation
+    if "return_1m" not in df.columns:
+        logger.warning("     'return_1m' not found - cannot calculate backtest metrics")
+        for col in [
+            "n_periods",
+            "avg_fwd_1m_ret",
+            "vol_1m",
+            "sharpe_1m_annual",
+            "max_drawdown",
+            "hit_rate_pos",
+            "hit_rate_vs_sp500",
+            "cagr",
+        ]:
+            df[col] = np.nan
+        return df
+
+    # If we have full historical data, use it for better trailing metrics
+    if df_full is not None and len(df_full) > len(df):
+        logger.info("    Using full historical data for trailing metrics")
+        hist_df = df_full.copy()
+    else:
+        # Try to load historical data
+        try:
+            import os
+            data_dir = os.path.dirname(os.path.abspath(__file__))
+            hist_file = f"{data_dir}/data/quantamental_monthly.parquet"
+            if os.path.exists(hist_file):
+                hist_df = pd.read_parquet(hist_file)
+                logger.info(f"    Loaded historical data: {len(hist_df)} rows")
+            else:
+                hist_df = df.copy()
+                logger.warning("    No historical data found, using current data only")
+        except Exception as e:
+            hist_df = df.copy()
+            logger.warning(f"    Could not load historical data: {e}")
+
+    # Ensure we have SP500 returns for comparison
+    if "sp500_return_1m" not in hist_df.columns:
+        hist_df["sp500_return_1m"] = 0.0  # Default to 0 if not available
+
+    def _trailing_metrics(symbol_df):
+        """Calculate trailing metrics for one symbol using historical data"""
+        # Get all historical returns for this symbol (not forward returns)
+        rets = symbol_df["return_1m"].dropna()
+
+        if len(rets) < 2:
+            return pd.Series(
+                {
+                    "n_periods": len(rets),
+                    "avg_fwd_1m_ret": np.nan,
+                    "vol_1m": np.nan,
+                    "sharpe_1m_annual": np.nan,
+                    "max_drawdown": np.nan,
+                    "hit_rate_pos": np.nan,
+                    "hit_rate_vs_sp500": np.nan,
+                    "cagr": np.nan,
+                }
+            )
+
+        # Average return (trailing, not forward)
+        avg_ret = rets.mean()
+        
+        # Volatility
+        vol = rets.std()
+
+        # Annualized Sharpe (using trailing returns)
+        sharpe = (avg_ret / vol) * np.sqrt(12) if vol > 0 else np.nan
+
+        # Drawdown calculation
+        equity = (1 + rets).cumprod()
+        running_max = equity.cummax()
+        max_dd = (equity / running_max - 1).min()
+
+        # Hit rate (positive returns)
+        hit_pos = (rets > 0).mean()
+
+        # Hit rate vs S&P500 (trailing)
+        if "sp500_return_1m" in symbol_df.columns:
+            bench = symbol_df["sp500_return_1m"].reindex(rets.index)
+            hit_vs_bench = (rets > bench).mean()
+        else:
+            hit_vs_bench = np.nan
+
+        # CAGR (trailing)
+        total_return = equity.iloc[-1] - 1 if len(equity) > 0 else 0
+        years = len(rets) / 12
+        cagr = (1 + total_return) ** (1 / years) - 1 if years > 0 else np.nan
+
+        return pd.Series(
+            {
+                "n_periods": len(rets),
+                "avg_fwd_1m_ret": avg_ret,  # Renamed but actually trailing
+                "vol_1m": vol,
+                "sharpe_1m_annual": sharpe,
+                "max_drawdown": max_dd,
+                "hit_rate_pos": hit_pos,
+                "hit_rate_vs_sp500": hit_vs_bench,
+                "cagr": cagr,
+            }
+        )
+
+    # Calculate metrics per symbol using HISTORICAL data
+    metrics_list = []
+    symbols = df["symbol"].unique()
+    
+    for symbol in symbols:
+        # Get ALL historical data for this symbol
+        symbol_hist = hist_df[hist_df["symbol"] == symbol].sort_values("date")
+        
+        if len(symbol_hist) > 0:
+            metrics = _trailing_metrics(symbol_hist)
+            metrics["symbol"] = symbol
+            metrics_list.append(metrics)
+
+    if metrics_list:
+        metrics_df = pd.DataFrame(metrics_list)
+        
+        # Merge back to original df
+        df_result = df.merge(metrics_df, on="symbol", how="left")
+        
+        logger.info(f"    Trailing metrics calculated for {len(metrics_df)} symbols")
+        logger.info(f"      Avg Sharpe: {metrics_df['sharpe_1m_annual'].mean():.2f}")
+        logger.info(f"      Avg CAGR: {metrics_df['cagr'].mean()*100:.1f}%")
+        logger.info(f"      Avg Hit Rate: {metrics_df['hit_rate_pos'].mean()*100:.1f}%")
+        logger.info(f"      Avg Periods: {metrics_df['n_periods'].mean():.0f} months")
+    else:
+        logger.warning("     No metrics calculated")
+        for col in [
+            "n_periods",
+            "avg_fwd_1m_ret",
+            "vol_1m",
+            "sharpe_1m_annual",
+            "max_drawdown",
+            "hit_rate_pos",
+            "hit_rate_vs_sp500",
+            "cagr",
+        ]:
+            df[col] = np.nan
+        df_result = df
+
+    return df_result
+
+
+def calculate_backtest_metrics_forward(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    ORIGINAL: Calculate per-symbol backtest metrics using FORWARD returns
+    
+    NOTE: This requires future data (fwd_return_1m) which may not exist
+    for latest month predictions. Use calculate_backtest_metrics() instead
+    for trailing metrics that always work.
+
+    Args:
+        df: DataFrame with fwd_return_1m and fwd_sp500_return_1m
+
+    Returns:
+        DataFrame with added columns (may be NaN if no forward data)
+    """
+    logger.info(" Calculating FORWARD backtest metrics per symbol...")
 
     # Ensure we have required columns
     if "fwd_return_1m" not in df.columns:
         logger.warning(
-            "     'fwd_return_1m' not found - cannot calculate backtest metrics"
+            "     'fwd_return_1m' not found - cannot calculate forward backtest metrics"
         )
         # Add NaN columns
         for col in [
@@ -301,6 +467,7 @@ def calculate_backtest_metrics(df: pd.DataFrame) -> pd.DataFrame:
         logger.warning(
             "    This is normal for latest month predictions (no future data yet)"
         )
+        logger.warning("    TIP: Use calculate_backtest_metrics() for trailing metrics instead")
 
         # Add NaN columns
         for col in [
