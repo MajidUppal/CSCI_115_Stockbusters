@@ -841,12 +841,11 @@ Base on the time stamp, the ML pipeline is executed successfully every morning a
 
 <img width="745" height="343" alt="image" src="https://github.com/user-attachments/assets/72ff0787-f57e-4763-a748-8fa05af93603" />
 
-
-📄 *See [docs/Quantamental_Model_Pipeline.md](docs/Quantamental_Model_Pipeline.md) for detailed analysis.*
+See [docs/Quantamental_Model_Pipeline.md](docs/Quantamental_Model_Pipeline.md) for detailed analysis.
 ---
 
 
-## Known Issues and Limitations  <--- Majid/Mahmood/Seraphim/Siri update
+## Known Issues and Limitations 
 
 ### Limitations
 
@@ -880,7 +879,7 @@ Base on the time stamp, the ML pipeline is executed successfully every morning a
 
 
 ---
-### Milestone 5 - Code Organization    <-- Seraphim/Mahmood/Majid/Siri  check your part
+### Milestone 5 - Code Organization   
 
 ```
 AC215_StockBusters/
