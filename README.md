@@ -1,4 +1,4 @@
-## AC215/CSCIE-115 - Milestone 2: A Multi-Agent System for Stock Recommendations
+## AC215/CSCIE-115 - Milestone 2: An Agentic System for Stock Recommendations
 
 **Team Members** : Majid Uppal, Sirisom Pranivong, Seraphim Eilken, Mahmood Masqati
 
