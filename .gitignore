@@ -211,4 +211,4 @@ src/rag/data/*.csv
 
 # Secrets - JSON files contain sensitive credentials
 # CI pipeline creates dummy files if needed, so these don't need to be in git
-secrets/*.json
+secrets/*.jsonsecrets/
